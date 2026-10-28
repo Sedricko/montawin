@@ -1,3 +1,4 @@
+using System.Text;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using MontaWin.Implantador;
@@ -207,6 +208,16 @@ public class TelasTests
         Assert.Equal("store.steampowered.com", Programas.SiteNaSaida("Url do Fornecedor: https://www.valvesoftware.com\nPágina Inicial: https://store.steampowered.com/about"));
         Assert.Equal("notepad-plus-plus.org", Programas.SiteNaSaida("Url: https://github.com/notepad-plus-plus\nHome: https://notepad-plus-plus.org/"));
         Assert.Null(Programas.SiteNaSaida("Nenhum pacote encontrado."));
+    }
+
+    [Fact]
+    public void AcentosDosComandosDoWindows()
+    {
+        // Página do console da cultura (850 no Windows em português); o provedor das páginas antigas precisa estar ligado
+        Assert.Equal(System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage, Comandos.Codificacao("diskpart").CodePage);
+        var cp850 = Encoding.GetEncoding(850);
+        Assert.Equal("Microsoft DiskPart versão", cp850.GetString(cp850.GetBytes("Microsoft DiskPart versão")));
+        Assert.Equal(System.Text.Encoding.UTF8, Comandos.Codificacao(@"C:\x\winget.exe"));
     }
 
     [Fact]

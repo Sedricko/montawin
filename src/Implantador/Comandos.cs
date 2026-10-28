@@ -23,12 +23,26 @@ public static partial class Comandos
     }
 
     /// <summary>Roda um programa e repassa o percentual que ele imprimir (DISM, robocopy).</summary>
+    /// <summary>
+    /// Como o programa escreve os acentos: diskpart, dism, robocopy, netsh... usam a página do console (850 no Brasil);
+    /// o winget escreve em UTF-8. Lido errado, "versão" virava "versÆo".
+    /// </summary>
+    public static Encoding Codificacao(string exe)
+    {
+        if (Path.GetFileNameWithoutExtension(exe.Replace('\\', '/')).Equals("winget", StringComparison.OrdinalIgnoreCase)) return Encoding.UTF8;
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        try { return Encoding.GetEncoding(System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage); }
+        catch (Exception) { return Encoding.GetEncoding(850); } // cultura sem página OEM (ex.: invariante no WinPE)
+    }
+
     public static int Executar(string exe, string argumentos, Action<double>? progresso = null)
     {
         lock (Saida) Saida.Clear();
+        var acentos = Codificacao(exe);
         var psi = new ProcessStartInfo(exe, argumentos)
         {
             RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true,
+            StandardOutputEncoding = acentos, StandardErrorEncoding = acentos,
         };
         using var p = Process.Start(psi)!;
         p.ErrorDataReceived += (_, e) => { if (e.Data != null) Guardar(e.Data); };
