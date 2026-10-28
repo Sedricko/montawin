@@ -106,6 +106,14 @@ public class TelasTests
     }
 
     [Fact]
+    public void RedesVisiveisVemDoNetsh()
+    {
+        var saida = "Nome da interface : Wi-Fi\r\nHá 2 redes visíveis no momento.\r\n\r\nSSID 1 : Casa 5G\r\n    Tipo de rede : Infraestrutura\r\n"
+            + "SSID 2 : \r\nSSID 3 : Loja\r\nSSID 4 : Casa 5G\r\n";
+        Assert.Equal(["Casa 5G", "Loja"], Sistema.RedesNaSaida(saida));
+    }
+
+    [Fact]
     public void PainelGraficoDesenhaTodasAsTelasNosTresTemas()
     {
         if (!OperatingSystem.IsWindows() && !NativeLibrary.TryLoad("libgdiplus.so", out _)) return; // sem GDI+ aqui

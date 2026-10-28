@@ -427,11 +427,20 @@ List<string> RedesConhecidas(Disco? d)
         .OfType<string>().Distinct().ToList();
 }
 
-// Wi-Fi do Windows novo: rede conhecida do Windows antigo, outra digitada ou nenhuma (Rede null). null = voltou.
+// Redes com sinal agora. Só funciona se o WinPE tiver Wi-Fi (serviço WLAN e driver); senão volta vazio.
+static List<string> RedesVisiveis()
+{
+    try { return Comandos.Executar("netsh", "wlan show networks") == 0 ? Sistema.RedesNaSaida(Comandos.UltimaSaidaCompleta) : []; }
+    catch (Exception) { return []; } // netsh/WLAN ausente
+}
+
+// Wi-Fi do Windows novo: rede conhecida do Windows antigo ou com sinal agora, outra digitada ou nenhuma (Rede null). null = voltou.
 (string? Rede, string Senha)? EscolherWifi(Disco? antigo, string? atual)
 {
-    var conhecidas = RedesConhecidas(antigo);
-    var opcoes = conhecidas.Select(r => $"Wi-Fi: {r}").Append("Outra rede Wi-Fi (digitar o nome)").Append("Sem Wi-Fi (cabo de rede, ou conectar depois)").ToList();
+    var salvas = RedesConhecidas(antigo);
+    var visiveis = RedesVisiveis();
+    var conhecidas = salvas.Union(visiveis).ToList();
+    var opcoes = conhecidas.Select(r => $"Wi-Fi: {r}" + (salvas.Contains(r) ? "   (já usada neste PC)" : "   (com sinal agora)")).Append("Outra rede Wi-Fi (digitar o nome)").Append("Sem Wi-Fi (cabo de rede, ou conectar depois)").ToList();
     while (true)
     {
         int sel = atual == null ? opcoes.Count - 1 : conhecidas.Contains(atual) ? conhecidas.IndexOf(atual) : conhecidas.Count;
@@ -443,6 +452,7 @@ List<string> RedesConhecidas(Disco? d)
         var nome = i < conhecidas.Count ? conhecidas[i]
             : Tui.Perguntar("Rede Wi-Fi", ["Nome da rede exatamente como aparece (maiúsculas e minúsculas contam)."], "Nome da rede", inicial: atual ?? "");
         if (string.IsNullOrWhiteSpace(nome)) continue;
+        // A senha salva no Windows antigo é criptografada por aquele Windows: não dá para reaproveitar, então é digitada.
         var senha = Tui.Perguntar($"Senha do Wi-Fi {nome}", ["Deixe em branco se a rede for aberta.",
             "A senha é apagada do Windows novo assim que a rede é configurada."], "Senha do Wi-Fi", oculto: true);
         if (senha == null) continue;

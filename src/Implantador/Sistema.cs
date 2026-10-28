@@ -126,4 +126,9 @@ public static partial class Sistema
     public static string? AvisoPendriveLento(double mbPorSegundo, long bytesImagem) =>
         mbPorSegundo >= 60 ? null
         : $"Pendrive lento ({mbPorSegundo:0} MB/s): use uma porta USB 3.0 (azul). Só a imagem deve levar ~{Math.Ceiling(bytesImagem / 1e6 / mbPorSegundo / 60):0} min.";
+
+    /// <summary>Nomes das redes na saída do "netsh wlan show networks" (linhas "SSID 1 : nome"), sem repetir.</summary>
+    public static List<string> RedesNaSaida(string saida) =>
+        saida.Split('\n').Select(l => System.Text.RegularExpressions.Regex.Match(l.Trim(), @"^SSID \d+\s*:\s*(.+)$"))
+            .Where(m => m.Success).Select(m => m.Groups[1].Value.Trim()).Where(n => n.Length > 0).Distinct().ToList();
 }
