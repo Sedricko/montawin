@@ -107,6 +107,11 @@ dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSin
   - **Windows do pendrive como lista:** ver quais ISOs estão nele (versão, edições, tamanho), **acrescentar** outra e **remover** uma sem mexer nas outras, nos perfis e nos backups.
   - **Aviso de versão nova:** ao conectar um pendrive gravado com uma versão antiga do app, oferece atualizar o painel.
   - Apagar o pendrive só na primeira vez ou quando o técnico pedir ("Apagar e recriar"), sempre com a confirmação.
+- **Restaurar por programa (favoritos e senhas)** — projeto:
+  - No backup, um modo **"migração"** copia as pastas de perfil dos programas que a pessoa escolher (navegadores, Outlook/e-mail, etc.), com os favoritos e o cofre de senhas **do jeito que estão** (criptografados pelo próprio programa) — nunca uma lista de senhas em texto.
+  - Na restauração, uma tela mostra o que há no backup (Chrome, Firefox, Outlook...) e a pessoa marca o que devolver. O Aurora Win devolve cada pasta no lugar certo do programa **já instalado** (ex.: `AppData\Roaming\Mozilla` para o Firefox).
+  - **Limite honesto:** Firefox devolve os favoritos e as senhas copiando a pasta. Chrome/Edge (Chromium): os favoritos voltam, mas as senhas salvas são presas ao login do Windows antigo e muitas vezes **não** voltam só copiando a pasta — o certo é a pessoa entrar na conta Google/Microsoft do navegador, que sincroniza as senhas. Outlook: contas e e-mails (.pst/.ost) voltam; a senha de cada conta é digitada uma vez.
+  - Sem varredura do PC nem arquivo com senhas decifradas (um arquivo desses no pendrive seria um risco para o cliente).
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos
