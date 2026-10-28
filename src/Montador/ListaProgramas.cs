@@ -49,31 +49,53 @@ public class ItemLista(Programa programa, string selo) : System.ComponentModel.I
 /// </summary>
 public static class Icones
 {
-    static string Pasta => Path.Combine(ListaProgramas.Pasta, "Icones");
+    static string Pasta => Path.Combine(ListaProgramas.Pasta, "Icones2"); // 2: os da 1ª versão vinham do site da empresa (Valve, Google...)
+
+    // Site do produto (não da empresa) dos programas conhecidos: o ícone sai certo e não depende do winget
+    static readonly Dictionary<string, string> Sites = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Google.Chrome"] = "chrome.google.com", ["RARLab.WinRAR"] = "win-rar.com", ["Notepad++.Notepad++"] = "notepad-plus-plus.org",
+        ["Skillbrains.Lightshot"] = "app.prntscr.com", ["pCloudAG.pCloudDrive"] = "pcloud.com", ["9NCBCSZSJRSB"] = "spotify.com",
+        ["Microsoft.Office"] = "microsoft365.com", ["Foxit.PhantomPDF"] = "foxit.com", ["Mozilla.Firefox"] = "firefox.com",
+        ["7zip.7zip"] = "7-zip.org", ["VideoLAN.VLC"] = "videolan.org", ["AnyDesk.AnyDesk"] = "anydesk.com",
+        ["TeamViewer.TeamViewer"] = "teamviewer.com", ["Adobe.Acrobat.Reader.64-bit"] = "acrobat.adobe.com", ["Zoom.Zoom"] = "zoom.us",
+        ["Discord.Discord"] = "discord.com", ["Valve.Steam"] = "store.steampowered.com", ["EclipseAdoptium.Temurin.21.JRE"] = "adoptium.net",
+        ["CodecGuide.K-LiteCodecPack.Standard"] = "codecguide.com", ["TheDocumentFoundation.LibreOffice"] = "libreoffice.org",
+        ["Google.GoogleDrive"] = "drive.google.com", ["9NKSQGP7F2NH"] = "whatsapp.com", ["Telegram.TelegramDesktop"] = "telegram.org",
+        ["CPUID.CPU-Z"] = "cpuid.com", ["Microsoft.VCRedist.2008.x86"] = "visualstudio.microsoft.com", ["NVIDIA"] = "nvidia.com",
+    };
     static string Arquivo(Programa p) => Path.Combine(Pasta, Perfil.NomeSeguro(p.Ids.FirstOrDefault() ?? p.Nome) + ".png");
 
     public static string? EmCache(Programa p) => File.Exists(Arquivo(p)) ? Arquivo(p) : null;
 
-    // shortcut: instaladores por arquivo ficam com a inicial (sem site no winget), dá para tirar o ícone do .exe se fizer falta
+    // shortcut: instaladores por arquivo só têm ícone se o nome estiver na lista de sites (ex.: NVIDIA), dá para tirar do .exe se fizer falta
     public static async Task<string?> Baixar(Programa p, System.Net.Http.HttpClient http)
     {
         if (EmCache(p) is string pronto) return pronto;
-        if (p.Ids.FirstOrDefault() is not string id) return null;
+        var conhecido = p.Ids.Select(i => Sites.GetValueOrDefault(i)).FirstOrDefault(s => s != null)
+                        ?? Sites.FirstOrDefault(s => p.Nome.Contains(s.Key, StringComparison.OrdinalIgnoreCase)).Value;
+        if (conhecido == null && p.Ids.FirstOrDefault() is null) return null;
         try
         {
-            var psi = new System.Diagnostics.ProcessStartInfo("winget",
-                $"show --id {id} -e --source {(Programas.DaLoja(id) ? "msstore" : "winget")} --accept-source-agreements --disable-interactivity")
-                { RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true, StandardOutputEncoding = System.Text.Encoding.UTF8 };
-            using var winget = System.Diagnostics.Process.Start(psi)!;
-            var saida = await winget.StandardOutput.ReadToEndAsync();
-            await winget.WaitForExitAsync();
-            if (Programas.SiteNaSaida(saida) is not string site) return null;
-            var png = await http.GetByteArrayAsync($"https://www.google.com/s2/favicons?domain={Uri.EscapeDataString(site)}&sz=64");
+            var site = conhecido ?? await SiteDoWinget(p.Ids[0]);
+            if (site == null) return null;
+            var png = await http.GetByteArrayAsync($"https://www.google.com/s2/favicons?domain={Uri.EscapeDataString(site)}&sz=128");
             Directory.CreateDirectory(Pasta);
             await File.WriteAllBytesAsync(Arquivo(p), png);
             return Arquivo(p);
         }
         catch (Exception) { return null; } // sem internet ou sem winget: fica a inicial
+    }
+
+    static async Task<string?> SiteDoWinget(string id)
+    {
+        var psi = new System.Diagnostics.ProcessStartInfo("winget",
+            $"show --id {id} -e --source {(Programas.DaLoja(id) ? "msstore" : "winget")} --accept-source-agreements --disable-interactivity")
+            { RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true, StandardOutputEncoding = System.Text.Encoding.UTF8 };
+        using var winget = System.Diagnostics.Process.Start(psi)!;
+        var saida = await winget.StandardOutput.ReadToEndAsync();
+        await winget.WaitForExitAsync();
+        return Programas.SiteNaSaida(saida);
     }
 }
 

@@ -203,7 +203,8 @@ public class TelasTests
     {
         var saida = "Encontrado Google Chrome [Google.Chrome]\r\nVersão: 130.0\r\nFornecedor: Google LLC\r\nUrl do Fornecedor: https://www.google.com/\r\n" +
                     "Página Inicial: https://www.google.com/chrome\r\nLicença: https://github.com/x\r\n";
-        Assert.Equal("www.google.com", Programas.SiteNaSaida(saida));
+        Assert.Equal("www.google.com", Programas.SiteNaSaida(saida)); // "Página Inicial" é a do produto
+        Assert.Equal("store.steampowered.com", Programas.SiteNaSaida("Url do Fornecedor: https://www.valvesoftware.com\nPágina Inicial: https://store.steampowered.com/about"));
         Assert.Equal("notepad-plus-plus.org", Programas.SiteNaSaida("Url: https://github.com/notepad-plus-plus\nHome: https://notepad-plus-plus.org/"));
         Assert.Null(Programas.SiteNaSaida("Nenhum pacote encontrado."));
     }

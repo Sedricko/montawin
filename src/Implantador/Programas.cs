@@ -59,9 +59,14 @@ public static class Programas
     public static bool SoInternet(string id) => DaLoja(id) || id.Equals("Microsoft.Office", StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Domínio do primeiro endereço da saída do "winget show" (o site do fabricante), sem os genéricos do winget.</summary>
-    public static string? SiteNaSaida(string saida) =>
-        Regex.Matches(saida, @"https?://([A-Za-z0-9.-]+)").Select(m => m.Groups[1].Value.ToLowerInvariant())
+    public static string? SiteNaSaida(string saida)
+    {
+        // A página do produto ("Página Inicial"/"Homepage") vem antes do site da empresa, quando existe
+        var inicial = Regex.Match(saida, @"^\s*(P[aá]gina Inicial|Homepage|Home Page)\s*:\s*https?://([A-Za-z0-9.-]+)", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+        if (inicial.Success && inicial.Groups[2].Value.ToLowerInvariant() is var h0 && h0 != "github.com") return h0;
+        return Regex.Matches(saida, @"https?://([A-Za-z0-9.-]+)").Select(m => m.Groups[1].Value.ToLowerInvariant())
             .FirstOrDefault(h => h is not ("github.com" or "aka.ms" or "go.microsoft.com"));
+    }
 
     /// <summary>"NVIDIA_app*.exe -s" vira ("NVIDIA_app*.exe", "-s").</summary>
     public static (string Arquivo, string Parametros) Separar(string instalador)
