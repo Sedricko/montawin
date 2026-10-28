@@ -797,15 +797,17 @@ void Instalar(Perfil? inicial = null)
             else if (modo == 1)
             {
                 long gbDisco = disco.Tamanho / (1L << 30);
+                bool perguntar = perfil == null;
                 while (true)
                 {
-                    var resposta = perfil != null ? perfil.Instalacao["dividir:".Length..] : Tui.Perguntar("Tamanho do Windows (C:)", [
+                    var resposta = !perguntar ? perfil!.Instalacao["dividir:".Length..] : Tui.Perguntar("Tamanho do Windows (C:)", [
                         $"O disco tem {gbDisco} GB. O resto vira a partição Dados (D:), que você pode manter nas próximas formatações.",
                         "Recomendado: 120 GB ou mais."], "Tamanho do Windows em GB", inicial: (tamanhos.FirstOrDefault() is > 0 and var t ? t : 120).ToString());
                     if (resposta == null) return Passo.Voltar;
                     if (int.TryParse(resposta, out int gb) && gb >= 40 && gb <= gbDisco - 5) { windowsGb = gb; tamanhos = [gb]; break; }
+                    // O tamanho do perfil não cabe neste disco: pergunta em vez de travar a instalação
                     Tui.Mensagem("Tamanho inválido", [$"Use de 40 a {gbDisco - 5} GB para este disco."], erro: true);
-                    if (perfil != null) return Passo.Voltar;
+                    perguntar = true;
                 }
                 plano = Particionamento.ApagarDisco(disco.Numero, uefi, letras[0], letras[1], letras[2], windowsGb);
             }
