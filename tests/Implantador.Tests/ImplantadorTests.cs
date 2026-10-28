@@ -350,4 +350,39 @@ public class ImplantadorTests
         Assert.True(script.IndexOf("rd /s /q") > nvidia);
         Assert.True(script.IndexOf("winget install --id Google.Chrome") > script.IndexOf("rd /s /q"));
     }
+
+    [Fact]
+    public void PerfilVaiEVoltaDoArquivo()
+    {
+        var perfil = new Perfil("PC Escritório")
+        {
+            Pc = "4c4c4544-0042-3510-8051-b4c04f4a3333", Modelo = "Dell Inc. OptiPlex 7090", Edicao = "Windows 11 Pro",
+            Instalacao = "dividir:200", Usuario = "Joao", Senha = "", Programas = ["Google Chrome", "Microsoft 365 (Word, Excel, Outlook)"],
+            Restaurar = false, BackupDrivers = true,
+        };
+        var lido = Perfil.Ler(perfil.Texto())!;
+        Assert.Equal(perfil with { Programas = lido.Programas }, lido);
+        Assert.Equal(perfil.Programas, lido.Programas);
+        Assert.Equal("", lido.Senha); // senha vazia guardada = sem senha
+
+        var semSenha = Perfil.Ler(perfil.Texto().Replace("Senha = \r\n", ""))!;
+        Assert.Null(semSenha.Senha); // sem a linha = perguntar na hora
+        Assert.Null(Perfil.Ler("Edicao = Windows 11 Pro"));
+        Assert.Equal("PC_Escrit_rio", Perfil.NomeSeguro("PC/Escrit:rio"));
+    }
+
+    [Fact]
+    public void LeAIdentidadeDaPlacaMaeNoSmbios()
+    {
+        var uuid = new Guid("4c4c4544-0042-3510-8051-b4c04f4a3333");
+        var tabela = new List<byte>(new byte[8]);                        // cabeçalho RawSMBIOSData
+        tabela.AddRange([0, 0x18, 0, 0]); tabela.AddRange(new byte[0x14]); tabela.AddRange("Dell\0\0"u8.ToArray()); // tipo 0 (BIOS) com um texto
+        var tipo1 = new byte[0x1B]; tipo1[0] = 1; tipo1[1] = 0x1B; uuid.ToByteArray().CopyTo(tipo1, 8);
+        tabela.AddRange(tipo1); tabela.AddRange(new byte[] { 0, 0 });
+        Assert.Equal(uuid.ToString(), Sistema.UuidSmbios(tabela.ToArray()));
+
+        tipo1.AsSpan(8, 16).Fill(0xFF);                                  // placa genérica sem UUID
+        var generica = tabela.Take(8 + 4 + 0x14 + 6).Concat(tipo1).Concat(new byte[] { 0, 0 }).ToArray();
+        Assert.Null(Sistema.UuidSmbios(generica));
+    }
 }

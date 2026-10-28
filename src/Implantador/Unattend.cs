@@ -98,7 +98,7 @@ public static class Unattend
             rem Gerado pelo MontaWin: instala os programas escolhidos no painel.
             echo Instalando programas (MontaWin). Pode usar o computador enquanto isso.
 
-            """.Replace("\n", "\r\n"));
+            """.ReplaceLineEndings("\r\n"));
         var locais = instaladores?.ToList() ?? [];
         foreach (var (arquivo, parametros) in locais)
             s.Append($"start \"\" /wait \"%SystemDrive%\\{PastaInstaladores}\\{arquivo}\" {parametros}\r\n".Replace(" \r\n", "\r\n"));
@@ -113,7 +113,7 @@ public static class Unattend
             goto esperar
             :instalar
 
-            """.Replace("\n", "\r\n"));
+            """.ReplaceLineEndings("\r\n"));
         foreach (var id in idsWinget)
             s.Append($"winget install --id {id} -e --silent --accept-package-agreements --accept-source-agreements\r\n");
         s.Append(":fim\r\n");

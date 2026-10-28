@@ -10,11 +10,52 @@ public static partial class Sistema
     [return: MarshalAs(UnmanagedType.Bool)]
     private static unsafe partial bool GetSystemPowerStatus(byte* status);
 
+    [LibraryImport("kernel32.dll")]
+    private static unsafe partial uint GetSystemFirmwareTable(uint provedor, uint id, byte* buffer, uint tamanho);
+
+    /// <summary>Ex.: "Dell Inc. Inspiron 15 3520"</summary>
+    public static string Modelo()
+    {
+        using var bios = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\BIOS");
+        return $"{bios?.GetValue("SystemManufacturer")} {bios?.GetValue("SystemProductName")}".Trim();
+    }
+
+    /// <summary>Identidade única do PC: UUID da placa-mãe (SMBIOS); se a placa não tiver, o modelo.</summary>
+    public static unsafe string IdPc()
+    {
+        const uint Rsmb = 0x52534D42; // 'RSMB': tabela SMBIOS
+        uint tamanho = GetSystemFirmwareTable(Rsmb, 0, null, 0);
+        var tabela = new byte[tamanho];
+        fixed (byte* p = tabela)
+            if (tamanho > 0 && GetSystemFirmwareTable(Rsmb, 0, p, tamanho) == tamanho && UuidSmbios(tabela) is string uuid)
+                return uuid;
+        return "modelo:" + Modelo();
+    }
+
+    /// <summary>UUID da estrutura tipo 1 (System Information); null se ausente ou genérico (tudo 0 ou tudo FF).</summary>
+    public static string? UuidSmbios(byte[] tabela)
+    {
+        int o = 8; // cabeçalho RawSMBIOSData
+        while (o + 4 <= tabela.Length)
+        {
+            byte tipo = tabela[o], comprimento = tabela[o + 1];
+            if (comprimento < 4 || o + comprimento > tabela.Length || tipo == 127) break;
+            if (tipo == 1 && comprimento >= 0x18)
+            {
+                var uuid = tabela.AsSpan(o + 8, 16);
+                return uuid.IndexOfAnyExcept((byte)0) < 0 || uuid.IndexOfAnyExcept((byte)0xFF) < 0 ? null : new Guid(uuid).ToString();
+            }
+            int s = o + comprimento; // depois da parte fixa vêm os textos, terminados por dois zeros
+            while (s + 1 < tabela.Length && (tabela[s] != 0 || tabela[s + 1] != 0)) s++;
+            o = s + 2;
+        }
+        return null;
+    }
+
     /// <summary>Ex.: "Dell Inc. Inspiron 15 · 16 GB RAM · UEFI"</summary>
     public static string Resumo()
     {
-        using var bios = Registry.LocalMachine.OpenSubKey(@"HARDWARE\DESCRIPTION\System\BIOS");
-        var modelo = $"{bios?.GetValue("SystemManufacturer")} {bios?.GetValue("SystemProductName")}".Trim();
+        var modelo = Modelo();
         var ram = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (1024.0 * 1024 * 1024);
         return $"{modelo} · {ram:0} GB RAM · {(Discos.Uefi ? "UEFI" : "BIOS")}".TrimStart(' ', '·');
     }
