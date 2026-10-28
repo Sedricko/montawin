@@ -105,6 +105,8 @@ public partial class MainWindow : Window
         TituloEdicoes.Visibility = Visibility.Visible;
         ListaPendrives.ItemsSource = new[] { new Disco(2, 256L << 30, "Kingston DataTraveler Max", true, false, []) };
         ListaPendrives.SelectedIndex = 0;
+        CarregarProgramas();
+        BuscaPrograma.Text = "anydesk";
         Status.Text = "Copiando Windows 11 Pro (2 de 2)";
         Barra.Value = 62;
         foreach (RadioButton r in Temas.Children)
@@ -113,7 +115,7 @@ public partial class MainWindow : Window
             var conteudo = (FrameworkElement)Content;
             // A janela rola: uma imagem por "página", de cima até o fim.
             Rolagem.ScrollToTop();
-            for (int pagina = 1; ; pagina++)
+            for (int pagina = 1; pagina <= 6; pagina++)
             {
                 UpdateLayout();
                 Salvar(conteudo, Path.Combine(pasta, $"montador-{tema}-{pagina}.png"), (int)conteudo.ActualWidth, (int)conteudo.ActualHeight);
