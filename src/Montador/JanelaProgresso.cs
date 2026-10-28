@@ -113,12 +113,12 @@ public sealed class JanelaProgresso : Window
         Activate();
     }
 
-    /// <summary>Texto da lista do que já foi feito, sem a frase repetida: "Baixando programas para o pendrive: Notepad++ (5 de 31)" vira "Notepad++ baixado".</summary>
+    /// <summary>Texto da lista do que já foi feito, curto para caber numa linha: "Baixando Notepad++ (5 de 12)" vira "Notepad++ no pendrive".</summary>
     public static string Curto(string etapa)
     {
         etapa = System.Text.RegularExpressions.Regex.Replace(etapa, @"\s*\(\d+ de \d+\)$", "");
-        const string baixando = "Baixando programas para o pendrive: ";
-        return etapa.StartsWith(baixando) ? etapa[baixando.Length..] + " baixado" : etapa;
+        etapa = System.Text.RegularExpressions.Regex.Replace(etapa, @"\s*\([^)]*\)", ""); // "(32 e 64 bits)", "(Word, Excel...)": cabe numa linha
+        return etapa.StartsWith("Baixando ") ? etapa["Baixando ".Length..] + " no pendrive" : etapa;
     }
 
     void Feita(string texto)
@@ -127,7 +127,7 @@ public sealed class JanelaProgresso : Window
         var linha = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
         linha.Children.Add(new TextBlock { Text = "", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), Foreground = arco.Stroke,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
-        linha.Children.Add(new TextBlock { Text = Curto(texto), Opacity = 0.75, TextWrapping = TextWrapping.Wrap, MaxWidth = 320 });
+        linha.Children.Add(new TextBlock { Text = Curto(texto), Opacity = 0.75, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 320 }); // uma linha: a janelinha não cresce
         feitas.Children.Add(linha);
     }
 

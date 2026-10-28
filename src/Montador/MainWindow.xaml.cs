@@ -719,7 +719,7 @@ public partial class MainWindow : Window
         SalvarFundo(FundoDoTema, desfocado, desfocado: true);
 
         // A janela grande sai da frente: a janelinha animada acompanha a gravação e devolve o app no fim
-        var janela = NovaJanelaProgresso(pendrive.Descricao.Trim());
+        var janela = NovaJanelaProgresso($"{pendrive.Modelo} · {Formatar.Tamanho(pendrive.Tamanho)}"); // curto: cabe ao lado do botão
         janela.Closed += (_, _) => { Show(); Activate(); };
         Ocupado(true, "Gravando o pendrive...");
         Hide();

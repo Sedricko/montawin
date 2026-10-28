@@ -406,24 +406,28 @@ public static class Pendrive
     /// </summary>
     public static List<string> BaixarProgramas(char dados, Action<string?, double> progresso)
     {
-        var ids = Programas.Ler(File.ReadAllText($@"{dados}:\MontaWin\Programas.txt")).SelectMany(p => p.Ids).Where(id => !Programas.SoInternet(id)).Distinct().ToList();
+        // Pelo nome do programa (o Visual C++ tem 10 pacotes, mas é uma linha só na tela)
+        var programas = Programas.Ler(File.ReadAllText($@"{dados}:\MontaWin\Programas.txt"))
+            .Select(p => (p.Nome, Ids: p.Ids.Where(id => !Programas.SoInternet(id)).ToArray())).Where(p => p.Ids.Length > 0).ToList();
+        var ids = programas.SelectMany(p => p.Ids.Select(id => (p.Nome, Id: id))).DistinctBy(x => x.Id).ToList();
         var falhas = new List<string>();
         for (int i = 0; i < ids.Count; i++)
         {
-            progresso($"Baixando programas para o pendrive: {ids[i]} ({i + 1} de {ids.Count})", 92 + i * 8.0 / ids.Count);
-            var pasta = $@"{dados}:\MontaWin\Instaladores\winget\{ids[i]}";
+            int posicao = programas.FindIndex(p => p.Nome == ids[i].Nome) + 1;
+            progresso($"Baixando {ids[i].Nome} ({posicao} de {programas.Count})", 92 + i * 8.0 / ids.Count);
+            var pasta = $@"{dados}:\MontaWin\Instaladores\winget\{ids[i].Id}";
             if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true); // sempre a versão mais nova
-            if (ids[i].Equals("Google.Chrome", StringComparison.OrdinalIgnoreCase))
+            if (ids[i].Id.Equals("Google.Chrome", StringComparison.OrdinalIgnoreCase))
             {
-                if (!BaixarChrome(pasta)) falhas.Add(ids[i]);
+                if (!BaixarChrome(pasta)) falhas.Add(ids[i].Nome);
                 continue;
             }
-            if (Comandos.Executar("winget", $"download --id {ids[i]} -e --source winget --download-directory \"{pasta}\" --accept-package-agreements --accept-source-agreements") != 0)
+            if (Comandos.Executar("winget", $"download --id {ids[i].Id} -e --source winget --download-directory \"{pasta}\" --accept-package-agreements --accept-source-agreements") != 0)
             {
-                falhas.Add(ids[i]);
+                falhas.Add(ids[i].Nome);
                 if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true); // sem pasta, o painel usa o winget online
             }
         }
-        return falhas;
+        return falhas.Distinct().ToList();
     }
 }
