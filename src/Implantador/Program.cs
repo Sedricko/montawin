@@ -97,8 +97,8 @@ while (true)
             case 4: MenuPerfis(); break;
             case 5: CapturarImagem(); break;
             case 6: if (Tui.Grafica) Tui.Terminal(AbasDoPrompt()); else Tui.Pausar(PromptDeComando); break;
-            case 7: Comandos.Executar("wpeutil", "reboot"); break;
-            case 8: Comandos.Executar("wpeutil", "shutdown"); break;
+            case 7: Reiniciar(); break;
+            case 8: Reiniciar(desligar: true); break;
         }
     }
     catch (Exception e)
@@ -1248,11 +1248,10 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
     // Com perfil, reinicia sozinho; sem perfil, oferece salvar as escolhas como perfil.
     if (perfil != null)
     {
-        if (Tui.Contagem("Instalação concluída", avisos, "Reiniciando", 15)) Comandos.Executar("wpeutil", "reboot");
+        if (Tui.Contagem("Instalação concluída", avisos, "Reiniciando", 15)) Reiniciar();
         return;
     }
-    if (!multi && Tui.Acoes("Salvar estas escolhas como perfil?", ["Da próxima vez neste PC, a instalação só pede o disco e a confirmação."],
-            [new("Não", TipoItem.Voltar), new("Sim, salvar como perfil →", TipoItem.Continuar)], 0) == 1)
+    if (!multi)
         SalvarComoPerfil(new Perfil("")
         {
             Edicao = edicao.Nome,
@@ -1272,7 +1271,20 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
             PontoRestauracao = pontoRestauracao,
         });
     if (Tui.Acoes("Instalação concluída", avisos, [new("Voltar ao menu", TipoItem.Voltar), new("Reiniciar agora →", TipoItem.Continuar)], 1) == 1)
-        Comandos.Executar("wpeutil", "reboot");
+        Reiniciar();
+}
+
+// Fecha os volumes (o Windows novo, a EFI e o pendrive) antes de reiniciar: sem isso o Windows pode abrir pedindo
+// "Para ignorar a verificação de disco, pressione qualquer tecla" no primeiro boot.
+static void Reiniciar(bool desligar = false)
+{
+    try
+    {
+        foreach (var d in DriveInfo.GetDrives().Where(d => d.IsReady && d.DriveType is DriveType.Fixed or DriveType.Removable && d.Name[0] != 'X'))
+            Comandos.Executar("fsutil", $"volume dismount {d.Name[0]}:");
+    }
+    catch (Exception) { } // sem o fsutil no WinPE: reinicia mesmo assim (o importante é reiniciar)
+    Comandos.Executar("wpeutil", desligar ? "shutdown" : "reboot");
 }
 
 // Relatório da formatação: na área de trabalho do Windows novo (para o cliente) e em MontaWin\Relatorios (para você).
@@ -1312,12 +1324,24 @@ string? SalvarRelatorio(char windows, List<string> resumo)
 
 void SalvarComoPerfil(Perfil escolhas)
 {
-    var nome = Tui.Perguntar("Salvar como perfil", ["Um perfil guarda as respostas desta instalação."], "Nome do perfil (ex.: PC Escritório)");
-    if (string.IsNullOrEmpty(nome) || Perfil.NomeSeguro(nome).Length == 0) return;
-    bool guardarSenha = (escolhas.Usuario != null || escolhas.Wifi != null) && Tui.Menu("Senhas (conta e Wi-Fi)", [], ["Perguntar a senha na hora de instalar (mais seguro)",
-        "Guardar a senha no perfil (mais rápido; fica escrita no pendrive)"], voltar: null) == 1;
-    bool vincular = pcIdentificado && Tui.Menu("Este PC", [$"PC atual: {Sistema.Resumo()}"],
-        ["Vincular a este PC: o painel reconhece este PC e já oferece o perfil ao ligar", "Não vincular"], voltar: null) == 0;
+    // Duas telas: o nome (que também é a pergunta "salvar?": Voltar ou em branco = não salvar) e as duas opções, marcadas ou não
+    string nome;
+    bool guardarSenha = false, vincular = pcIdentificado;
+    while (true)
+    {
+        var digitado = Tui.Perguntar("Salvar estas escolhas como perfil?", ["Da próxima vez neste PC, a instalação só pede o disco e a confirmação.",
+            "Para não salvar, deixe em branco e continue, ou volte."], "Nome do perfil (ex.: PC Escritório)", continuar: "Continuar →", voltar: "Não salvar");
+        if (string.IsNullOrWhiteSpace(digitado) || Perfil.NomeSeguro(digitado).Length == 0) return;
+        nome = digitado;
+        var opcoes = new List<string>();
+        if (escolhas.Usuario != null || escolhas.Wifi != null) opcoes.Add("Guardar as senhas no perfil (a da conta e a do Wi-Fi). Mais rápido, mas ficam escritas no pendrive");
+        if (pcIdentificado) opcoes.Add($"Vincular a este PC ({Sistema.Resumo()}): o painel reconhece o PC e já oferece o perfil ao ligar");
+        if (opcoes.Count == 0) break;
+        var m = Tui.Selecao("Perfil " + nome.Trim(), ["Marque o que quiser guardar no perfil:"], opcoes, opcoes.Select(o => o.StartsWith("Vincular")).ToArray());
+        if (m == null) continue; // voltou: refaz o nome
+        (guardarSenha, vincular) = escolhas.Usuario != null || escolhas.Wifi != null ? (m[0], pcIdentificado && m[^1]) : (false, m[0]);
+        break;
+    }
     var perfil = escolhas with
     {
         Nome = nome.Trim(),

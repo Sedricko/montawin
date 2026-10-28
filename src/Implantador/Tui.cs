@@ -307,7 +307,7 @@ public static class Tui
 
     /// <summary>Lê um texto digitado. Retorna null no Esc/Voltar; com <paramref name="oculto"/> mostra • no lugar (senhas).</summary>
     public static string? Perguntar(string titulo, IReadOnlyList<string> linhas, string rotulo, bool oculto = false,
-        Alerta alerta = Alerta.Nenhum, string inicial = "", string continuar = "Continuar →")
+        Alerta alerta = Alerta.Nenhum, string inicial = "", string continuar = "Continuar →", string voltar = "← Voltar")
     {
         var texto = new StringBuilder(inicial);
         while (true)
@@ -315,7 +315,7 @@ public static class Tui
             Mostrar(new Tela
             {
                 Tipo = TipoTela.Pergunta, Titulo = titulo, Info = linhas, Rotulo = rotulo, Campo = texto.ToString(), Oculto = oculto,
-                Alerta = alerta, Itens = [new Item(continuar, TipoItem.Continuar), new Item("← Voltar", TipoItem.Voltar)],
+                Alerta = alerta, Itens = [new Item(continuar, TipoItem.Continuar), new Item(voltar, TipoItem.Voltar)],
                 Rodape = "Enter: continuar    Esc: voltar",
             });
             var e = Ler();
