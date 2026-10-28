@@ -29,6 +29,7 @@
   <ItemGroup>
     <EmbeddedResource Include="$(PainelExe)" LogicalName="Implantador.exe" Condition="Exists('$(PainelExe)')" />
     <EmbeddedResource Include="icone-painel.png" LogicalName="icone.png" />
+    <EmbeddedResource Include="unidade-*.ico" LogicalName="%(Filename).ico" />
     <Resource Include="icone-app.png" />
   </ItemGroup>
 

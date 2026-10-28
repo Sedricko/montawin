@@ -48,11 +48,11 @@ public static class Pendrive
         clean
         convert mbr
         create partition primary size={BootMb}
-        format quick fs=fat32 label=MONTAWIN
+        format quick fs=fat32 label="AURORA WIN"
         active
         assign letter={boot}
         create partition primary
-        format quick fs=ntfs label=MONTAWIN-DADOS
+        format quick fs=ntfs label="AURORA DADOS"
         assign letter={dados}
         exit
         """;
@@ -165,7 +165,7 @@ public static class Pendrive
         }
 
         progresso("Copiando os arquivos de inicialização", 3);
-        if (Comandos.Executar("robocopy", $@"{iso}:\ {boot}:\ /E /XD {iso}:\sources {iso}:\support /R:1 /W:1 /NP /NFL /NDL /NJH /NJS") >= 8)
+        if (Comandos.Executar("robocopy", $@"{iso}:\ {boot}:\ /E /XD {iso}:\sources {iso}:\support /XF autorun.inf /R:1 /W:1 /NP /NFL /NDL /NJH /NJS") >= 8)
             throw new Exception("Falha ao copiar os arquivos de inicialização.");
 
         progresso("Preparando o painel de inicialização (WinPE)", 6);
@@ -192,6 +192,8 @@ public static class Pendrive
         Exigir(Comandos.Executar("dism", $"/Unmount-Image /MountDir:\"{mount}\" /Commit"), "O DISM não conseguiu salvar o boot.wim.");
         Directory.CreateDirectory($@"{boot}:\sources");
         File.Copy(bootWim, $@"{boot}:\sources\boot.wim", overwrite: true);
+
+        Identidade(boot, dados, g.Tema);
 
         var pastaImagens = $@"{dados}:\MontaWin\Imagens";
         Directory.CreateDirectory(pastaImagens);
@@ -315,6 +317,27 @@ public static class Pendrive
         if (Directory.Exists(fontes))
             foreach (var fonte in Directory.GetFiles(fontes, "*_EX.ttf"))
                 File.Copy(fonte, $@"{boot}:\efi\microsoft\boot\fonts\{Path.GetFileName(fonte).Replace("_EX", "")}", overwrite: true);
+    }
+
+    /// <summary>
+    /// Nome e ícone do Aurora Win nas duas partes do pendrive, no tema escolhido (o autorun.inf da ISO punha o ícone do
+    /// instalador do Windows). O Windows mostra o ícone e o nome do autorun.inf mesmo com a reprodução automática desligada.
+    /// </summary>
+    static void Identidade(char boot, char dados, string tema)
+    {
+        var cor = tema switch { "pastel" => "claro", "cristal" => "cristal", _ => "escuro" };
+        foreach (var (letra, nome, rotulo) in new[] { (boot, "Aurora Win", "AURORA WIN"), (dados, "Aurora Win · dados", "AURORA DADOS") })
+        {
+            var inf = $@"{letra}:\autorun.inf";
+            var ico = $@"{letra}:\aurora.ico";
+            foreach (var f in new[] { inf, ico }) if (File.Exists(f)) File.SetAttributes(f, FileAttributes.Normal);
+            using (var origem = typeof(Pendrive).Assembly.GetManifestResourceStream($"unidade-{cor}.ico"))
+            using (var destino = origem == null ? null : File.Create(ico))
+                origem?.CopyTo(destino!);
+            File.WriteAllText(inf, $"[autorun]\r\nicon=aurora.ico\r\nlabel={nome}\r\n");
+            foreach (var f in new[] { inf, ico }) File.SetAttributes(f, FileAttributes.Hidden | FileAttributes.System);
+            Comandos.Executar("label", $"{letra}: {rotulo}"); // pendrives gravados antes ainda se chamavam MONTAWIN
+        }
     }
 
     /// <summary>O que volta para o pendrive quando ele é apagado e gravado de novo (pequeno: os backups não cabem aqui).</summary>

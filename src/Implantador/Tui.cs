@@ -508,7 +508,7 @@ sealed class TelaTexto : ISaida
         {
             Console.BackgroundColor = ConsoleColor.Black;
             Console.Clear();
-            const string nome = " MONTAWIN · Implantador";
+            const string nome = " AURORA WIN · painel";
             Escrever(0, 0, Formatar.Ajustar(nome + Tui.InfoSistema.PadLeft(Largura - nome.Length), Largura), ConsoleColor.Black, destaque);
         }
         // Teclas apertadas durante uma tarefa longa não podem escolher nada na tela seguinte.

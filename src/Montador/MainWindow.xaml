@@ -146,11 +146,11 @@
           <Ellipse Canvas.Left="290" Canvas.Top="50" Width="700" Height="700" Fill="#3D7BFF" Opacity="0.45">
             <Ellipse.Effect><BlurEffect Radius="160" /></Ellipse.Effect>
           </Ellipse>
-          <Canvas Canvas.Left="640" Canvas.Top="420" Opacity="0.45"> <!-- mais fraco: o branco no meio brigava com o vidro dos blocos -->
+          <Canvas Canvas.Left="640" Canvas.Top="420" Opacity="0.6"> <!-- azul-lilás e mais fraco: o branco no meio brigava com o vidro dos blocos -->
             <Canvas.Effect><BlurEffect Radius="28" /></Canvas.Effect>
             <Canvas.Resources>
               <LinearGradientBrush x:Key="Petala" StartPoint="0,0" EndPoint="1,0">
-                <GradientStop Color="#E6E3F2FF" /><GradientStop Color="#BF4C8DFF" Offset="0.45" /><GradientStop Color="#1A1846C4" Offset="1" />
+                <GradientStop Color="#CC9DB4FF" /><GradientStop Color="#995A7BFF" Offset="0.45" /><GradientStop Color="#1A1846C4" Offset="1" />
               </LinearGradientBrush>
               <Style TargetType="Ellipse">
                 <Setter Property="Width" Value="460" /><Setter Property="Height" Value="160" />
