@@ -2,6 +2,11 @@ using System.Diagnostics;
 using MontaWin.Implantador;
 
 // Pasta MontaWin no pendrive (partição NTFS): imagens, backups, drivers extras, tema e registros ficam lá.
+// Dados do pendrive escondidos do Windows (PIN no Aurora Win): aqui no painel ganham uma letra para serem usados
+if (!DriveInfo.GetDrives().Any(d => d.IsReady && Directory.Exists(Path.Combine(d.Name, "MontaWin", "Imagens"))))
+    foreach (var d in Discos.Listar())
+        if (Discos.DadosEscondidos(d) is Particao escondida && Comandos.LetrasLivres(1, "MNOPQTUVYZ") is [char livre])
+            Discos.Diskpart(Discos.ScriptMostrarDados(d.Numero, escondida.Numero, livre, mostrar: false));
 string? raiz = DriveInfo.GetDrives()
     .Select(d => Path.Combine(d.Name, "MontaWin"))
     .FirstOrDefault(p => Directory.Exists(Path.Combine(p, "Imagens")));

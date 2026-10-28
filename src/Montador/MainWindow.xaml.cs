@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     Perfil? perfilEditado;
     bool perfilNovo;
     TaskCompletionSource<bool>? resposta;
+    (int Disco, char Letra)? revelado; // dados escondidos mostrados com o PIN nesta sessão: voltam a ficar escondidos ao fechar
     readonly DispatcherTimer tempoAviso = new() { Interval = TimeSpan.FromSeconds(4) };
 
     // Os nomes por dentro são os antigos (tema.txt dos pendrives já gravados): ondas = Aurora, bloom = Galáxia, pastel = Alvorada.
@@ -56,9 +57,15 @@ public partial class MainWindow : Window
         foreach (RadioButton r in Temas.Children) r.IsChecked = (string)r.Tag == config.Tema;
         AplicarTema(config.Tema);
         (BootNovo.IsChecked, BootCompativel.IsChecked, Rapida.IsChecked) = (config.BootNovo, !config.BootNovo, config.Rapida);
+        (Esconder.IsChecked, Esconder.IsEnabled) = (config.Esconder && config.TemPin, config.TemPin);
+        BotaoPin.Content = config.TemPin ? "Trocar PIN" : "Definir PIN";
         tempoAviso.Tick += (_, _) => { tempoAviso.Stop(); Aviso.Visibility = Visibility.Collapsed; };
         MontarPopulares();
-        Closed += (_, _) => { if (iso != null) Pendrive.FecharIso(iso.Iso); };
+        Closed += (_, _) =>
+        {
+            if (iso != null) Pendrive.FecharIso(iso.Iso);
+            if (revelado is var (disco, letra)) Discos.Diskpart(Discos.ScriptEsconderDados(disco, 2, letra));
+        };
         Loaded += (_, _) =>
         {
             var args = Environment.GetCommandLineArgs();
@@ -206,8 +213,11 @@ public partial class MainWindow : Window
 
     // ---------- Avisos no visual do app (no lugar das caixas do Windows) ----------
 
-    Task<bool> Perguntar(string titulo, string texto, string sim, string? nao = "Cancelar", bool perigo = false)
+    Task<bool> Perguntar(string titulo, string texto, string sim, string? nao = "Cancelar", bool perigo = false, bool pedirPin = false)
     {
+        CampoPin.Password = "";
+        CampoPin.Visibility = pedirPin ? Visibility.Visible : Visibility.Collapsed;
+        if (pedirPin) Dispatcher.BeginInvoke(() => CampoPin.Focus(), DispatcherPriority.Input);
         (TituloDialogo.Text, TextoDialogo.Text, BotaoDialogoSim.Content) = (titulo, texto, sim);
         BotaoDialogoNao.Content = nao;
         BotaoDialogoNao.Visibility = nao == null ? Visibility.Collapsed : Visibility.Visible;
@@ -222,6 +232,60 @@ public partial class MainWindow : Window
 
     void DialogoSim(object sender, RoutedEventArgs e) { CamadaDialogo.Visibility = Visibility.Collapsed; resposta?.TrySetResult(true); }
     void DialogoNao(object sender, RoutedEventArgs e) { CamadaDialogo.Visibility = Visibility.Collapsed; resposta?.TrySetResult(false); }
+
+    /// <summary>Pede o PIN de administrador (sem PIN definido, libera). false se cancelou.</summary>
+    async Task<bool> ConferirPin(string motivo)
+    {
+        if (!config.TemPin) return true;
+        while (await Perguntar("PIN de administrador", motivo, "Continuar", pedirPin: true))
+        {
+            if (config.PinCerto(CampoPin.Password)) return true;
+            motivo = "PIN errado. Tente de novo.";
+        }
+        return false;
+    }
+
+    async void DefinirPin(object sender, RoutedEventArgs e)
+    {
+        if (config.TemPin && !await ConferirPin("Digite o PIN atual para trocar.")) return;
+        if (!await Perguntar(config.TemPin ? "Novo PIN" : "Definir o PIN", "De 4 a 12 números ou letras. Guarde bem: sem ele não dá para mostrar os dados escondidos pelo app.",
+                "Salvar PIN", pedirPin: true)) return;
+        if (CampoPin.Password.Length < 4) { Erro("O PIN precisa ter pelo menos 4 números ou letras."); return; }
+        config.DefinirPin(CampoPin.Password);
+        config.Salvar();
+        (Esconder.IsEnabled, BotaoPin.Content) = (true, "Trocar PIN");
+        Avisar("PIN salvo. Agora dá para esconder os dados do pendrive no Windows.");
+    }
+
+    // Esconder ou mostrar os dados: vale para as próximas gravações e já para o pendrive escolhido
+    async void EsconderClicado(object sender, RoutedEventArgs e)
+    {
+        bool desejado = Esconder.IsChecked == true;
+        Esconder.IsChecked = config.Esconder;
+        if (!await ConferirPin(desejado ? "Digite o PIN para esconder os dados do pendrive." : "Digite o PIN para deixar os dados do pendrive visíveis.")) return;
+        (config.Esconder, Esconder.IsChecked) = (desejado, desejado);
+        config.Salvar();
+        if (ListaPendrives.SelectedItem is Disco d)
+        {
+            if (desejado && DadosDoPendrive is char letra) Discos.Diskpart(Discos.ScriptEsconderDados(d.Numero, 2, letra));
+            else if (!desejado && Discos.DadosEscondidos(d) is Particao p && Comandos.LetrasLivres(1, "MNOPQTUVYZ") is [char livre])
+                Discos.Diskpart(Discos.ScriptMostrarDados(d.Numero, p.Numero, livre, mostrar: true));
+            revelado = null;
+            Atualizar(this, new RoutedEventArgs());
+        }
+        Avisar(desejado ? "Dados escondidos: no Windows só aparece a parte de boot do pendrive." : "Dados visíveis no Windows de novo.");
+    }
+
+    // Mostra os dados escondidos só enquanto o app está aberto (para ver perfis e usar "Manter")
+    async void Revelar(object sender, RoutedEventArgs e)
+    {
+        if (ListaPendrives.SelectedItem is not Disco d || Discos.DadosEscondidos(d) is not Particao p) return;
+        if (!await ConferirPin("Digite o PIN para mostrar os dados deste pendrive.")) return;
+        if (Comandos.LetrasLivres(1, "MNOPQTUVYZ") is not [char livre]) { Erro("Não há letras de unidade livres."); return; }
+        if (!Discos.Diskpart(Discos.ScriptMostrarDados(d.Numero, p.Numero, livre, mostrar: false))) { Erro("Não consegui dar uma letra à parte escondida do pendrive."); return; }
+        revelado = (d.Numero, livre);
+        Atualizar(this, new RoutedEventArgs());
+    }
 
     void Erro(string mensagem) => _ = Perguntar("Algo não deu certo", mensagem, "Entendi", null, perigo: true);
 
@@ -287,9 +351,10 @@ public partial class MainWindow : Window
     async void Atualizar(object sender, RoutedEventArgs e)
     {
         Ocupado(true, "Procurando pendrives...");
+        int? antes = (ListaPendrives.SelectedItem as Disco)?.Numero;
         var pendrives = await Task.Run(() => Discos.Listar().Where(d => d.Usb).ToList());
         ListaPendrives.ItemsSource = pendrives;
-        ListaPendrives.SelectedIndex = pendrives.Count > 0 ? 0 : -1;
+        ListaPendrives.SelectedIndex = pendrives.Count == 0 ? -1 : Math.Max(0, pendrives.FindIndex(d => d.Numero == antes));
         Ocupado(false, pendrives.Count > 0 ? "Escolha a ISO e o pendrive." : "Nenhum pendrive encontrado. Conecte um e clique em Atualizar.");
     }
 
@@ -303,6 +368,7 @@ public partial class MainWindow : Window
         Manter.Visibility = existente != null ? Visibility.Visible : Visibility.Collapsed;
         Manter.IsChecked = existente != null;
         BotaoSalvarProgramas.Visibility = existente != null ? Visibility.Visible : Visibility.Collapsed;
+        Escondido.Visibility = existente == null && ListaPendrives.SelectedItem is Disco e1 && Discos.DadosEscondidos(e1) != null ? Visibility.Visible : Visibility.Collapsed;
         // Licença já gravada nesse pendrive: aparece na engrenagem, para não precisar digitar de novo.
         // Primeira vez neste PC: a lista que o técnico já editou no pendrive vira a lista do app.
         if (existente is (_, char comLicenca) && Licenca.Text.Length == 0 && File.Exists($@"{comLicenca}:\MontaWin\licenca.txt"))
@@ -624,8 +690,9 @@ public partial class MainWindow : Window
             SalvarFundo(FundoDoTema, desfocado, desfocado: true);
             var gravacao = new Gravacao(iso, indices, pendrive, Implantador, config.Rapida, manter, atualizacoes, config.Tema,
                 (fundo, desfocado), BaixarProgramas.IsChecked == true, (ListaProgramas.Ler(), ListaProgramas.PastaInstaladores),
-                NetFx3.IsChecked == true, licenca, config.BootNovo);
+                NetFx3.IsChecked == true, licenca, config.BootNovo, config.Esconder && config.TemPin);
             var falhas = await Task.Run(() => Pendrive.Gravar(gravacao, Progresso));
+            if (gravacao.Esconder) revelado = null; // a gravação já escondeu de novo
             Ocupado(false, "Pendrive pronto! Dê boot por ele no PC.");
             janela.Concluir(true, "Pendrive pronto!", "Dê boot por ele no PC: o painel Aurora Win abre sozinho." +
                 (falhas.Count > 0 ? $"\nNão deu para baixar: {string.Join(", ", falhas)}. Esses instalam pela internet no primeiro login." : ""));

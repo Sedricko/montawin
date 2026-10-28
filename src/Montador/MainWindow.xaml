@@ -298,6 +298,10 @@
                   <CheckBox x:Name="Manter" Margin="0,10,0,0" Visibility="Collapsed" IsChecked="True">
                     <TextBlock TextWrapping="Wrap" Text="Manter o que já está no pendrive: só adiciona esta ISO e atualiza o painel (imagens, perfis e backups ficam)" />
                   </CheckBox>
+                  <DockPanel x:Name="Escondido" Margin="0,10,0,0" Visibility="Collapsed">
+                    <Button DockPanel.Dock="Right" Style="{StaticResource Pilula}" Margin="8,0,0,0" Content="Mostrar com o PIN" Click="Revelar" />
+                    <TextBlock Style="{StaticResource Dica}" VerticalAlignment="Center" Text="Os dados deste pendrive estão escondidos. Digite o PIN para ver os perfis e manter o que já está nele." />
+                  </DockPanel>
                   <TextBlock Style="{StaticResource Dica}" Margin="0,8,0,0"
                              Text="Pendrive de 16 GB ou mais. Na primeira vez, tudo nele é apagado. Só aparecem discos USB." />
                 </StackPanel>
@@ -477,6 +481,16 @@
               <TextBlock TextWrapping="Wrap" Text="Instalação mais rápida (imagem ~30% maior; ideal para pendrive USB 3.0 ou SSD externo)" />
             </CheckBox>
 
+            <TextBlock FontWeight="SemiBold" Text="Segurança (PIN de administrador)" Margin="0,18,0,4" />
+            <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,8"
+                       Text="Com o PIN, a parte do pendrive com perfis, licença, backups e imagens fica escondida no Windows: no PC de um cliente só aparece a parte de boot. O painel do pendrive continua achando tudo." />
+            <StackPanel Orientation="Horizontal">
+              <Button x:Name="BotaoPin" Style="{StaticResource Pilula}" Content="Definir PIN" Click="DefinirPin" />
+              <CheckBox x:Name="Esconder" Margin="10,0,0,6" VerticalAlignment="Center" Click="EsconderClicado">
+                <TextBlock Text="Esconder os dados do pendrive no Windows" />
+              </CheckBox>
+            </StackPanel>
+
             <Button Style="{StaticResource Principal}" HorizontalAlignment="Right" Margin="0,22,0,0" Content="Pronto" Click="FecharConfig" />
           </StackPanel>
         </Border>
@@ -568,6 +582,7 @@
               <TextBlock x:Name="TituloDialogo" Style="{StaticResource Titulo}" FontSize="19" TextWrapping="Wrap" />
             </StackPanel>
             <TextBlock x:Name="TextoDialogo" TextWrapping="Wrap" LineHeight="21" />
+            <PasswordBox x:Name="CampoPin" Margin="0,14,0,0" MaxLength="12" Visibility="Collapsed" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
               <Button x:Name="BotaoDialogoNao" Style="{StaticResource Pilula}" Margin="0,0,10,0" Click="DialogoNao" />
               <Button x:Name="BotaoDialogoSim" Style="{StaticResource Principal}" Click="DialogoSim" />

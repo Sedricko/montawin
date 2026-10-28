@@ -86,6 +86,30 @@ public static partial class Discos
             return DeviceIoControl(h, codigo, e, entrada.Length, s, saida.Length, out _, 0);
     }
 
+    /// <summary>
+    /// Parte de dados do pendrive escondida do Windows (PIN no Aurora Win): a partição 2 do pendrive com o tipo 0x27,
+    /// que o Windows não monta sozinho (perfis, licença, backups e imagens ficam fora do Explorador do cliente).
+    /// </summary>
+    public static Particao? DadosEscondidos(Disco pendrive) =>
+        pendrive.Usb && !pendrive.Gpt ? pendrive.Particoes.FirstOrDefault(p => p.Numero == 2 && p.Letra == null
+            && p.Tipo is TipoParticao.Fabricante or TipoParticao.RecuperacaoWindows) : null;
+
+    /// <summary>Dá uma letra à parte escondida. <paramref name="mostrar"/>: volta a ser uma partição comum (o Windows passa a mostrar).</summary>
+    public static string ScriptMostrarDados(int disco, int particao, char letra, bool mostrar) =>
+        $"select disk {disco}\nselect partition {particao}\n" + (mostrar ? "set id=07 override\n" : "") + $"assign letter={letra}\nexit\n";
+
+    /// <summary>Tira a letra e marca a parte de dados como oculta (tipo 0x27): o Windows deixa de mostrar no Explorador.</summary>
+    public static string ScriptEsconderDados(int disco, int particao, char letra) =>
+        $"select disk {disco}\nselect partition {particao}\nremove letter={letra} noerr\nset id=27 override\nexit\n";
+
+    public static bool Diskpart(string script)
+    {
+        var arquivo = Path.Combine(Path.GetTempPath(), "aurora-diskpart.txt");
+        File.WriteAllText(arquivo, script);
+        try { return Comandos.Executar("diskpart", $"/s \"{arquivo}\"") == 0; }
+        finally { File.Delete(arquivo); }
+    }
+
     /// <summary>O disco com esse número agora ainda é o pendrive escolhido antes (USB, mesmo modelo e tamanho)?</summary>
     public static bool MesmoPendrive(Disco escolhido, Disco? agora) =>
         agora is { Usb: true } && agora.Modelo == escolhido.Modelo && agora.Tamanho == escolhido.Tamanho;

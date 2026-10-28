@@ -13,10 +13,11 @@ public record IsoAberta(string Iso, char Letra, string Install, List<Edicao> Edi
 /// <param name="Licenca">Chave do produto do técnico (opcional): o painel ativa o Windows com ela; null apaga a do pendrive.</param>
 /// <param name="Programas">Lista de programas do técnico (texto do Programas.txt) e a pasta com os instaladores adicionados por arquivo.</param>
 /// <param name="BootNovo">Boot UEFI assinado com o certificado novo (Windows UEFI CA 2023), tirado do próprio boot.wim da ISO.</param>
+/// <param name="Esconder">Esconde do Windows a parte de dados no fim (perfis, licença, backups e imagens); o painel continua achando.</param>
 /// <param name="Atualizacoes">Pasta com as atualizações .msu do Microsoft Update Catalog, injetadas em cada edição (null = nenhuma).</param>
 public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador, bool Rapida, (char Boot, char Dados)? Manter,
     string? Atualizacoes = null, string Tema = "ondas", (string Fundo, string Desfocado)? Fundos = null, bool BaixarProgramas = false,
-    (string Lista, string PastaInstaladores)? Programas = null, bool NetFx3 = true, string? Licenca = null, bool BootNovo = false);
+    (string Lista, string PastaInstaladores)? Programas = null, bool NetFx3 = true, string? Licenca = null, bool BootNovo = false, bool Esconder = false);
 
 /// <summary>
 /// Monta o pendrive: partição FAT32 de boot (UEFI e BIOS) com o WinPE da ISO abrindo o Implantador,
@@ -286,6 +287,11 @@ public static class Pendrive
             File.WriteAllText(destino + ".sha256", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(f)));
         Directory.Delete(trabalho, recursive: true);
         var falhas = g.BaixarProgramas ? BaixarProgramas(dados, progresso) : [];
+        if (g.Esconder)
+        {
+            progresso("Escondendo os dados do pendrive no Windows", 99);
+            Discos.Diskpart(Discos.ScriptEsconderDados(g.Pendrive.Numero, 2, dados));
+        }
         progresso("Pendrive pronto", 100);
         return falhas;
     }

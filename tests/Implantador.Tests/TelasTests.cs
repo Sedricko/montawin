@@ -162,6 +162,21 @@ public class TelasTests
     }
 
     [Fact]
+    public void DadosDoPendriveEscondidosComPin()
+    {
+        var boot = new Particao(1, 1 << 20, 2L << 30, TipoParticao.Dados, "", true) { Letra = 'M' };
+        var escondida = new Particao(2, 2L << 30, 200L << 30, TipoParticao.Fabricante, "", false); // tipo 0x27, sem letra
+        var pendrive = new Disco(3, 256L << 30, "Kingston", true, false, [boot, escondida]);
+        Assert.Equal(2, Discos.DadosEscondidos(pendrive)?.Numero);
+        Assert.Null(Discos.DadosEscondidos(pendrive with { Usb = false })); // disco interno nunca
+        Assert.Null(Discos.DadosEscondidos(pendrive with { Particoes = [boot, escondida with { Letra = 'N' }] })); // já visível
+        Assert.Contains("set id=27 override", Discos.ScriptEsconderDados(3, 2, 'N'));
+        Assert.Contains("remove letter=N", Discos.ScriptEsconderDados(3, 2, 'N'));
+        Assert.DoesNotContain("set id", Discos.ScriptMostrarDados(3, 2, 'P', mostrar: false)); // só a letra: continua escondida no Windows
+        Assert.Contains("set id=07 override", Discos.ScriptMostrarDados(3, 2, 'P', mostrar: true));
+    }
+
+    [Fact]
     public void ScriptsAguentamNomesDificeis()
     {
         Assert.Contains("name=\"Casa%%20\"", Unattend.GerarScriptAntesDoLogin("Casa%20", null, false));
