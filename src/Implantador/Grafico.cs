@@ -446,9 +446,12 @@ public sealed unsafe partial class TelaGrafica : ISaida
         float alturaInfo = t.Info.Sum(l => Altura(l, fonteNormal, dentro - (perigo ? 32 * s : 0)) + 2 * s);
         if (t.Info.Count > 0) alturaInfo += 14 * s + 2 * topoTexto;
         bool lista = t.Tipo == TipoTela.Lista;
+        // Lista com caixas de marcar: "Continuar" e "Voltar" ficam fixos embaixo, sempre à vista; só as opções rolam
+        int botoes = lista ? t.Itens.ToList().FindIndex(i => i.Tipo == TipoItem.Continuar) : -1;
+        int rolaveis = botoes >= 0 ? botoes : t.Itens.Count;
         float fixo = pad + 40 * s + alturaInfo + (t.Tipo == TipoTela.Pergunta ? 30 * s + 56 * s + 20 * s : 0)
-                     + (lista ? 0 : linhaItem + 10 * s) + 36 * s + pad;
-        int visiveis = lista ? Math.Max(3, Math.Min(t.Itens.Count, (int)((altura - 120 * s - fixo) / (linhaItem + espaco)))) : 0;
+                     + (lista && botoes < 0 ? 0 : linhaItem + 10 * s) + 36 * s + pad;
+        int visiveis = lista ? Math.Max(3, Math.Min(rolaveis, (int)((altura - 120 * s - fixo) / (linhaItem + espaco)))) : 0;
         float h = fixo + visiveis * (linhaItem + espaco);
         var (x, y, _, hp) = Vidro(w, h);
 
@@ -461,7 +464,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
             cx += 58 * s;
         }
         Texto(t.Titulo, fonteTitulo, c.Texto, cx, cy, x + w - pad - cx, 40 * s);
-        if (lista && t.Itens.Count > visiveis)
+        if (lista && rolaveis > visiveis)
             Texto($"{t.Selecionado + 1} de {t.Itens.Count}", fontePequena, c.Suave, x + w - pad - 120 * s, cy, 120 * s, 40 * s, linhaDireita);
         cy += 40 * s + 14 * s;
 
@@ -499,14 +502,36 @@ public sealed unsafe partial class TelaGrafica : ISaida
         if (lista)
         {
             if (t.Titulo != tituloLista) (tituloLista, topoLista) = (t.Titulo, 0);
-            topoLista = Math.Clamp(topoLista, Math.Max(0, t.Selecionado - visiveis + 1), t.Selecionado);
-            for (int i = topoLista; i < Math.Min(t.Itens.Count, topoLista + visiveis); i++)
+            if (t.Selecionado < rolaveis) topoLista = Math.Clamp(topoLista, Math.Max(0, t.Selecionado - visiveis + 1), t.Selecionado);
+            topoLista = Math.Clamp(topoLista, 0, Math.Max(0, rolaveis - visiveis));
+            for (int i = topoLista; i < Math.Min(rolaveis, topoLista + visiveis); i++)
             {
                 Linha(t.Itens[i], i == t.Selecionado, x + pad, cy, dentro, linhaItem, i);
                 cy += linhaItem + espaco;
             }
         }
-        else
+        if (botoes >= 0)
+        {
+            cy += 5 * s;
+            for (int i = botoes; i < t.Itens.Count; i++)
+            {
+                var item = t.Itens[i];
+                bool principal = item.Tipo == TipoItem.Continuar;
+                float bw = Largura(item.Texto, fonteForte) + 44 * s, px = principal ? x + w - pad - bw : x + pad;
+                if (principal) Degrade(px, cy, bw, linhaItem, 10 * s);
+                else Caixa(px, cy, bw, linhaItem, 10 * s, c.Cartao, c.Borda);
+                if (i == t.Selecionado) // foco do teclado
+                {
+                    var anel = Arredondado(px - 3 * s, cy - 3 * s, bw + 6 * s, linhaItem + 6 * s, 12 * s);
+                    GdipDrawPath(g, Caneta(c.CorDestaque, 2 * s), anel);
+                    GdipDeletePath(anel);
+                }
+                Texto(item.Texto, fonteForte, principal ? 0xFFFFFFFF : c.Texto, px, cy, bw, linhaItem, linhaCentro);
+                alvos.Add((px, cy, bw, linhaItem, i));
+            }
+            cy += linhaItem + 10 * s;
+        }
+        else if (!lista)
         {
             // Botões lado a lado: Voltar à esquerda, o principal à direita
             float bx = x + w - pad;
