@@ -3,7 +3,7 @@ using System.Xml.Linq;
 
 namespace MontaWin.Implantador;
 
-public record Edicao(string Arquivo, int Indice, string Nome);
+public record Edicao(string Arquivo, int Indice, string Nome, string Idioma);
 
 // Lê a lista de edições direto do cabeçalho do .wim: não depende da saída (traduzida) do DISM.
 public static class Wim
@@ -23,8 +23,9 @@ public static class Wim
     }
 
     public static List<Edicao> Edicoes(string arquivo, string xml) =>
-        XDocument.Parse(xml.TrimStart('﻿')).Root!.Elements("IMAGE")
+        XDocument.Parse(xml.TrimStart('\uFEFF')).Root!.Elements("IMAGE")
             .Select(i => new Edicao(arquivo, (int)i.Attribute("INDEX")!,
-                (string?)i.Element("DISPLAYNAME") ?? (string?)i.Element("NAME") ?? $"Imagem {(int)i.Attribute("INDEX")!}"))
+                (string?)i.Element("DISPLAYNAME") ?? (string?)i.Element("NAME") ?? $"Imagem {(int)i.Attribute("INDEX")!}",
+                (string?)i.Element("WINDOWS")?.Element("LANGUAGES")?.Element("DEFAULT") ?? "en-US"))
             .ToList();
 }

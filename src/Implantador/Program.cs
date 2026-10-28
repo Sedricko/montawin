@@ -70,10 +70,18 @@ void BackupDrivers()
     Tui.Etapa("Backup de drivers", $"Exportando drivers de {alvo!.LetraWindows}:\\Windows para {destino}");
     if (Comandos.Executar("dism", $"/Image:{alvo.LetraWindows}:\\ /Export-Driver /Destination:\"{destino}\"", Tui.Progresso) != 0)
         throw new Exception(Falha("O DISM não conseguiu exportar os drivers."));
+
+    // Exporta tudo e depois deixa desmarcar o que não deve voltar (ex.: um driver de vídeo problemático).
+    var drivers = Drivers.Listar(destino);
+    var marcados = Tui.Selecao("Drivers que serão reinstalados (Esc mantém todos)", [],
+        drivers.Select(d => d.Descricao).ToList(), Enumerable.Repeat(true, drivers.Count).ToArray());
+    int removidos = 0;
+    for (int i = 0; marcados != null && i < drivers.Count; i++)
+        if (!marcados[i]) { Directory.Delete(drivers[i].Pasta, recursive: true); removidos++; }
+
     pastaDrivers = destino;
     backupsFeitos.Add(destino);
-    int total = Directory.GetDirectories(destino).Length;
-    Tui.Mensagem("Backup de drivers", [$"{total} drivers salvos em {destino}", "Eles serão reinstalados automaticamente em \"Formatar e instalar\"."]);
+    Tui.Mensagem("Backup de drivers", [$"{drivers.Count - removidos} drivers salvos em {destino}", "Eles serão reinstalados automaticamente em \"Formatar e instalar\"."]);
 }
 
 void BackupArquivos()
@@ -198,6 +206,23 @@ void Instalar()
         aviso.Add($"Só a {particao.Descricao.Trim()} será apagada.");
         aviso.Add("As outras partições do disco ficam intactas.");
     }
+    int configuracao = Tui.Menu("Configuração inicial do Windows", [], [
+        "Automática: criar conta local e pular as telas iniciais (recomendado)",
+        "Normal: o cliente responde as telas da Microsoft no primeiro uso",
+    ]);
+    if (configuracao < 0) return;
+    string? unattend = null;
+    if (configuracao == 0)
+    {
+        var usuario = Tui.Perguntar("Nome do usuário", ["Nome da conta local do Windows (ex.: Joao).", "Até 20 letras, sem \\ / [ ] : ; | = , + * ? < > \""],
+            "Digite o nome e Enter, ou só Enter para cancelar");
+        if (usuario.Length == 0) return;
+        if (!Exigir(usuario.Length <= 20 && usuario.IndexOfAny("\\/[]:;|=,+*?<>\"".ToCharArray()) < 0, "Nome de usuário inválido.")) return;
+        var senha = Tui.Perguntar("Senha do usuário", [$"Senha da conta {usuario}.", "Deixe em branco para entrar sem senha."],
+            "Digite a senha (ou deixe em branco) e Enter", oculto: true);
+        unattend = Unattend.Gerar(edicao.Idioma, usuario, senha);
+        aviso.Add($"Conta local: {usuario}{(senha.Length > 0 ? " (com senha)" : " (sem senha)")} · telas iniciais puladas");
+    }
     aviso.Add($"Instalar: {edicao.Nome}   ·   Modo: {(uefi ? "UEFI (GPT)" : "BIOS (MBR)")}");
     if (disco.LetraWindows != null && pastaDrivers == null) aviso.Add("Atenção: o backup de drivers ainda não foi feito.");
     if (!Tui.Confirmar("Formatar e instalar", aviso, "FORMATAR")) return;
@@ -211,6 +236,11 @@ void Instalar()
     Tui.Etapa("Instalando", $"2/5 · Aplicando {edicao.Nome}");
     if (Comandos.Executar("dism", $"/Apply-Image /ImageFile:\"{edicao.Arquivo}\" /Index:{edicao.Indice} /ApplyDir:{w}:\\", Tui.Progresso) != 0)
         throw new Exception(Falha("O DISM não conseguiu aplicar a imagem."));
+    if (unattend != null)
+    {
+        Directory.CreateDirectory($@"{w}:\Windows\Panther");
+        File.WriteAllText($@"{w}:\Windows\Panther\unattend.xml", unattend);
+    }
 
     if (pastaDrivers != null)
     {

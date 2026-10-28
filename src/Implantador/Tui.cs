@@ -73,6 +73,7 @@ public static class Tui
 
     static int Lista(string titulo, IReadOnlyList<string> info, IReadOnlyList<string> opcoes, int sel, bool[]? marcados)
     {
+        if (opcoes.Count == 0) return -1;
         Moldura(marcados == null ? "Setas: navegar   Enter: escolher   Esc: voltar"
                                  : "Setas: navegar   Espaço: marcar   T: todos   Enter: confirmar   Esc: voltar");
         int topo = 0;
@@ -114,15 +115,27 @@ public static class Tui
         Perguntar(titulo, linhas, $"Digite {palavra} e Enter para continuar, ou só Enter para cancelar")
             .Equals(palavra, StringComparison.OrdinalIgnoreCase);
 
-    public static string Perguntar(string titulo, IReadOnlyList<string> linhas, string rodape)
+    /// <summary>Lê um texto digitado; com <paramref name="oculto"/> mostra * no lugar (senhas).</summary>
+    public static string Perguntar(string titulo, IReadOnlyList<string> linhas, string rodape, bool oculto = false)
     {
         Moldura(rodape);
         int y = Caixa(2, titulo, Simples(linhas), ConsoleColor.Yellow);
         Escrever(1, y, "> ", Destaque);
         Console.CursorVisible = true;
-        var digitado = Console.ReadLine() ?? "";
+        string digitado;
+        if (!oculto) digitado = Console.ReadLine() ?? "";
+        else
+        {
+            var sb = new StringBuilder();
+            for (var k = Console.ReadKey(true); k.Key != ConsoleKey.Enter; k = Console.ReadKey(true))
+            {
+                if (k.Key == ConsoleKey.Backspace && sb.Length > 0) { sb.Length--; Console.Write("\b \b"); }
+                else if (!char.IsControl(k.KeyChar)) { sb.Append(k.KeyChar); Console.Write('*'); }
+            }
+            digitado = sb.ToString();
+        }
         Console.CursorVisible = false;
-        return digitado.Trim();
+        return oculto ? digitado : digitado.Trim();
     }
 
     static string tituloProgresso = "", etapaProgresso = "";

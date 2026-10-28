@@ -7,7 +7,8 @@ public class ImplantadorTests
     [Fact]
     public void LeEdicoesDoCabecalhoWim()
     {
-        const string xml = "﻿<WIM><IMAGE INDEX=\"1\"><NAME>Windows 11 Home</NAME><DISPLAYNAME>Windows 11 Home</DISPLAYNAME></IMAGE>" +
+        const string xml = "\uFEFF<WIM><IMAGE INDEX=\"1\"><NAME>Windows 11 Home</NAME><DISPLAYNAME>Windows 11 Home</DISPLAYNAME>" +
+                           "<WINDOWS><LANGUAGES><LANGUAGE>pt-BR</LANGUAGE><DEFAULT>pt-BR</DEFAULT></LANGUAGES></WINDOWS></IMAGE>" +
                            "<IMAGE INDEX=\"2\"><NAME>Windows 11 Pro</NAME></IMAGE></WIM>";
         var dados = Encoding.Unicode.GetBytes(xml);
         var wim = new byte[0x100 + dados.Length];
@@ -21,7 +22,7 @@ public class ImplantadorTests
 
         var edicoes = Wim.Ler(arquivo);
 
-        Assert.Equal(new[] { (1, "Windows 11 Home"), (2, "Windows 11 Pro") }, edicoes.Select(e => (e.Indice, e.Nome)));
+        Assert.Equal(new[] { (1, "Windows 11 Home", "pt-BR"), (2, "Windows 11 Pro", "en-US") }, edicoes.Select(e => (e.Indice, e.Nome, e.Idioma)));
     }
 
     [Fact]
@@ -170,5 +171,40 @@ public class ImplantadorTests
         Assert.Equal(new[] { (1, TipoParticao.Efi, 1L << 20), (3, TipoParticao.Dados, 400L << 20) },
             particoes.Select(p => (p.Numero, p.Tipo, p.Inicio)));
         Assert.Equal("Basic data partition", particoes[1].Nome);
+    }
+
+    [Fact]
+    public void LeClasseEFabricanteDoInf()
+    {
+        const string inf = "; comentário\r\n[Version]\r\nSignature=\"$WINDOWS NT$\"\r\nClass = Net ; rede\r\nProvider=%Realtek%\r\n" +
+                           "[Strings]\r\nRealtek = \"Realtek Semiconductor\"\r\n";
+        Assert.Equal(("Rede", "Realtek Semiconductor"), Drivers.LerInf(inf));
+        Assert.Equal(("Outros", "Contoso"), Drivers.LerInf("[Version]\nProvider=Contoso\n"));
+    }
+
+    [Fact]
+    public void ListaDriversExportados()
+    {
+        var pasta = Directory.CreateTempSubdirectory().FullName;
+        Directory.CreateDirectory(Path.Combine(pasta, "nv.inf_amd64_1"));
+        File.WriteAllText(Path.Combine(pasta, "nv.inf_amd64_1", "nv.inf"), "[Version]\nClass=Display\nProvider=NVIDIA\n");
+        Directory.CreateDirectory(Path.Combine(pasta, "vazia"));
+
+        var d = Assert.Single(Drivers.Listar(pasta));
+        Assert.Equal(("Vídeo", "NVIDIA", "nv.inf"), (d.Classe, d.Fabricante, d.Inf));
+    }
+
+    [Fact]
+    public void GeraUnattendValidoComContaLocal()
+    {
+        var xml = System.Xml.Linq.XDocument.Parse(Unattend.Gerar("pt-BR", "João & Cia", "s<nh>a"));
+        var ns = (System.Xml.Linq.XNamespace)"urn:schemas-microsoft-com:unattend";
+        var conta = xml.Descendants(ns + "LocalAccount").Single();
+        Assert.Equal("João & Cia", conta.Element(ns + "Name")!.Value);
+        Assert.Equal("Administradores", conta.Element(ns + "Group")!.Value);
+        Assert.Equal("s<nh>a", conta.Descendants(ns + "Value").Single().Value);
+        Assert.Equal("true", xml.Descendants(ns + "HideOnlineAccountScreens").Single().Value);
+        Assert.Equal("pt-BR", xml.Descendants(ns + "UILanguage").Single().Value);
+        Assert.Equal("Administrators", System.Xml.Linq.XDocument.Parse(Unattend.Gerar("en-US", "a", "")).Descendants(ns + "Group").Single().Value);
     }
 }
