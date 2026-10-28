@@ -153,7 +153,7 @@ public partial class MainWindow : Window
             var versao = Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0);
             var certificado = Pendrive.CertificadoDoBoot(iso.Letra);
             Ocupado(false, (iso.Edicoes.Count == 1 ? "1 edição encontrada" : $"{iso.Edicoes.Count} edições encontradas") +
-                (versao != null ? $" (versão {versao})." : ".") +
+                (versao != null ? $" (versão {versao})." : $" (build {iso.Edicoes.FirstOrDefault()?.Build}: versão não reconhecida para as atualizações).") +
                 (certificado != null ? $" Boot com o certificado {certificado} do Secure Boot." : "") +
                 (certificado == "antigo (2011)" ? " Se algum PC recusar o boot do pendrive, use uma ISO mais nova da Microsoft." : ""));
         }
@@ -342,8 +342,15 @@ public partial class MainWindow : Window
             catch (Exception ex)
             {
                 Ocupado(false, "Não deu para baixar as atualizações automaticamente.");
+                // Versão não reconhecida: diz qual build é e como seguir (sem pesquisa certa para abrir).
+                if (Atualizacoes.Versao(build) == null)
+                {
+                    Erro($"Não reconheci a versão desta ISO (build {build}), então não sei quais atualizações servem.\n\n" +
+                         "Desmarque \"Baixar e instalar as atualizações do mês\" para criar sem elas, ou escolha uma pasta com os .msu baixados.");
+                    return;
+                }
                 // Reserva: abre a pesquisa certa no Catalog para baixar na mão e escolher a pasta.
-                if (Atualizacoes.Versao(build) != null && MessageBox.Show(this,
+                if (MessageBox.Show(this,
                         $"Não consegui baixar as atualizações sozinho:\n{ex.Message}\n\nAbrir o Microsoft Update Catalog já pesquisado na versão certa? " +
                         "Baixe a \"Cumulative Update\" mais nova (sem \"Preview\"), escolha a pasta em \"Ou use uma pasta\" e crie de novo.\n\n" +
                         "Ou desmarque \"Baixar e instalar as atualizações\" para criar sem elas.",
