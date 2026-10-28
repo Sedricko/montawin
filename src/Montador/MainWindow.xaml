@@ -10,8 +10,8 @@
       <Setter Property="Margin" Value="0,0,0,12" />
       <Setter Property="CornerRadius" Value="14" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="BorderBrush" Value="{DynamicResource Borda}" />
-      <Setter Property="Background" Value="{DynamicResource Cartao}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CorBorda}" />
+      <Setter Property="Background" Value="{DynamicResource CorCartao}" />
     </Style>
     <Style x:Key="Titulo" TargetType="TextBlock">
       <Setter Property="FontSize" Value="16" />
@@ -30,7 +30,7 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="Fundo" Background="{DynamicResource Destaque}" CornerRadius="10" Padding="28,11">
+            <Border x:Name="Fundo" Background="{DynamicResource CorDestaque}" CornerRadius="10" Padding="28,11">
               <ContentPresenter HorizontalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
@@ -112,12 +112,12 @@
     </Viewbox>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
-      <Border Background="{DynamicResource Painel}" BorderBrush="{DynamicResource BordaPainel}" BorderThickness="1" CornerRadius="22"
+      <Border Background="{DynamicResource CorPainel}" BorderBrush="{DynamicResource CorBordaPainel}" BorderThickness="1" CornerRadius="22"
               MaxWidth="720" Margin="24,32" Padding="30,26" VerticalAlignment="Center">
         <Border.Effect><DropShadowEffect BlurRadius="60" ShadowDepth="16" Opacity="0.4" /></Border.Effect>
         <StackPanel>
           <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-            <Border Width="46" Height="46" CornerRadius="14" Background="{DynamicResource Destaque}" Margin="0,0,14,0">
+            <Border Width="46" Height="46" CornerRadius="14" Background="{DynamicResource CorDestaque}" Margin="0,0,14,0">
               <TextBlock Text="M" Foreground="White" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
             </Border>
             <StackPanel VerticalAlignment="Center">
@@ -257,7 +257,7 @@
               </CheckBox>
 
               <Button x:Name="BotaoCriar" Style="{StaticResource Principal}" Content="Criar pendrive" HorizontalAlignment="Left" Click="Criar" />
-              <ProgressBar x:Name="Barra" Height="6" Margin="0,16,0,6" Maximum="100" Foreground="{DynamicResource Destaque}" />
+              <ProgressBar x:Name="Barra" Height="6" Margin="0,16,0,6" Maximum="100" Foreground="{DynamicResource CorDestaque}" />
               <TextBlock x:Name="Status" Style="{StaticResource Dica}" Text="Escolha a ISO e o pendrive." />
             </StackPanel>
           </Border>

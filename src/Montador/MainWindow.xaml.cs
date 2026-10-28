@@ -59,11 +59,11 @@ public partial class MainWindow : Window
         tema = (string)((RadioButton)sender).Tag;
         var c = Cores[tema];
         Brush Cor(string hex) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-        Resources["Painel"] = Cor(c.Painel);
-        Resources["BordaPainel"] = Cor(c.BordaPainel);
-        Resources["Cartao"] = Cor(c.Cartao);
-        Resources["Borda"] = Cor(c.Borda);
-        Resources["Destaque"] = new LinearGradientBrush((Color)ColorConverter.ConvertFromString(c.De), (Color)ColorConverter.ConvertFromString(c.Ate), 0);
+        Resources["CorPainel"] = Cor(c.Painel);
+        Resources["CorBordaPainel"] = Cor(c.BordaPainel);
+        Resources["CorCartao"] = Cor(c.Cartao);
+        Resources["CorBorda"] = Cor(c.Borda);
+        Resources["CorDestaque"] = new LinearGradientBrush((Color)ColorConverter.ConvertFromString(c.De), (Color)ColorConverter.ConvertFromString(c.Ate), 0);
         FundoOndas.Visibility = tema == "ondas" ? Visibility.Visible : Visibility.Collapsed;
         FundoBloom.Visibility = tema == "bloom" ? Visibility.Visible : Visibility.Collapsed;
         FundoPastel.Visibility = tema == "pastel" ? Visibility.Visible : Visibility.Collapsed;
