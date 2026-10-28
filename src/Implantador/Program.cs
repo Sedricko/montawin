@@ -8,6 +8,8 @@ Tui.InfoSistema = Sistema.Resumo() + " ";
 string? raiz = DriveInfo.GetDrives()
     .Select(d => Path.Combine(d.Name, "MontaWin"))
     .FirstOrDefault(p => Directory.Exists(Path.Combine(p, "Imagens")));
+var arquivoTema = raiz == null ? null : Path.Combine(raiz, "tema.txt");
+if (File.Exists(arquivoTema)) Tui.Tema(File.ReadAllText(arquivoTema));
 Disco? alvo = null;
 string? pastaDrivers = null;
 string? pastaArquivos = null;

@@ -5,8 +5,21 @@ namespace MontaWin.Implantador;
 // Tela de texto: só usa caracteres que existem na fonte padrão do console do WinPE (CP437).
 public static class Tui
 {
-    const ConsoleColor Borda = ConsoleColor.DarkGreen;
-    const ConsoleColor Destaque = ConsoleColor.Green;
+    static ConsoleColor Borda = ConsoleColor.DarkMagenta;
+    static ConsoleColor Destaque = ConsoleColor.Magenta;
+
+    public static readonly string[] Temas = ["ondas", "bloom", "pastel"];
+
+    /// <summary>Cores do tema escolhido no MontaWin.exe (tema.txt no pendrive); na tela de texto só a cor de destaque muda.</summary>
+    public static void Tema(string? nome)
+    {
+        (Borda, Destaque) = nome?.Trim().ToLowerInvariant() switch
+        {
+            "bloom" => (ConsoleColor.DarkCyan, ConsoleColor.Cyan),
+            "pastel" => (ConsoleColor.DarkBlue, ConsoleColor.Blue),
+            _ => (ConsoleColor.DarkMagenta, ConsoleColor.Magenta),
+        };
+    }
 
     public static string InfoSistema = "";
 

@@ -6,9 +6,10 @@ public record IsoAberta(string Iso, char Letra, string Install, List<Edicao> Edi
 
 /// <param name="Rapida">Compressão rápida: imagem ~30% maior, mas a instalação descomprime mais depressa.</param>
 /// <param name="Manter">Letras de um pendrive MontaWin existente: só adiciona a ISO e atualiza o painel, sem apagar.</param>
+/// <param name="Tema">Visual do painel no boot: ondas, bloom ou pastel (gravado em MontaWin\tema.txt).</param>
 /// <param name="Atualizacoes">Pasta com as atualizações .msu do Microsoft Update Catalog, injetadas em cada edição (null = nenhuma).</param>
 public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador, bool Rapida, (char Boot, char Dados)? Manter,
-    string? Atualizacoes = null);
+    string? Atualizacoes = null, string Tema = "ondas");
 
 /// <summary>
 /// Monta o pendrive: partição FAT32 de boot (UEFI e BIOS) com o WinPE da ISO abrindo o Implantador,
@@ -142,6 +143,7 @@ public static class Pendrive
         Directory.CreateDirectory(Path.GetDirectoryName(leiaMe)!);
         if (!File.Exists(leiaMe)) File.WriteAllText(leiaMe, LeiaMeDrivers);
         Directory.CreateDirectory($@"{dados}:\MontaWin\Instaladores");
+        File.WriteAllText($@"{dados}:\MontaWin\tema.txt", g.Tema);
         var listaProgramas = $@"{dados}:\MontaWin\Programas.txt";
         if (!File.Exists(listaProgramas)) File.WriteAllText(listaProgramas, Programas.Padrao); // não sobrescreve a lista editada pelo técnico
         var destino = Path.Combine(pastaImagens, Path.GetFileNameWithoutExtension(g.Iso.Iso) + ".wim");

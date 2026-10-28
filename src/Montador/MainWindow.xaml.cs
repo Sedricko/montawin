@@ -1,4 +1,6 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using MontaWin.Implantador;
 using Microsoft.Win32;
 
@@ -16,6 +18,15 @@ public partial class MainWindow : Window
     // O Implantador.exe vai junto do MontaWin.exe e é colocado dentro do boot.wim do pendrive.
     static readonly string Implantador = Path.Combine(AppContext.BaseDirectory, "Implantador.exe");
     IsoAberta? iso;
+    string tema = "ondas";
+
+    // Painel, BordaPainel, Cartao, Borda (ARGB) e Destaque (degradê) — mesmas cores do painel no boot.
+    static readonly Dictionary<string, (string Painel, string BordaPainel, string Cartao, string Borda, string De, string Ate)> Cores = new()
+    {
+        ["ondas"] = ("#C20C0824", "#1AFFFFFF", "#0FFFFFFF", "#1AFFFFFF", "#E0218A", "#3B7BFF"),
+        ["bloom"] = ("#BD0E1A3A", "#1FFFFFFF", "#0FFFFFFF", "#1AFFFFFF", "#2F8CFF", "#60CDFF"),
+        ["pastel"] = ("#99FFFFFF", "#CCFFFFFF", "#8CFFFFFF", "#1F1B1640", "#4D5BFF", "#9B4DFF"),
+    };
 
     public MainWindow()
     {
@@ -28,12 +39,28 @@ public partial class MainWindow : Window
         };
     }
 
+    void TemaEscolhido(object sender, RoutedEventArgs e)
+    {
+        tema = (string)((RadioButton)sender).Tag;
+        var c = Cores[tema];
+        Brush Cor(string hex) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
+        Resources["Painel"] = Cor(c.Painel);
+        Resources["BordaPainel"] = Cor(c.BordaPainel);
+        Resources["Cartao"] = Cor(c.Cartao);
+        Resources["Borda"] = Cor(c.Borda);
+        Resources["Destaque"] = new LinearGradientBrush((Color)ColorConverter.ConvertFromString(c.De), (Color)ColorConverter.ConvertFromString(c.Ate), 0);
+        FundoOndas.Visibility = tema == "ondas" ? Visibility.Visible : Visibility.Collapsed;
+        FundoBloom.Visibility = tema == "bloom" ? Visibility.Visible : Visibility.Collapsed;
+        FundoPastel.Visibility = tema == "pastel" ? Visibility.Visible : Visibility.Collapsed;
+        ThemeMode = tema == "pastel" ? ThemeMode.Light : ThemeMode.Dark; // controles claros no tema claro
+    }
+
     void Erro(string mensagem) => MessageBox.Show(this, mensagem, "MontaWin", MessageBoxButton.OK, MessageBoxImage.Error);
 
     void Ocupado(bool ocupado, string status)
     {
         BotaoIso.IsEnabled = BotaoAtualizar.IsEnabled = BotaoCriar.IsEnabled = ListaPendrives.IsEnabled = ListaEdicoes.IsEnabled =
-            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = !ocupado;
+            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = Temas.IsEnabled = !ocupado;
         Status.Text = status;
     }
 
@@ -50,7 +77,7 @@ public partial class MainWindow : Window
             CaminhoIso.Text = iso.Iso;
             ListaEdicoes.ItemsSource = iso.Edicoes.Select(x => new EdicaoItem(x.Indice, x.Nome)).ToList();
             TituloEdicoes.Visibility = Visibility.Visible;
-            Ocupado(false, $"{iso.Edicoes.Count} edições encontradas.");
+            Ocupado(false, iso.Edicoes.Count == 1 ? "1 edição encontrada." : $"{iso.Edicoes.Count} edições encontradas.");
         }
         catch (Exception ex)
         {
@@ -110,7 +137,7 @@ public partial class MainWindow : Window
         try
         {
             var gravacao = new Gravacao(iso, indices, pendrive, Implantador, Rapida.IsChecked == true, manter,
-                PastaAtualizacoes.Text.Length > 0 ? PastaAtualizacoes.Text : null);
+                PastaAtualizacoes.Text.Length > 0 ? PastaAtualizacoes.Text : null, tema);
             await Task.Run(() => Pendrive.Gravar(gravacao, (etapa, pct) => Dispatcher.Invoke(() =>
             {
                 if (etapa != null) Status.Text = etapa;
