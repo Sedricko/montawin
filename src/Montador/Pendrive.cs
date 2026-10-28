@@ -165,7 +165,7 @@ public static class Pendrive
         }
 
         progresso("Copiando os arquivos de inicialização", 3);
-        if (Comandos.Executar("robocopy", $@"{iso}:\ {boot}:\ /E /XD {iso}:\sources {iso}:\support /XF autorun.inf /R:1 /W:1 /NP /NFL /NDL /NJH /NJS") >= 8)
+        if (Comandos.Executar("robocopy", $@"{iso}:\ {boot}:\ /E /XD {iso}:\sources {iso}:\support /XF autorun.inf setup.exe /R:1 /W:1 /NP /NFL /NDL /NJH /NJS") >= 8)
             throw new Exception("Falha ao copiar os arquivos de inicialização.");
 
         progresso("Preparando o painel de inicialização (WinPE)", 6);
@@ -325,6 +325,8 @@ public static class Pendrive
     /// </summary>
     static void Identidade(char boot, char dados, string tema)
     {
+        // O instalador da Microsoft não serve aqui (o pendrive abre o painel): some do pendrive para não confundir
+        foreach (var velho in new[] { $@"{boot}:\setup.exe" }) if (File.Exists(velho)) File.Delete(velho);
         var cor = tema switch { "pastel" => "claro", "cristal" => "cristal", _ => "escuro" };
         foreach (var (letra, nome, rotulo) in new[] { (boot, "Aurora Win", "AURORA WIN"), (dados, "Aurora Win · dados", "AURORA DADOS") })
         {
