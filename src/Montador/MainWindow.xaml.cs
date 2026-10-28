@@ -671,6 +671,13 @@ public partial class MainWindow : Window
                 "Apagar e gravar", perigo: true);
         if (!confirmou) return;
 
+        // Os fundos do painel são desenhados antes da janelinha aparecer: desenhar trava a tela por um instante
+        Ocupado(true, "Preparando...");
+        var fundo = Path.Combine(Path.GetTempPath(), "AuroraWin-fundo.png");
+        var desfocado = Path.Combine(Path.GetTempPath(), "AuroraWin-fundo-desfocado.png");
+        SalvarFundo(FundoDoTema, fundo, desfocado: false);
+        SalvarFundo(FundoDoTema, desfocado, desfocado: true);
+
         // A janela grande sai da frente: a janelinha animada acompanha a gravação e devolve o app no fim
         var janela = NovaJanelaProgresso(pendrive.Descricao.Trim());
         janela.Closed += (_, _) => { Show(); Activate(); };
@@ -714,10 +721,6 @@ public partial class MainWindow : Window
         }
         try
         {
-            var fundo = Path.Combine(Path.GetTempPath(), "AuroraWin-fundo.png");
-            var desfocado = Path.Combine(Path.GetTempPath(), "AuroraWin-fundo-desfocado.png");
-            SalvarFundo(FundoDoTema, fundo, desfocado: false);
-            SalvarFundo(FundoDoTema, desfocado, desfocado: true);
             var gravacao = new Gravacao(iso, indices, pendrive, Implantador, config.Rapida, manter, atualizacoes, config.Tema,
                 (fundo, desfocado), BaixarProgramas.IsChecked == true, (ListaProgramas.Ler(), ListaProgramas.PastaInstaladores),
                 NetFx3.IsChecked == true, licenca, config.BootNovo, config.Esconder && config.TemPin);
