@@ -21,6 +21,8 @@ public static class Programas
         Spotify = 9NCBCSZSJRSB
         # Microsoft 365: Word, Excel, Outlook, PowerPoint... Ativa com a conta/assinatura do cliente.
         Microsoft 365 (Word, Excel, Outlook) = Microsoft.Office
+        # Foxit PDF Editor (o nome antigo no winget é PhantomPDF). A versão Pro é a mesma, ativada com a licença.
+        Foxit PDF Editor Pro = Foxit.PhantomPDF
         """;
 
     public static List<Programa> Ler(string texto) =>
