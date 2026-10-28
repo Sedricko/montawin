@@ -1,7 +1,10 @@
 namespace MontaWin.Implantador;
 
-/// <summary>Programa instalado pelo winget no primeiro login. Um item pode ter vários pacotes (ex.: Visual C++).</summary>
-public record Programa(string Nome, string[] Ids, bool Marcado);
+/// <summary>
+/// Programa instalado no primeiro login: pelo winget (um item pode ter vários pacotes, ex.: Visual C++)
+/// ou por um instalador da pasta MontaWin\Instaladores com o comando silencioso (<paramref name="Instalador"/>).
+/// </summary>
+public record Programa(string Nome, string[] Ids, bool Marcado, string? Instalador = null);
 
 public static class Programas
 {
@@ -11,6 +14,10 @@ public static class Programas
         # Formato:  Nome = id do winget   (vários ids separados por espaço)
         # Linha começando com # é comentário. Começando com - vem desmarcado no painel.
         # Para achar o id de um programa: no Windows, rode  winget search nome-do-programa
+        #
+        # Programa fora do winget: coloque o instalador na pasta MontaWin\Instaladores e escreva
+        #   Nome = arquivo: nome-do-instalador.exe parâmetros-silenciosos
+        # O nome aceita * (ex.: NVIDIA_app*.exe pega qualquer versão). Só aparece no painel se o arquivo estiver na pasta.
         Google Chrome = Google.Chrome
         WinRAR = RARLab.WinRAR
         Visual C++ 2008 a 2022 (32 e 64 bits) = Microsoft.VCRedist.2008.x86 Microsoft.VCRedist.2008.x64 Microsoft.VCRedist.2010.x86 Microsoft.VCRedist.2010.x64 Microsoft.VCRedist.2012.x86 Microsoft.VCRedist.2012.x64 Microsoft.VCRedist.2013.x86 Microsoft.VCRedist.2013.x64 Microsoft.VCRedist.2015+.x86 Microsoft.VCRedist.2015+.x64
@@ -23,6 +30,8 @@ public static class Programas
         Microsoft 365 (Word, Excel, Outlook) = Microsoft.Office
         # Foxit PDF Editor (o nome antigo no winget é PhantomPDF). A versão Pro é a mesma, ativada com a licença.
         Foxit PDF Editor Pro = Foxit.PhantomPDF
+        # NVIDIA App: baixe em nvidia.com/pt-br/software/nvidia-app e coloque em MontaWin\Instaladores
+        -NVIDIA App = arquivo: NVIDIA_app*.exe -s
         """;
 
     public static List<Programa> Ler(string texto) =>
@@ -33,8 +42,18 @@ public static class Programas
             {
                 bool marcado = !l.StartsWith('-');
                 var partes = l.TrimStart('-').Split('=', 2);
-                return new Programa(partes[0].Trim(), partes[1].Split(' ', StringSplitOptions.RemoveEmptyEntries), marcado);
+                var valor = partes[1].Trim();
+                return valor.StartsWith("arquivo:", StringComparison.OrdinalIgnoreCase)
+                    ? new Programa(partes[0].Trim(), [], marcado, valor["arquivo:".Length..].Trim())
+                    : new Programa(partes[0].Trim(), valor.Split(' ', StringSplitOptions.RemoveEmptyEntries), marcado);
             })
-            .Where(p => p.Nome.Length > 0 && p.Ids.Length > 0)
+            .Where(p => p.Nome.Length > 0 && (p.Ids.Length > 0 || p.Instalador?.Length > 0))
             .ToList();
+
+    /// <summary>"NVIDIA_app*.exe -s" vira ("NVIDIA_app*.exe", "-s").</summary>
+    public static (string Arquivo, string Parametros) Separar(string instalador)
+    {
+        var partes = instalador.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        return (partes[0], partes.Length > 1 ? partes[1].Trim() : "");
+    }
 }

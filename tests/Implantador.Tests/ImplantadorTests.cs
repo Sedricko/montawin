@@ -329,4 +329,25 @@ public class ImplantadorTests
         Assert.Contains("8 pendentes", atencao.Texto);
         Assert.Equal(NivelSaude.Falhando, Saude.Ata(true, smart).Nivel);
     }
+
+    [Fact]
+    public void LeInstaladorDoPendriveComComandoSilencioso()
+    {
+        var nvidia = Assert.Single(Programas.Ler("-NVIDIA App = arquivo: NVIDIA_app*.exe -s\r\n"));
+        Assert.Equal(("NVIDIA App", false, "NVIDIA_app*.exe -s"), (nvidia.Nome, nvidia.Marcado, nvidia.Instalador));
+        Assert.Empty(nvidia.Ids);
+        Assert.Equal(("NVIDIA_app*.exe", "-s"), Programas.Separar(nvidia.Instalador!));
+        Assert.Equal(("setup.exe", ""), Programas.Separar("setup.exe"));
+    }
+
+    [Fact]
+    public void ScriptRodaInstaladoresAntesDoWinget()
+    {
+        var script = Unattend.GerarScriptProgramas(["Google.Chrome"], [("NVIDIA_app_v11.exe", "-s"), ("setup.exe", "")]);
+        int nvidia = script.IndexOf(@"start """" /wait ""%SystemDrive%\Windows\Setup\Scripts\Instaladores\NVIDIA_app_v11.exe"" -s" + "\r\n");
+        Assert.True(nvidia > 0);
+        Assert.Contains(@"\Instaladores\setup.exe""" + "\r\n", script);
+        Assert.True(script.IndexOf("rd /s /q") > nvidia);
+        Assert.True(script.IndexOf("winget install --id Google.Chrome") > script.IndexOf("rd /s /q"));
+    }
 }

@@ -12,6 +12,7 @@ public static class Unattend
     public const string ScriptPrimeiroLogin = @"Windows\Setup\Scripts\MontaWin-primeiro-login.cmd";
     public const string PastaRestaurados = "Arquivos restaurados";
     public const string ScriptProgramas = @"Windows\Setup\Scripts\MontaWin-programas.cmd";
+    public const string PastaInstaladores = @"Windows\Setup\Scripts\Instaladores";
 
     const string Componente = "processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\"";
 
@@ -86,13 +87,23 @@ public static class Unattend
         return s.ToString();
     }
 
-    /// <summary>Instala os programas pelo winget, esperando ele ficar disponível (é registrado logo depois do 1º login).</summary>
-    public static string GerarScriptProgramas(IEnumerable<string> idsWinget)
+    /// <summary>
+    /// Roda os instaladores copiados do pendrive (arquivo + parâmetros silenciosos) e depois os programas do winget,
+    /// esperando o winget ficar disponível (ele é registrado logo depois do 1º login).
+    /// </summary>
+    public static string GerarScriptProgramas(IEnumerable<string> idsWinget, IEnumerable<(string Arquivo, string Parametros)>? instaladores = null)
     {
         var s = new System.Text.StringBuilder("""
             @echo off
             rem Gerado pelo MontaWin: instala os programas escolhidos no painel.
             echo Instalando programas (MontaWin). Pode usar o computador enquanto isso.
+
+            """.Replace("\n", "\r\n"));
+        var locais = instaladores?.ToList() ?? [];
+        foreach (var (arquivo, parametros) in locais)
+            s.Append($"start \"\" /wait \"%SystemDrive%\\{PastaInstaladores}\\{arquivo}\" {parametros}\r\n".Replace(" \r\n", "\r\n"));
+        if (locais.Count > 0) s.Append($"rd /s /q \"%SystemDrive%\\{PastaInstaladores}\"\r\n");
+        s.Append("""
             set tentativas=0
             :esperar
             where winget >nul 2>nul && goto instalar

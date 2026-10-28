@@ -139,6 +139,7 @@ public static class Pendrive
         var leiaMe = $@"{dados}:\MontaWin\Drivers\LEIA-ME.txt";
         Directory.CreateDirectory(Path.GetDirectoryName(leiaMe)!);
         if (!File.Exists(leiaMe)) File.WriteAllText(leiaMe, LeiaMeDrivers);
+        Directory.CreateDirectory($@"{dados}:\MontaWin\Instaladores");
         var listaProgramas = $@"{dados}:\MontaWin\Programas.txt";
         if (!File.Exists(listaProgramas)) File.WriteAllText(listaProgramas, Programas.Padrao); // não sobrescreve a lista editada pelo técnico
         var destino = Path.Combine(pastaImagens, Path.GetFileNameWithoutExtension(g.Iso.Iso) + ".wim");

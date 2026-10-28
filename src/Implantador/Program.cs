@@ -292,14 +292,21 @@ void Instalar()
 
     // Programas pelo winget no primeiro login: só com a configuração automática, que roda o script do primeiro login.
     var idsProgramas = new List<string>();
+    var instaladores = new List<(string Caminho, string Parametros)>(); // instaladores do pendrive escolhidos
+    var pastaInstaladores = Path.Combine(raiz!, "Instaladores");
+    string? AcharInstalador(Programa x) => x.Instalador == null || !Directory.Exists(pastaInstaladores) ? null
+        : Directory.GetFiles(pastaInstaladores, Programas.Separar(x.Instalador).Arquivo).OrderDescending().FirstOrDefault(); // * pega a versão mais nova
     if (unattend != null)
     {
         var arquivo = Path.Combine(raiz!, "Programas.txt");
-        var programas = Programas.Ler(File.Exists(arquivo) ? File.ReadAllText(arquivo) : Programas.Padrao);
+        // Instalador que não está na pasta não aparece na lista
+        var programas = Programas.Ler(File.Exists(arquivo) ? File.ReadAllText(arquivo) : Programas.Padrao)
+            .Where(x => x.Instalador == null || AcharInstalador(x) != null).ToList();
         var marcados = Tui.Selecao("Programas instalados no primeiro login (precisa de internet; Esc = nenhum)",
             ["Lista editável no pendrive: MontaWin\\Programas.txt"], programas.Select(x => x.Nome).ToList(), programas.Select(x => x.Marcado).ToArray());
         var escolhidos = programas.Where((_, k) => marcados?[k] == true).ToList();
         idsProgramas = escolhidos.SelectMany(x => x.Ids).ToList();
+        instaladores = escolhidos.Where(x => x.Instalador != null).Select(x => (AcharInstalador(x)!, Programas.Separar(x.Instalador!).Parametros)).ToList();
         if (escolhidos.Count > 0) aviso.Add("Programas no primeiro login: " + string.Join(", ", escolhidos.Select(x => x.Nome)));
     }
     bool restaurar = false;
@@ -355,8 +362,17 @@ void Instalar()
             : new List<string>();
         var script = $@"{w}:\{Unattend.ScriptPrimeiroLogin}";
         Directory.CreateDirectory(Path.GetDirectoryName(script)!);
-        File.WriteAllText(script, Unattend.GerarScriptPrimeiroLogin(pessoais, idsProgramas.Count > 0));
-        if (idsProgramas.Count > 0) File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(idsProgramas));
+        bool temProgramas = idsProgramas.Count + instaladores.Count > 0;
+        File.WriteAllText(script, Unattend.GerarScriptPrimeiroLogin(pessoais, temProgramas));
+        if (temProgramas)
+        {
+            // Instaladores vão do pendrive para dentro do Windows novo: no primeiro login o pendrive já foi removido.
+            Directory.CreateDirectory($@"{w}:\{Unattend.PastaInstaladores}");
+            foreach (var (caminho, _) in instaladores)
+                File.Copy(caminho, Path.Combine($@"{w}:\{Unattend.PastaInstaladores}", Path.GetFileName(caminho)), overwrite: true);
+            File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(idsProgramas,
+                instaladores.Select(x => (Path.GetFileName(x.Caminho), x.Parametros))));
+        }
     }
 
     Tui.Etapa("Instalando", "4/5 · Criando a inicialização");
