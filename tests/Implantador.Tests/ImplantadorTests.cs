@@ -40,6 +40,27 @@ public class ImplantadorTests
     public void LePercentualDoDism(string linha, double? esperado) => Assert.Equal(esperado, Comandos.Percentual(linha));
 
     [Fact]
+    public void ListaPastasDosUsuariosSemPerfisDoSistema()
+    {
+        var users = Directory.CreateTempSubdirectory().FullName;
+        Directory.CreateDirectory(Path.Combine(users, "joao", "Documents"));
+        Directory.CreateDirectory(Path.Combine(users, "joao", "AppData", "Local"));
+        Directory.CreateDirectory(Path.Combine(users, "Public", "Documents"));
+        File.WriteAllBytes(Path.Combine(users, "joao", "Documents", "a.txt"), new byte[5]);
+        File.WriteAllBytes(Path.Combine(users, "joao", "AppData", "Local", "b.dat"), new byte[7]);
+
+        var pastas = Backup.Pastas(users).OrderBy(x => x.Nome).ToList();
+        var perfil = Assert.Single(Backup.PerfisCompletos(users));
+
+        Assert.Equal(new[] { "AppData", "Documents" }, pastas.Select(x => x.Nome));
+        Assert.Equal(new[] { false, true }, pastas.Select(x => x.Pessoal));
+        Assert.Equal(5, pastas[1].Tamanho);
+        Assert.Equal(Path.Combine("D:", "joao", "Documents"), pastas[1].Destino("D:"));
+        Assert.Equal(("joao", 12L, "Perfil completo"), (perfil.Usuario, perfil.Tamanho, perfil.Nome));
+        Assert.Equal(Path.Combine("D:", "joao"), perfil.Destino("D:"));
+    }
+
+    [Fact]
     public void ParticionaUefiComGpt()
     {
         var s = Comandos.ScriptParticionamento(2, uefi: true, 'S', 'W');

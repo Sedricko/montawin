@@ -61,19 +61,42 @@ public static class Tui
     static List<(string, bool)> Simples(IEnumerable<string> linhas) => linhas.Select(l => (l, false)).ToList();
 
     /// <summary>Lista navegável com setas. Retorna o índice escolhido ou -1 (Esc).</summary>
-    public static int Menu(string titulo, IReadOnlyList<string> info, IReadOnlyList<string> opcoes, int selecionado = 0)
+    public static int Menu(string titulo, IReadOnlyList<string> info, IReadOnlyList<string> opcoes, int selecionado = 0) =>
+        Lista(titulo, info, opcoes, selecionado, null);
+
+    /// <summary>Lista com caixas de marcar (Espaço marca, T marca/desmarca tudo). Retorna null no Esc.</summary>
+    public static bool[]? Selecao(string titulo, IReadOnlyList<string> info, IReadOnlyList<string> opcoes, bool[] marcados)
     {
-        Moldura("Setas: navegar   Enter: escolher   Esc: voltar");
+        var m = (bool[])marcados.Clone();
+        return Lista(titulo, info, opcoes, 0, m) < 0 ? null : m;
+    }
+
+    static int Lista(string titulo, IReadOnlyList<string> info, IReadOnlyList<string> opcoes, int sel, bool[]? marcados)
+    {
+        Moldura(marcados == null ? "Setas: navegar   Enter: escolher   Esc: voltar"
+                                 : "Setas: navegar   Espaço: marcar   T: todos   Enter: confirmar   Esc: voltar");
+        int topo = 0;
         while (true)
         {
             int y = 2;
             if (info.Count > 0) y = Caixa(y, "Informações", Simples(info));
-            Caixa(y, titulo, opcoes.Select((o, i) => ((i == selecionado ? " ► " : "   ") + o, i == selecionado)).ToList());
+            // Rola a lista quando não cabe na tela
+            int espaco = Math.Max(3, Altura - y - 3);
+            topo = Math.Clamp(topo, Math.Max(0, sel - espaco + 1), sel);
+            var linhas = new List<(string, bool)>();
+            for (int i = topo; i < Math.Min(opcoes.Count, topo + espaco); i++)
+            {
+                var caixa = marcados == null ? "" : marcados[i] ? "[x] " : "[ ] ";
+                linhas.Add(((i == sel ? " ► " : "   ") + caixa + opcoes[i], i == sel));
+            }
+            Caixa(y, opcoes.Count > espaco ? $"{titulo} ({sel + 1}/{opcoes.Count})" : titulo, linhas);
             switch (Console.ReadKey(true).Key)
             {
-                case ConsoleKey.UpArrow: selecionado = (selecionado - 1 + opcoes.Count) % opcoes.Count; break;
-                case ConsoleKey.DownArrow: selecionado = (selecionado + 1) % opcoes.Count; break;
-                case ConsoleKey.Enter: return selecionado;
+                case ConsoleKey.UpArrow: sel = (sel - 1 + opcoes.Count) % opcoes.Count; break;
+                case ConsoleKey.DownArrow: sel = (sel + 1) % opcoes.Count; break;
+                case ConsoleKey.Spacebar when marcados != null: marcados[sel] = !marcados[sel]; break;
+                case ConsoleKey.T when marcados != null: Array.Fill(marcados, !marcados.All(x => x)); break;
+                case ConsoleKey.Enter: return sel;
                 case ConsoleKey.Escape: return -1;
             }
         }

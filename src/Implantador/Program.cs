@@ -10,6 +10,7 @@ string? raiz = DriveInfo.GetDrives()
     .FirstOrDefault(p => Directory.Exists(Path.Combine(p, "Imagens")));
 Disco? alvo = null;
 string? pastaDrivers = null;
+var backupsFeitos = new List<string>(); // pastas de backup: nunca podem ficar no disco que vai ser formatado
 string sessao = DateTime.Now.ToString("yyyy-MM-dd_HHmm");
 
 string[] acoes = ["Escolher disco", "Backup de drivers", "Backup de arquivos", "Formatar e instalar", "Prompt de comando", "Reiniciar", "Desligar"];
@@ -27,7 +28,7 @@ while (true)
     {
         switch (ultima)
         {
-            case 0: alvo = EscolherDisco() ?? alvo; break;
+            case 0: alvo = EscolherDisco("Escolher disco (Windows atual, para os backups)", alvo) ?? alvo; break;
             case 1: BackupDrivers(); break;
             case 2: BackupArquivos(); break;
             case 3: Instalar(); break;
@@ -42,7 +43,7 @@ while (true)
     }
 }
 
-Disco? EscolherDisco()
+Disco? EscolherDisco(string titulo, Disco? sugerido)
 {
     var discos = Discos.Listar().Where(d => !d.Usb).ToList(); // pendrives e HDs USB nunca aparecem como destino
     if (discos.Count == 0)
@@ -50,7 +51,7 @@ Disco? EscolherDisco()
         Tui.Mensagem("Escolher disco", ["Nenhum disco interno encontrado.", "Se for NVMe/RAID (Intel RST), pode faltar driver no WinPE."], erro: true);
         return null;
     }
-    int i = Tui.Menu("Escolher disco", [], discos.Select(d => d.Descricao).ToList());
+    int i = Tui.Menu(titulo, [], discos.Select(d => d.Descricao).ToList(), Math.Max(0, discos.FindIndex(d => d.Numero == sugerido?.Numero)));
     return i < 0 ? null : discos[i];
 }
 
@@ -70,6 +71,7 @@ void BackupDrivers()
     if (Comandos.Executar("dism", $"/Image:{alvo.LetraWindows}:\\ /Export-Driver /Destination:\"{destino}\"", Tui.Progresso) != 0)
         throw new Exception(Falha("O DISM não conseguiu exportar os drivers."));
     pastaDrivers = destino;
+    backupsFeitos.Add(destino);
     int total = Directory.GetDirectories(destino).Length;
     Tui.Mensagem("Backup de drivers", [$"{total} drivers salvos em {destino}", "Eles serão reinstalados automaticamente em \"Formatar e instalar\"."]);
 }
@@ -77,54 +79,77 @@ void BackupDrivers()
 void BackupArquivos()
 {
     if (!Exigir(alvo?.LetraWindows != null, "Escolha um disco que tenha Windows instalado.")) return;
-    // Destino: qualquer unidade fora do disco que vai ser formatado e fora do WinPE (X:)
+    var users = $@"{alvo!.LetraWindows}:\Users";
+    int modo = Tui.Menu("Backup de arquivos: o que copiar?", [], [
+        "Pastas pessoais de todos os usuários (recomendado)",
+        "Perfil completo de todos os usuários (inclui configurações e e-mails)",
+        "Escolher usuários e pastas",
+    ]);
+    if (modo < 0) return;
+
+    Tui.Etapa("Backup de arquivos", "Calculando o tamanho das pastas dos usuários...");
+    var itens = modo == 1 ? Backup.PerfisCompletos(users) : Backup.Pastas(users);
+    if (modo == 0) itens = itens.Where(x => x.Pessoal).ToList();
+    if (modo == 2)
+    {
+        var marcados = Tui.Selecao("Escolher usuários e pastas", [],
+            itens.Select(x => $"{Tui.Ajustar(x.Usuario, 18)} {Tui.Ajustar(x.Nome, 28)} {Formatar.Tamanho(x.Tamanho),9}").ToList(),
+            itens.Select(x => x.Pessoal).ToArray());
+        if (marcados == null) return;
+        itens = itens.Where((_, k) => marcados[k]).ToList();
+    }
+    if (!Exigir(itens.Count > 0, "Nenhuma pasta para copiar.")) return;
+    long total = itens.Sum(x => x.Tamanho);
+
+    // Destino: qualquer unidade fora do disco do Windows antigo e fora do WinPE (X:)
     var destinos = DriveInfo.GetDrives()
         .Where(d => d.IsReady && d.DriveType is DriveType.Fixed or DriveType.Removable && d.Name[0] != 'X')
         .Where(d => Discos.DiscoDaLetra(d.Name[0]) is int n && n != alvo!.Numero)
         .OrderByDescending(d => raiz != null && raiz.StartsWith(d.Name, StringComparison.OrdinalIgnoreCase))
         .ToList();
     if (!Exigir(destinos.Count > 0, "Nenhuma unidade disponível para o backup. Conecte um HD externo ou pendrive.")) return;
-    int i = Tui.Menu("Salvar backup em", [], destinos.Select(d =>
+    int i = Tui.Menu("Salvar backup em", [$"Backup: {itens.Count} pastas, {Formatar.Tamanho(total)}"], destinos.Select(d =>
         $"{d.Name}  {Tui.Ajustar(d.VolumeLabel, 20)} livre: {Formatar.Tamanho(d.AvailableFreeSpace)}" +
         (raiz != null && raiz.StartsWith(d.Name, StringComparison.OrdinalIgnoreCase) ? "   (pendrive MontaWin)" : "")).ToList());
     if (i < 0) return;
     var destino = destinos[i];
-    var pasta = Path.Combine(destino.Name, "MontaWin", "Backups", sessao, "Arquivos");
-
-    Tui.Etapa("Backup de arquivos", "Calculando o tamanho das pastas dos usuários...");
-    var itens = Backup.Planejar(alvo!.LetraWindows!.Value, pasta);
-    long total = itens.Sum(x => x.Tamanho);
     if (!Exigir(total < destino.AvailableFreeSpace,
         $"Não cabe: o backup tem {Formatar.Tamanho(total)} e {destino.Name} tem {Formatar.Tamanho(destino.AvailableFreeSpace)} livres.")) return;
+    var pasta = Path.Combine(destino.Name, "MontaWin", "Backups", sessao, "Arquivos");
 
     long copiado = 0;
     foreach (var item in itens)
     {
-        Tui.Etapa("Backup de arquivos", $"{item.Origem}  ({Formatar.Tamanho(item.Tamanho)})");
+        Tui.Etapa("Backup de arquivos", $"{item.Usuario} · {item.Nome}  ({Formatar.Tamanho(item.Tamanho)})");
         Tui.Progresso(total == 0 ? 100 : copiado * 100.0 / total);
-        if (Comandos.Executar("robocopy", $"\"{item.Origem}\" \"{item.Destino}\" /E /R:1 /W:1 /XJ /NP /NFL /NDL /NJH /NJS") >= 8)
+        var temp = Path.Combine(item.Perfil, "AppData", "Local", "Temp");
+        if (Comandos.Executar("robocopy", $"\"{item.Origem}\" \"{item.Destino(pasta)}\" /E /R:1 /W:1 /XJ /XD \"{temp}\" /NP /NFL /NDL /NJH /NJS") >= 8)
             throw new Exception(Falha($"Falha ao copiar {item.Origem}."));
         copiado += item.Tamanho;
     }
+    backupsFeitos.Add(pasta);
     Tui.Mensagem("Backup de arquivos", [$"{itens.Count} pastas copiadas ({Formatar.Tamanho(total)})", $"Salvo em {pasta}"]);
 }
 
 void Instalar()
 {
-    if (!Exigir(alvo != null, "Escolha o disco primeiro.")) return;
     if (!Exigir(raiz != null, "Pendrive MontaWin não encontrado (pasta MontaWin\\Imagens).")) return;
     var edicoes = Directory.GetFiles(Path.Combine(raiz!, "Imagens"), "*.wim").SelectMany(f => Wim.Ler(f)).ToList();
     if (!Exigir(edicoes.Count > 0, "Nenhuma imagem .wim na pasta MontaWin\\Imagens.")) return;
     int e = Tui.Menu("Escolher a edição", [], edicoes.Select(x => $"{x.Nome}   ({Path.GetFileName(x.Arquivo)})").ToList());
     if (e < 0) return;
     var edicao = edicoes[e];
+    var disco = EscolherDisco("Disco onde o Windows será instalado", alvo);
+    if (disco == null) return;
+    var backupNoDisco = backupsFeitos.FirstOrDefault(b => Discos.DiscoDaLetra(b[0]) == disco.Numero);
+    if (!Exigir(backupNoDisco == null, $"O backup em {backupNoDisco} está nesse disco e seria apagado. Escolha outro disco.")) return;
 
     var aviso = new List<string>
     {
-        $"TODOS os dados de {alvo!.Descricao.Trim()} serão apagados.",
+        $"TODOS os dados de {disco.Descricao.Trim()} serão apagados.",
         $"Instalar: {edicao.Nome}   ·   Modo: {(Discos.Uefi ? "UEFI (GPT)" : "BIOS (MBR)")}",
     };
-    if (alvo.LetraWindows != null && pastaDrivers == null) aviso.Add("Atenção: o backup de drivers ainda não foi feito.");
+    if (disco.LetraWindows != null && pastaDrivers == null) aviso.Add("Atenção: o backup de drivers ainda não foi feito.");
     if (!Tui.Confirmar("Formatar e instalar", aviso, "FORMATAR")) return;
 
     var letras = Comandos.LetrasLivres(2);
@@ -133,7 +158,7 @@ void Instalar()
 
     Tui.Etapa("Instalando", "1/4 · Particionando o disco");
     var script = Path.Combine(Path.GetTempPath(), "montawin-diskpart.txt");
-    File.WriteAllText(script, Comandos.ScriptParticionamento(alvo.Numero, Discos.Uefi, sistema, windows));
+    File.WriteAllText(script, Comandos.ScriptParticionamento(disco.Numero, Discos.Uefi, sistema, windows));
     if (Comandos.Executar("diskpart", $"/s \"{script}\"") != 0) throw new Exception(Falha("O diskpart não conseguiu particionar o disco."));
 
     Tui.Etapa("Instalando", $"2/4 · Aplicando {edicao.Nome}");
