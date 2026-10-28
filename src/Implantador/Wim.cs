@@ -3,7 +3,8 @@ using System.Xml.Linq;
 
 namespace MontaWin.Implantador;
 
-public record Edicao(string Arquivo, int Indice, string Nome, string Idioma);
+/// <param name="Build">Número da versão (ex.: 26200 = Windows 11 25H2); usado para achar as atualizações certas.</param>
+public record Edicao(string Arquivo, int Indice, string Nome, string Idioma, int Build = 0);
 
 // Lê a lista de edições direto do cabeçalho do .wim: não depende da saída (traduzida) do DISM.
 public static class Wim
@@ -26,6 +27,7 @@ public static class Wim
         XDocument.Parse(xml.TrimStart('\uFEFF')).Root!.Elements("IMAGE")
             .Select(i => new Edicao(arquivo, (int)i.Attribute("INDEX")!,
                 (string?)i.Element("DISPLAYNAME") ?? (string?)i.Element("NAME") ?? $"Imagem {(int)i.Attribute("INDEX")!}",
-                (string?)i.Element("WINDOWS")?.Element("LANGUAGES")?.Element("DEFAULT") ?? "en-US"))
+                (string?)i.Element("WINDOWS")?.Element("LANGUAGES")?.Element("DEFAULT") ?? "en-US",
+                (int?)i.Element("WINDOWS")?.Element("VERSION")?.Element("BUILD") ?? 0))
             .ToList();
 }

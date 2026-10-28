@@ -1,0 +1,194 @@
+using System.Reflection;
+using System.Runtime.InteropServices;
+using MontaWin.Implantador;
+using MontaWin.Montador;
+using Xunit;
+
+public class TelasTests
+{
+    // Fora do Windows (Linux/Mac), o GDI+ do painel é o libgdiplus.
+    static TelasTests()
+    {
+        if (!OperatingSystem.IsWindows())
+            NativeLibrary.SetDllImportResolver(typeof(Tui).Assembly, (nome, _, _) =>
+                nome == "gdiplus.dll" && NativeLibrary.TryLoad("libgdiplus.so", out var h) ? h : 0);
+    }
+
+    static readonly string[] NomesProgramas = ["Google Chrome", "WinRAR", "Visual C++ 2008 a 2022 (32 e 64 bits)", "Notepad++", "Lightshot", "pCloud",
+        "Spotify", "Microsoft 365 (Word, Excel, Outlook)", "Foxit PDF Editor Pro"];
+
+    /// <summary>Uma tela de cada tipo, como o painel mostra durante uma instalação.</summary>
+    public static IEnumerable<(string Nome, Tela Tela)> Exemplos()
+    {
+        yield return ("1-menu", new Tela
+        {
+            Tipo = TipoTela.Lista, Titulo = "O que vamos fazer?", Selecionado = 0, Rodape = "Setas: navegar    Enter: escolher",
+            Info = ["Nenhum disco escolhido para os backups", "Backup de drivers: não feito", "Perfil deste PC: PC Escritório", @"Pendrive: D:\MontaWin"],
+            Itens = new[] { "Formatar e instalar o Windows", "Escolher disco (para os backups)", "Backup de drivers", "Backup de arquivos",
+                "Restaurar backup de arquivos", "Perfis", "Capturar imagem de um Windows", "Prompt de comando", "Reiniciar", "Desligar" }
+                .Select(x => new Item(x)).ToList(),
+        });
+        yield return ("2-disco", new Tela
+        {
+            Tipo = TipoTela.Lista, Titulo = "Em qual disco instalar?", Selecionado = 0, Rodape = "Setas: navegar    Enter: escolher    Esc: voltar",
+            Itens = [
+                new Item($"Disco 0  {Formatar.Ajustar("Samsung SSD 980 1TB", 26)} {"954 GB",8}  {Formatar.Ajustar("Boa", 8)}  NVMe  GPT  Windows em C:"),
+                new Item($"Disco 1  {Formatar.Ajustar("ST1000DM010-2EP102", 26)} {"1000 GB",8}  {Formatar.Ajustar("Atenção", 8)}  SATA  MBR"),
+                new Item("← Voltar", TipoItem.Voltar)],
+        });
+        yield return ("3-programas", new Tela
+        {
+            Tipo = TipoTela.Lista, Titulo = "Quais programas instalar?", Selecionado = 3,
+            Rodape = "Enter ou Espaço: marcar/desmarcar    Tab: ir para Continuar    Esc: voltar",
+            Info = ["Instalados sozinhos no primeiro login do Windows novo.", "Os baixados no pendrive instalam sem internet; os outros precisam de internet."],
+            Itens = [new Item("Marcar todos", TipoItem.MarcarTodos), .. NomesProgramas.Select((p, i) => new Item(p, TipoItem.Caixa, i is 0 or 2 or 3)),
+                new Item("Continuar →   (3 marcados)", TipoItem.Continuar), new Item("← Voltar", TipoItem.Voltar)],
+        });
+        yield return ("4-usuario", new Tela
+        {
+            Tipo = TipoTela.Pergunta, Titulo = "Nome do usuário", Rotulo = "Nome do usuário", Campo = "Joao", Rodape = "Enter: continuar    Esc: voltar",
+            Info = ["Nome da conta local do Windows (ex.: Joao).", "Até 20 letras, sem \\ / [ ] : ; | = , + * ? < > \""],
+            Itens = [new Item("Continuar →", TipoItem.Continuar), new Item("← Voltar", TipoItem.Voltar)],
+        });
+        yield return ("5-resumo", new Tela
+        {
+            Tipo = TipoTela.Lista, Titulo = "Confira antes de começar", Rodape = "Setas: navegar    Enter: escolher    Esc: voltar",
+            Info = ["Windows: Windows 11 Pro  ·  UEFI (GPT)", "Disco: Disco 0 · Samsung SSD 980 1TB · 954 GB · Boa", "Partições: Windows 200 GB + Dados (o resto) + recuperação",
+                "Conta: joao (com senha) · telas iniciais da Microsoft puladas", "Programas: Google Chrome, Visual C++, Notepad++",
+                "Ajustes: otimizado (SSD: inicialização sem atraso), sem OneDrive", "Drivers: o backup volta no Windows novo"],
+            Itens = [new Item("Formatar e instalar"), new Item("Cancelar e voltar ao menu"), new Item("← Voltar e corrigir", TipoItem.Voltar)],
+        });
+        yield return ("6-confirmar", new Tela
+        {
+            Tipo = TipoTela.Pergunta, Titulo = "Isso vai apagar tudo", Alerta = Alerta.Perigo, Campo = "SI", Rodape = "Enter: continuar    Esc: voltar",
+            Rotulo = "Para confirmar, digite SIM e aperte Enter",
+            Info = ["TODOS os arquivos, programas e partições do Disco 0 · Samsung SSD 980 1TB · 954 GB serão apagados.", "Não tem como desfazer."],
+            Itens = [new Item("Formatar e instalar", TipoItem.Continuar), new Item("← Voltar", TipoItem.Voltar)],
+        });
+        yield return ("7-instalando", new Tela
+        {
+            Tipo = TipoTela.Progresso, Titulo = "Instalando o Windows", EtapaAtual = 2, Detalhe = "Otimizando", Percentual = 71,
+            Etapas = ["Preparando o disco", "Copiando o Windows", "Otimizando", "Instalando os drivers", "Restaurando os arquivos", "Inicialização e primeiro login", "Recuperação do Windows"],
+            Registro = ["Apagando o disco 0 e criando as partições (GPT/UEFI)", "Partições prontas", "Copiando os arquivos do Windows 11 Pro para o disco",
+                "Windows 11 Pro copiado em 3 min 42 s", "Conta local joao preparada; as telas iniciais da Microsoft serão puladas",
+                "Removido: Notícias", "Removido: Xbox", "Removido: Paciência", "Removido: Clipchamp"],
+            Inicio = DateTime.Now.AddMinutes(-4.5), Restante = TimeSpan.FromMinutes(1.8), Rodape = "Aguarde, não desligue o computador",
+        });
+        yield return ("8-erro", new Tela
+        {
+            Tipo = TipoTela.Mensagem, Titulo = "Saúde do disco 1: Atenção", Alerta = Alerta.Perigo, Rodape = "Enter: continuar",
+            Info = ["SMART: o disco avisa que pode falhar em breve (setores realocados).", "O disco funciona, mas vale avisar o cliente e fazer o backup."],
+            Itens = [new Item("Continuar", TipoItem.Continuar)],
+        });
+    }
+
+    [Fact]
+    public void PainelGraficoDesenhaTodasAsTelasNosTresTemas()
+    {
+        if (!OperatingSystem.IsWindows() && !NativeLibrary.TryLoad("libgdiplus.so", out _)) return; // sem GDI+ aqui
+        var pasta = Environment.GetEnvironmentVariable("MONTAWIN_PREVIA") ?? Path.Combine(Path.GetTempPath(), "montawin-previa");
+        Directory.CreateDirectory(pasta);
+        Tui.InfoSistema = "Dell Inc. OptiPlex 7090 · 16 GB RAM · UEFI";
+        foreach (var tema in Tui.Temas)
+            foreach (var (nome, tela) in Exemplos())
+            {
+                var arquivo = Path.Combine(pasta, $"painel-{tema}-{nome}.png");
+                // Fundos gerados pelo Montador (MONTAWIN_FUNDOS\<tema>\fundo.png); sem eles, o painel usa o degradê do tema.
+                var fundos = Environment.GetEnvironmentVariable("MONTAWIN_FUNDOS") is string f ? Path.Combine(f, tema) : null;
+                TelaGrafica.SalvarImagem(tema, fundos, tela, 1280, 720, arquivo);
+                Assert.True(new FileInfo(arquivo).Length > 10_000, arquivo);
+            }
+    }
+
+    [Fact]
+    public void PercentualTotalSegueOsPesosDasEtapas()
+    {
+        Assert.Equal(0, Tui.PercentualTotal([2, 55, 8], -1, 0));
+        Assert.Equal(2 / 65.0 * 100 + 55 / 65.0 * 50, Tui.PercentualTotal([2, 55, 8], 1, 50), 3);
+        Assert.Equal(100, Tui.PercentualTotal([2, 55, 8], 3, 0));
+        Assert.Equal(40, Tui.PercentualTotal([], 0, 40));
+        Assert.Null(Tui.Restante(TimeSpan.FromSeconds(10), 50)); // cedo demais para estimar
+        Assert.Equal(TimeSpan.FromMinutes(3), Tui.Restante(TimeSpan.FromMinutes(1), 25));
+    }
+
+    [Fact]
+    public void ProgramaBaixadoInstalaSemInternetComOsParametrosDoManifesto()
+    {
+        Assert.Equal(@"""C:\i\Google.Chrome\setup.exe"" /silent /install",
+            Programas.ComandoSilencioso("InstallerType: exe\nInstallerSwitches:\n  Silent: /silent /install\n", @"C:\i\Google.Chrome\setup.exe"));
+        Assert.Equal(@"msiexec /i ""C:\i\x.msi"" /qn /norestart", Programas.ComandoSilencioso("Installers:\n- InstallerType: wix\n", @"C:\i\x.msi"));
+        Assert.Equal(@"""C:\i\npp.exe"" /S", Programas.ComandoSilencioso("InstallerType: nullsoft\n", @"C:\i\npp.exe"));
+        Assert.EndsWith("/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP- /MERGETASKS=!runcode",
+            Programas.ComandoSilencioso("InstallerType: inno\nInstallerSwitches:\n  Custom: /MERGETASKS=!runcode\n", "a.exe"));
+        Assert.Null(Programas.ComandoSilencioso("InstallerType: zip\nNestedInstallerType: exe\n", "a.zip")); // fica para o winget online
+        Assert.Null(Programas.ComandoSilencioso("InstallerType: exe\n", "a.exe")); // exe sem parâmetro silencioso conhecido
+    }
+
+    [Fact]
+    public void ScriptDeProgramasTentaPeloWingetOQueFalharOffline()
+    {
+        var script = Unattend.GerarScriptProgramas(["Google.Chrome"], null, [("Notepad++.Notepad++", @"""C:\x\npp.exe"" /S")]);
+        Assert.Contains(@"""C:\x\npp.exe"" /S || set falhou=%falhou% Notepad++.Notepad++", script);
+        Assert.True(script.IndexOf("npp.exe") < script.IndexOf(":esperar")); // sem internet não espera o winget para instalar
+        Assert.Contains("for %%i in (%falhou%) do winget install --id %%i -e --source winget", script);
+    }
+
+    [Fact]
+    public void AppsRemovidosTemNomeQueOTecnicoReconhece()
+    {
+        Assert.Equal("Notícias", Otimizacao.NomeAmigavel("Microsoft.BingNews_4.55.62231.0_neutral_~_8wekyb3d8bbwe"));
+        Assert.Equal("Xbox (sobreposição de jogos)", Otimizacao.NomeAmigavel("Microsoft.XboxGamingOverlay_7.0.0.0_x64__8wekyb3d8bbwe"));
+        Assert.All(Otimizacao.AppsRemovidos, a => Assert.NotEqual(a, Otimizacao.NomeAmigavel(a + "_1.0.0.0_x64__8wekyb3d8bbwe")));
+    }
+
+    const string PesquisaCatalogo = """
+        <tr id="62c21efa-416e-430c-84ee-bba3c8d583c2_R0"><td id="62c21efa-416e-430c-84ee-bba3c8d583c2_C1_R0">
+        <a id='62c21efa-416e-430c-84ee-bba3c8d583c2_link' href= "javascript:void(0);" class="x">
+            2026-10 Cumulative Update for Windows 11, version 25H2 for x64-based Systems (KB5134133) (26200.9725)
+        </a></td><td id="62c21efa-416e-430c-84ee-bba3c8d583c2_C4_R0">
+            10/26/2026
+        </td></tr>
+        <tr><td><a id='badf2b59-071c-43f8-9be6-61df51759b9d_link' href= "javascript:void(0);">
+            2026-10 Safe OS Dynamic Update for Windows 11, version 25H2 for x64-based Systems (KB5127654)
+        </a></td><td id="badf2b59-071c-43f8-9be6-61df51759b9d_C4_R2">
+            10/13/2026
+        </td></tr>
+        <tr><td><a id='98c8f52b-7e9d-4fae-a8f8-7ad617da56e6_link' href= "javascript:void(0);">
+            2026-10 Cumulative Update for .NET Framework 3.5 and 4.8.1 for Windows 11, version 25H2 for x64 (KB5127690)
+        </a></td><td id="98c8f52b-7e9d-4fae-a8f8-7ad617da56e6_C4_R3">
+            10/13/2026
+        </td></tr>
+        <tr><td><a id='522b53b9-7eea-415d-9a2d-d4cbd0a37abf_link' href= "javascript:void(0);">
+            2026-11 Cumulative Update Preview for Windows 11, version 25H2 for x64-based Systems (KB5124010) (26200.9550)
+        </a></td><td id="522b53b9-7eea-415d-9a2d-d4cbd0a37abf_C4_R4">
+            11/22/2026
+        </td></tr>
+        """;
+
+    [Fact]
+    public void AtualizacoesEscolheACumulativaEoNetMaisNovosSemPreview()
+    {
+        Assert.Equal("25H2", Atualizacoes.Versao(26200));
+        Assert.Equal("24H2", Atualizacoes.Versao(26100));
+        Assert.Null(Atualizacoes.Versao(0));
+        var escolhidas = Atualizacoes.Escolher(Atualizacoes.LerPesquisa(PesquisaCatalogo), 26200);
+        Assert.Equal(2, escolhidas.Count);
+        Assert.Contains("KB5134133", escolhidas[0].Titulo);
+        Assert.Contains(".NET", escolhidas[1].Titulo);
+        Assert.Equal(new DateTime(2026, 10, 26), escolhidas[0].Data);
+        Assert.Empty(Atualizacoes.Escolher(Atualizacoes.LerPesquisa(PesquisaCatalogo), 22631)); // 23H2: nenhuma dessas serve
+        var arquivos = Atualizacoes.LerArquivos("""
+            downloadInformation[0].files[0].url = 'https://catalog.sf.dl.delivery.mp.microsoft.com/a/windows11.0-kb5043080-x64_95.msu';
+            downloadInformation[0].files[1].url = 'https://catalog.sf.dl.delivery.mp.microsoft.com/b/windows11.0-kb5134133-x64_0e.msu';
+            """);
+        Assert.Equal(2, arquivos.Count);
+        Assert.EndsWith("kb5134133-x64_0e.msu", arquivos[1]);
+    }
+
+    [Fact]
+    public void WimInformaOBuildDaEdicao()
+    {
+        var xml = "<WIM><IMAGE INDEX=\"1\"><NAME>Windows 11 Pro</NAME><WINDOWS><VERSION><BUILD>26200</BUILD></VERSION></WINDOWS></IMAGE></WIM>";
+        Assert.Equal(26200, Wim.Edicoes("x.wim", xml).Single().Build);
+    }
+}

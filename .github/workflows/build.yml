@@ -26,6 +26,26 @@ jobs:
           dotnet publish src/Montador -c Release -r win-x64 --self-contained
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publicar
+      # Imagens de exemplo: a janela do Montador e as telas do painel (com os fundos que o Montador desenha), nos 3 temas.
+      - name: Imagens de exemplo
+        continue-on-error: true
+        timeout-minutes: 5
+        shell: pwsh
+        run: |
+          Start-Process publicar/MontaWin.exe -ArgumentList '--captura', "$PWD\previa" -Wait
+          foreach ($t in 'ondas', 'bloom', 'pastel') {
+            New-Item -ItemType Directory -Force "fundos\$t" | Out-Null
+            Copy-Item "previa\fundo-$t.png" "fundos\$t\fundo.png"
+            Copy-Item "previa\fundo-desfocado-$t.png" "fundos\$t\fundo-desfocado.png"
+          }
+          $env:MONTAWIN_FUNDOS = "$PWD\fundos"
+          $env:MONTAWIN_PREVIA = "$PWD\previa"
+          dotnet test tests/Implantador.Tests --filter PainelGrafico
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Previa
+          path: previa/*.png
+          if-no-files-found: ignore
       # Os dois exe vão juntos: o MontaWin.exe coloca o Implantador.exe no pendrive.
       - uses: actions/upload-artifact@v4
         with:

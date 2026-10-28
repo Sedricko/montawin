@@ -29,6 +29,35 @@ public static partial class Otimizacao
             .Where(p => AppsRemovidos.Contains(p.Split('_')[0], StringComparer.OrdinalIgnoreCase))
             .ToList();
 
+    /// <summary>Nome que o técnico reconhece para o pacote (ex.: Microsoft.BingNews_4.55... vira "Notícias").</summary>
+    public static string NomeAmigavel(string pacote) => pacote.Split('_')[0] switch
+    {
+        "Microsoft.BingNews" => "Notícias",
+        "Microsoft.BingWeather" => "Clima",
+        "Microsoft.BingSearch" => "Pesquisa do Bing",
+        "Microsoft.GamingApp" => "Xbox",
+        "Microsoft.GetHelp" => "Obter Ajuda",
+        "Microsoft.Getstarted" => "Dicas",
+        "Microsoft.MicrosoftOfficeHub" => "Atalho do Microsoft 365 (propaganda)",
+        "Microsoft.MicrosoftSolitaireCollection" => "Paciência",
+        "Microsoft.People" => "Pessoas",
+        "Microsoft.PowerAutomateDesktop" => "Power Automate",
+        "Microsoft.Todos" => "To Do",
+        "Microsoft.WindowsFeedbackHub" => "Hub de Comentários",
+        "Microsoft.WindowsMaps" => "Mapas",
+        var x when x.StartsWith("Microsoft.Xbox") => "Xbox (sobreposição de jogos)",
+        "Microsoft.ZuneMusic" => "Media Player",
+        "Microsoft.ZuneVideo" => "Filmes e TV",
+        "Microsoft.549981C3F5F10" => "Cortana",
+        "Microsoft.Copilot" => "Copilot",
+        "Clipchamp.Clipchamp" => "Clipchamp",
+        "MicrosoftCorporationII.MicrosoftFamily" => "Family",
+        "Microsoft.MixedReality.Portal" => "Realidade Misturada",
+        "Microsoft.SkypeApp" => "Skype",
+        "Microsoft.Wallet" => "Carteira",
+        var x => x,
+    };
+
     // Chaves temporárias onde os registros do Windows novo são carregados no WinPE.
     public const string ChaveSoftware = @"HKLM\MW_SOFTWARE", ChaveSystem = @"HKLM\MW_SYSTEM", ChaveUsuario = @"HKLM\MW_DEFAULT";
 
@@ -85,7 +114,8 @@ public static partial class Otimizacao
     public static IEnumerable<(string Chave, string Valor, int Dado)> AjustesPara(bool ssd) => Registro.Where(r => ssd || r.Valor != SoEmSsd);
 
     /// <summary>Aplica tudo no Windows em <paramref name="windows"/>. Retorna quantos apps saíram.</summary>
-    public static int Aplicar(char windows, bool ssd, bool otimizar, bool removerOneDrive, bool altoDesempenho, Action<double>? progresso = null)
+    public static int Aplicar(char windows, bool ssd, bool otimizar, bool removerOneDrive, bool altoDesempenho, Action<double>? progresso = null,
+        Action<string>? removido = null)
     {
         var pacotes = new List<string>();
         if (otimizar)
@@ -95,7 +125,8 @@ public static partial class Otimizacao
         }
         for (int i = 0; i < pacotes.Count; i++)
         {
-            Comandos.Executar("dism", $@"/Image:{windows}:\ /Remove-ProvisionedAppxPackage /PackageName:{pacotes[i]}");
+            if (Comandos.Executar("dism", $@"/Image:{windows}:\ /Remove-ProvisionedAppxPackage /PackageName:{pacotes[i]}") == 0)
+                removido?.Invoke(NomeAmigavel(pacotes[i]));
             progresso?.Invoke((i + 1) * 80.0 / Math.Max(pacotes.Count, 1));
         }
 

@@ -30,7 +30,7 @@ public record Particao(int Numero, long Inicio, long Tamanho, TipoParticao Tipo,
                 _ => "Outro sistema · protegida",
             };
             var nome = Tipo == TipoParticao.Fabricante && Nome.Length > 0 ? $" ({Nome})" : "";
-            return $"Partição {Numero,-2} {(Letra is char l ? l + ":" : "  ")}  {Tui.Ajustar(tipo + nome, 38)} {Formatar.Tamanho(Tamanho),9}" +
+            return $"Partição {Numero,-2} {(Letra is char l ? l + ":" : "  ")}  {Formatar.Ajustar(tipo + nome, 38)} {Formatar.Tamanho(Tamanho),9}" +
                    (TemWindows ? "   Windows detectado" : "");
         }
     }
@@ -42,7 +42,7 @@ public record Disco(int Numero, long Tamanho, string Modelo, bool Usb, bool Gpt,
     /// <summary>SSD (NVMe ou sem "penalidade de busca"): alguns ajustes só valem para SSD.</summary>
     public bool Ssd { get; init; }
     public char? LetraWindows => Particoes.FirstOrDefault(p => p.TemWindows)?.Letra;
-    public string Descricao => $"Disco {Numero}  {Tui.Ajustar(Modelo, 26)} {Formatar.Tamanho(Tamanho),8}  {Tui.Ajustar(Saude.Curta, 8)}" +
+    public string Descricao => $"Disco {Numero}  {Formatar.Ajustar(Modelo, 26)} {Formatar.Tamanho(Tamanho),8}  {Formatar.Ajustar(Saude.Curta, 8)}" +
                                (LetraWindows is char l ? $"  Windows ({l}:)" : "");
 }
 
@@ -224,4 +224,7 @@ public static class Formatar
 {
     public static string Tamanho(long bytes) =>
         bytes >= 1_000_000_000_000 ? $"{bytes / 1e12:0.0} TB" : bytes >= 1_000_000_000 ? $"{bytes / 1e9:0} GB" : $"{bytes / 1e6:0} MB";
+
+    /// <summary>Corta ou completa com espaços: colunas alinhadas (o painel gráfico também usa as colunas).</summary>
+    public static string Ajustar(string s, int n) => s.Length > n ? s[..n] : s.PadRight(n);
 }

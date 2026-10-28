@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace MontaWin.Implantador;
 
 /// <summary>
@@ -50,10 +52,46 @@ public static class Programas
             .Where(p => p.Nome.Length > 0 && (p.Ids.Length > 0 || p.Instalador?.Length > 0))
             .ToList();
 
+    /// <summary>Id de app da Microsoft Store (ex.: 9NCBCSZSJRSB): 12 letras/números começando com 9 ou X.</summary>
+    public static bool DaLoja(string id) => id.Length == 12 && id[0] is '9' or 'X' && id.All(char.IsAsciiLetterOrDigit);
+
     /// <summary>"NVIDIA_app*.exe -s" vira ("NVIDIA_app*.exe", "-s").</summary>
     public static (string Arquivo, string Parametros) Separar(string instalador)
     {
         var partes = instalador.Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
         return (partes[0], partes.Length > 1 ? partes[1].Trim() : "");
+    }
+
+    /// <summary>
+    /// Programa baixado pelo Montador com "winget download" (instalador + manifesto .yaml numa pasta por id).
+    /// Retorna a linha que instala sem internet, com os parâmetros silenciosos do manifesto, ou null se não der.
+    /// </summary>
+    public static string? Offline(string pasta, string pastaNoWindows)
+    {
+        var arquivos = Directory.GetFiles(pasta);
+        var manifesto = arquivos.FirstOrDefault(f => f.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase));
+        var instalador = arquivos.FirstOrDefault(f => !f.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase));
+        return manifesto == null || instalador == null ? null
+            : ComandoSilencioso(File.ReadAllText(manifesto), $@"{pastaNoWindows}\{Path.GetFileName(instalador)}");
+    }
+
+    /// <summary>Comando silencioso pelo tipo de instalador do manifesto do winget (null para zip, portátil ou msix: ficam para o winget).</summary>
+    public static string? ComandoSilencioso(string manifesto, string caminho)
+    {
+        string? Campo(string nome) =>
+            Regex.Match(manifesto, $@"^\s*-?\s*{nome}:\s*(.+?)\s*$", RegexOptions.Multiline) is { Success: true } m ? m.Groups[1].Value.Trim('\'', '"') : null;
+        if (Campo("NestedInstallerType") != null) return null;
+        var tipo = Campo("InstallerType")?.ToLowerInvariant();
+        var parametros = Campo("Silent") ?? tipo switch
+        {
+            "msi" or "wix" => "/qn /norestart",
+            "inno" => "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /SP-",
+            "nullsoft" => "/S",
+            "burn" => "/quiet /norestart",
+            _ => null,
+        };
+        if (parametros == null || tipo is null or "zip" or "portable" or "msix" or "appx") return null;
+        if (Campo("Custom") is string extra) parametros += " " + extra;
+        return tipo is "msi" or "wix" ? $"msiexec /i \"{caminho}\" {parametros}" : $"\"{caminho}\" {parametros}";
     }
 }

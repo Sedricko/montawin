@@ -1,6 +1,10 @@
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using MontaWin.Implantador;
 using Microsoft.Win32;
 
@@ -34,6 +38,9 @@ public partial class MainWindow : Window
         Closed += (_, _) => { if (iso != null) Pendrive.FecharIso(iso.Iso); };
         Loaded += (_, _) =>
         {
+            var args = Environment.GetCommandLineArgs();
+            int captura = Array.IndexOf(args, "--captura");
+            if (captura > 0 && captura + 1 < args.Length) { Capturar(args[captura + 1]); return; }
             if (!File.Exists(Implantador)) Erro($"Não encontrei o Implantador.exe ao lado do MontaWin.exe:\n{Implantador}");
             Atualizar(this, new RoutedEventArgs());
         };
@@ -55,12 +62,62 @@ public partial class MainWindow : Window
         ThemeMode = tema == "pastel" ? ThemeMode.Light : ThemeMode.Dark; // controles claros no tema claro
     }
 
+    FrameworkElement FundoDoTema => tema switch { "bloom" => FundoBloom, "pastel" => FundoPastel, _ => FundoOndas };
+
+    /// <summary>
+    /// O painel do boot usa o mesmo fundo deste tema: desenha uma cópia em 1920x1080 (normal e desfocada, para o "vidro")
+    /// e salva em PNG. O WinPE não desenha desfoque sozinho, então ele já vai pronto.
+    /// </summary>
+    static void SalvarFundo(FrameworkElement modelo, string arquivo, bool desfocado)
+    {
+        var copia = (FrameworkElement)XamlReader.Parse(XamlWriter.Save(modelo));
+        (copia.Visibility, copia.Width, copia.Height) = (Visibility.Visible, 1920, 1080);
+        FrameworkElement raiz = desfocado ? new Border { Child = copia, Effect = new BlurEffect { Radius = 70, RenderingBias = RenderingBias.Quality } } : copia;
+        Salvar(raiz, arquivo, 1920, 1080);
+    }
+
+    static void Salvar(FrameworkElement elemento, string arquivo, int w, int h)
+    {
+        elemento.Measure(new Size(w, h));
+        elemento.Arrange(new Rect(0, 0, w, h));
+        elemento.UpdateLayout();
+        var bmp = new RenderTargetBitmap(w, h, 96, 96, PixelFormats.Pbgra32);
+        bmp.Render(elemento);
+        var png = new PngBitmapEncoder();
+        png.Frames.Add(BitmapFrame.Create(bmp));
+        using var f = File.Create(arquivo);
+        png.Save(f);
+    }
+
+    /// <summary>Imagens de exemplo (MontaWin.exe --captura pasta): esta janela e os fundos do painel, nos 3 temas.</summary>
+    void Capturar(string pasta)
+    {
+        Directory.CreateDirectory(pasta);
+        CaminhoIso.Text = @"D:\ISOs\Win11_25H2_BrazilianPortuguese_x64.iso";
+        ListaEdicoes.ItemsSource = new[] { new EdicaoItem(1, "Windows 11 Home"), new EdicaoItem(6, "Windows 11 Pro") };
+        TituloEdicoes.Visibility = Visibility.Visible;
+        ListaPendrives.ItemsSource = new[] { new Disco(2, 256L << 30, "Kingston DataTraveler Max", true, false, []) };
+        ListaPendrives.SelectedIndex = 0;
+        Status.Text = "Copiando Windows 11 Pro (2 de 2)";
+        Barra.Value = 62;
+        foreach (RadioButton r in Temas.Children)
+        {
+            r.IsChecked = true;
+            UpdateLayout();
+            var conteudo = (FrameworkElement)Content;
+            Salvar(conteudo, Path.Combine(pasta, $"montador-{tema}.png"), (int)conteudo.ActualWidth, (int)conteudo.ActualHeight);
+            SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-{tema}.png"), desfocado: false);
+            SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-desfocado-{tema}.png"), desfocado: true);
+        }
+        Close();
+    }
+
     void Erro(string mensagem) => MessageBox.Show(this, mensagem, "MontaWin", MessageBoxButton.OK, MessageBoxImage.Error);
 
     void Ocupado(bool ocupado, string status)
     {
         BotaoIso.IsEnabled = BotaoAtualizar.IsEnabled = BotaoCriar.IsEnabled = ListaPendrives.IsEnabled = ListaEdicoes.IsEnabled =
-            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = Temas.IsEnabled = !ocupado;
+            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = Temas.IsEnabled = AtualizarAuto.IsEnabled = BaixarProgramas.IsEnabled = !ocupado;
         Status.Text = status;
     }
 
@@ -77,7 +134,9 @@ public partial class MainWindow : Window
             CaminhoIso.Text = iso.Iso;
             ListaEdicoes.ItemsSource = iso.Edicoes.Select(x => new EdicaoItem(x.Indice, x.Nome)).ToList();
             TituloEdicoes.Visibility = Visibility.Visible;
-            Ocupado(false, iso.Edicoes.Count == 1 ? "1 edição encontrada." : $"{iso.Edicoes.Count} edições encontradas.");
+            var versao = Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0);
+            Ocupado(false, (iso.Edicoes.Count == 1 ? "1 edição encontrada" : $"{iso.Edicoes.Count} edições encontradas") +
+                (versao != null ? $" (versão {versao})." : "."));
         }
         catch (Exception ex)
         {
@@ -92,6 +151,7 @@ public partial class MainWindow : Window
         if (dialogo.ShowDialog(this) != true) return;
         if (Directory.GetFiles(dialogo.FolderName, "*.msu").Length == 0) { Erro("Essa pasta não tem arquivos .msu."); return; }
         PastaAtualizacoes.Text = dialogo.FolderName;
+        AtualizarAuto.IsChecked = false; // a pasta escolhida substitui o download automático
     }
 
     async void Atualizar(object sender, RoutedEventArgs e)
@@ -134,17 +194,46 @@ public partial class MainWindow : Window
         if (MessageBox.Show(this, pergunta, "MontaWin", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
         Ocupado(true, "Começando...");
+        void Progresso(string? etapa, double pct) => Dispatcher.Invoke(() =>
+        {
+            if (etapa != null) Status.Text = etapa;
+            Barra.Value = pct;
+        });
+        string? atualizacoes = PastaAtualizacoes.Text.Length > 0 ? PastaAtualizacoes.Text : null;
+        int build = iso.Edicoes.First(x => x.Indice == indices[0]).Build;
+        if (atualizacoes == null && AtualizarAuto.IsChecked == true)
+        {
+            try
+            {
+                var (pasta, descricao) = await Task.Run(() => Atualizacoes.Baixar(build, Progresso));
+                atualizacoes = pasta;
+                Status.Text = $"Atualizações baixadas: {descricao}";
+            }
+            catch (Exception ex)
+            {
+                Ocupado(false, "Não deu para baixar as atualizações automaticamente.");
+                // Reserva: abre a pesquisa certa no Catalog para baixar na mão e escolher a pasta.
+                if (Atualizacoes.Versao(build) != null && MessageBox.Show(this,
+                        $"Não consegui baixar as atualizações sozinho:\n{ex.Message}\n\nAbrir o Microsoft Update Catalog já pesquisado na versão certa? " +
+                        "Baixe a \"Cumulative Update\" mais nova (sem \"Preview\"), escolha a pasta em \"Ou use uma pasta\" e crie de novo.\n\n" +
+                        "Ou desmarque \"Baixar e instalar as atualizações\" para criar sem elas.",
+                        "MontaWin", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                    Process.Start(new ProcessStartInfo(Atualizacoes.UrlPesquisa(build)) { UseShellExecute = true });
+                return;
+            }
+        }
         try
         {
-            var gravacao = new Gravacao(iso, indices, pendrive, Implantador, Rapida.IsChecked == true, manter,
-                PastaAtualizacoes.Text.Length > 0 ? PastaAtualizacoes.Text : null, tema);
-            await Task.Run(() => Pendrive.Gravar(gravacao, (etapa, pct) => Dispatcher.Invoke(() =>
-            {
-                if (etapa != null) Status.Text = etapa;
-                Barra.Value = pct;
-            })));
+            var fundo = Path.Combine(Path.GetTempPath(), "MontaWin-fundo.png");
+            var desfocado = Path.Combine(Path.GetTempPath(), "MontaWin-fundo-desfocado.png");
+            SalvarFundo(FundoDoTema, fundo, desfocado: false);
+            SalvarFundo(FundoDoTema, desfocado, desfocado: true);
+            var gravacao = new Gravacao(iso, indices, pendrive, Implantador, Rapida.IsChecked == true, manter, atualizacoes, tema,
+                (fundo, desfocado), BaixarProgramas.IsChecked == true);
+            var falhas = await Task.Run(() => Pendrive.Gravar(gravacao, Progresso));
             Ocupado(false, "Pendrive pronto! Dê boot por ele no PC do cliente.");
-            MessageBox.Show(this, "Pendrive pronto!\n\nDê boot por ele no PC do cliente: o painel MontaWin abre sozinho.",
+            MessageBox.Show(this, "Pendrive pronto!\n\nDê boot por ele no PC do cliente: o painel MontaWin abre sozinho." +
+                (falhas.Count > 0 ? $"\n\nNão deu para baixar: {string.Join(", ", falhas)}. Esses instalam pela internet no primeiro login." : ""),
                 "MontaWin", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)

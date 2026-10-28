@@ -6,7 +6,7 @@ public record Driver(string Pasta, string Classe, string Fabricante, string Inf)
     /// <summary>Vem marcado no backup: o que faz o PC funcionar. Impressora, firmware e tipos desconhecidos ficam desmarcados.</summary>
     public bool Basico => Drivers.EhBasico(Classe);
 
-    public string Descricao => $"{Tui.Ajustar(Classe, 14)} {Tui.Ajustar(Fabricante, 26)} {Inf}";
+    public string Descricao => $"{Formatar.Ajustar(Classe, 14)} {Formatar.Ajustar(Fabricante, 26)} {Inf}";
 }
 
 public static class Drivers

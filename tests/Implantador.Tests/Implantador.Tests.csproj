@@ -16,6 +16,7 @@
   <!-- Lógica do Montador sem a parte de tela (o projeto dele é WPF) -->
   <ItemGroup>
     <Compile Include="..\..\src\Montador\Pendrive.cs" Link="Pendrive.cs" />
+    <Compile Include="..\..\src\Montador\Atualizacoes.cs" Link="Atualizacoes.cs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -74,9 +74,9 @@ public static partial class Comandos
         RegexPercentual().Match(linha) is { Success: true } m ? double.Parse(m.Groups[1].Value) : null;
 
     /// <summary>Letras livres para as partições novas (pula A, B e X, que é o próprio WinPE).</summary>
-    public static char[] LetrasLivres(int quantidade)
+    public static char[] LetrasLivres(int quantidade, string ordem = "SWRDEFGHIJKLMNOPQTUVYZ")
     {
         var usadas = DriveInfo.GetDrives().Select(d => char.ToUpperInvariant(d.Name[0])).ToHashSet();
-        return "SWRDEFGHIJKLMNOPQTUVYZ".Where(l => !usadas.Contains(l)).Take(quantidade).ToArray();
+        return ordem.Where(l => !usadas.Contains(l)).Take(quantidade).ToArray();
     }
 }

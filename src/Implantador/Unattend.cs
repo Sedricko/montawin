@@ -88,21 +88,27 @@ public static class Unattend
     }
 
     /// <summary>
-    /// Roda os instaladores copiados do pendrive (arquivo + parâmetros silenciosos) e depois os programas do winget,
-    /// esperando o winget ficar disponível (ele é registrado logo depois do 1º login).
+    /// Roda os instaladores copiados do pendrive (arquivo + parâmetros silenciosos e os baixados do winget, que não
+    /// precisam de internet) e depois os do winget online, esperando o winget ficar disponível (ele é registrado logo
+    /// depois do 1º login). Baixado que falhar é tentado de novo pelo winget online.
     /// </summary>
-    public static string GerarScriptProgramas(IEnumerable<string> idsWinget, IEnumerable<(string Arquivo, string Parametros)>? instaladores = null)
+    public static string GerarScriptProgramas(IEnumerable<string> idsWinget, IEnumerable<(string Arquivo, string Parametros)>? instaladores = null,
+        IEnumerable<(string Id, string Comando)>? offline = null)
     {
         var s = new System.Text.StringBuilder("""
             @echo off
             rem Gerado pelo MontaWin: instala os programas escolhidos no painel.
             echo Instalando programas (MontaWin). Pode usar o computador enquanto isso.
+            set falhou=
 
             """.ReplaceLineEndings("\r\n"));
         var locais = instaladores?.ToList() ?? [];
+        var baixados = offline?.ToList() ?? [];
         foreach (var (arquivo, parametros) in locais)
             s.Append($"start \"\" /wait \"%SystemDrive%\\{PastaInstaladores}\\{arquivo}\" {parametros}\r\n".Replace(" \r\n", "\r\n"));
-        if (locais.Count > 0) s.Append($"rd /s /q \"%SystemDrive%\\{PastaInstaladores}\"\r\n");
+        foreach (var (id, comando) in baixados)
+            s.Append($"echo {id}\r\n{comando} || set falhou=%falhou% {id}\r\n");
+        if (locais.Count + baixados.Count > 0) s.Append($"rd /s /q \"%SystemDrive%\\{PastaInstaladores}\"\r\n");
         s.Append("""
             set tentativas=0
             :esperar
@@ -114,9 +120,14 @@ public static class Unattend
             :instalar
 
             """.ReplaceLineEndings("\r\n"));
+        // Origem sempre explícita: sem ela o winget também consulta a Microsoft Store, que no primeiro login costuma
+        // falhar ("certificate did not match") e aí o winget para pedindo --source, sem instalar nada.
         foreach (var id in idsWinget)
-            s.Append($"winget install --id {id} -e --silent --accept-package-agreements --accept-source-agreements\r\n");
+            s.Append($"winget install --id {id} -e --source {(Programas.DaLoja(id) ? "msstore" : "winget")} {Silencioso}\r\n");
+        if (baixados.Count > 0) s.Append($"for %%i in (%falhou%) do winget install --id %%i -e --source winget {Silencioso}\r\n");
         s.Append(":fim\r\n");
         return s.ToString();
     }
+
+    const string Silencioso = "--silent --accept-package-agreements --accept-source-agreements";
 }

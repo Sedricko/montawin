@@ -7,9 +7,11 @@ public record IsoAberta(string Iso, char Letra, string Install, List<Edicao> Edi
 /// <param name="Rapida">Compressão rápida: imagem ~30% maior, mas a instalação descomprime mais depressa.</param>
 /// <param name="Manter">Letras de um pendrive MontaWin existente: só adiciona a ISO e atualiza o painel, sem apagar.</param>
 /// <param name="Tema">Visual do painel no boot: ondas, bloom ou pastel (gravado em MontaWin\tema.txt).</param>
+/// <param name="Fundos">Imagens do fundo do tema (normal e desfocada) já desenhadas pelo Montador, para o painel gráfico.</param>
+/// <param name="BaixarProgramas">Baixa os programas da lista para o pendrive: no primeiro login instalam sem internet.</param>
 /// <param name="Atualizacoes">Pasta com as atualizações .msu do Microsoft Update Catalog, injetadas em cada edição (null = nenhuma).</param>
 public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador, bool Rapida, (char Boot, char Dados)? Manter,
-    string? Atualizacoes = null, string Tema = "ondas");
+    string? Atualizacoes = null, string Tema = "ondas", (string Fundo, string Desfocado)? Fundos = null, bool BaixarProgramas = false);
 
 /// <summary>
 /// Monta o pendrive: partição FAT32 de boot (UEFI e BIOS) com o WinPE da ISO abrindo o Implantador,
@@ -79,14 +81,17 @@ public static class Pendrive
     public static void FecharIso(string iso) =>
         Comandos.Executar("powershell", $"-NoProfile -Command \"Dismount-DiskImage -ImagePath '{Aspas(iso)}' -ErrorAction SilentlyContinue\"");
 
-    /// <summary>Grava tudo. <paramref name="progresso"/> recebe a etapa (null = mesma etapa) e o percentual geral.</summary>
-    public static void Gravar(Gravacao g, Action<string?, double> progresso)
+    /// <summary>
+    /// Grava tudo. <paramref name="progresso"/> recebe a etapa (null = mesma etapa) e o percentual geral.
+    /// Retorna os programas que não deu para baixar (ficam para o winget online no primeiro login).
+    /// </summary>
+    public static List<string> Gravar(Gravacao g, Action<string?, double> progresso)
     {
         char boot, dados;
         if (g.Manter is (char b, char d)) (boot, dados) = (b, d);
         else
         {
-            var letras = Comandos.LetrasLivres(2);
+            var letras = Comandos.LetrasLivres(2, "MNOPQTUVYZ"); // longe de S/W/R, que o painel usa na instalação
             if (letras.Length < 2) throw new Exception("Não há letras de unidade livres.");
             (boot, dados) = (letras[0], letras[1]);
         }
@@ -144,6 +149,11 @@ public static class Pendrive
         if (!File.Exists(leiaMe)) File.WriteAllText(leiaMe, LeiaMeDrivers);
         Directory.CreateDirectory($@"{dados}:\MontaWin\Instaladores");
         File.WriteAllText($@"{dados}:\MontaWin\tema.txt", g.Tema);
+        if (g.Fundos is (string fundo, string desfocado))
+        {
+            File.Copy(fundo, $@"{dados}:\MontaWin\fundo.png", overwrite: true);
+            File.Copy(desfocado, $@"{dados}:\MontaWin\fundo-desfocado.png", overwrite: true);
+        }
         var listaProgramas = $@"{dados}:\MontaWin\Programas.txt";
         if (!File.Exists(listaProgramas)) File.WriteAllText(listaProgramas, Programas.Padrao); // não sobrescreve a lista editada pelo técnico
         var destino = Path.Combine(pastaImagens, Path.GetFileNameWithoutExtension(g.Iso.Iso) + ".wim");
@@ -182,6 +192,30 @@ public static class Pendrive
         }
 
         Directory.Delete(trabalho, recursive: true);
+        var falhas = g.BaixarProgramas ? BaixarProgramas(dados, progresso) : [];
         progresso("Pendrive pronto", 100);
+        return falhas;
+    }
+
+    /// <summary>
+    /// "winget download" de cada programa da lista (menos os da Microsoft Store, que só instalam online) para
+    /// MontaWin\Instaladores\winget\<id>: instalador + manifesto com os parâmetros silenciosos.
+    /// </summary>
+    public static List<string> BaixarProgramas(char dados, Action<string?, double> progresso)
+    {
+        var ids = Programas.Ler(File.ReadAllText($@"{dados}:\MontaWin\Programas.txt")).SelectMany(p => p.Ids).Where(id => !Programas.DaLoja(id)).Distinct().ToList();
+        var falhas = new List<string>();
+        for (int i = 0; i < ids.Count; i++)
+        {
+            progresso($"Baixando programas para o pendrive: {ids[i]} ({i + 1} de {ids.Count})", 92 + i * 8.0 / ids.Count);
+            var pasta = $@"{dados}:\MontaWin\Instaladores\winget\{ids[i]}";
+            if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true); // sempre a versão mais nova
+            if (Comandos.Executar("winget", $"download --id {ids[i]} -e --source winget --download-directory \"{pasta}\" --accept-package-agreements --accept-source-agreements") != 0)
+            {
+                falhas.Add(ids[i]);
+                if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true); // sem pasta, o painel usa o winget online
+            }
+        }
+        return falhas;
     }
 }

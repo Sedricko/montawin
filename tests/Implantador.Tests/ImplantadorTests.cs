@@ -281,8 +281,10 @@ public class ImplantadorTests
     {
         var script = Unattend.GerarScriptProgramas(["Google.Chrome", "RARLab.WinRAR"]);
         Assert.Contains("where winget >nul 2>nul && goto instalar\r\n", script);
-        Assert.Contains("winget install --id Google.Chrome -e --silent --accept-package-agreements --accept-source-agreements\r\n", script);
+        Assert.Contains("winget install --id Google.Chrome -e --source winget --silent --accept-package-agreements --accept-source-agreements\r\n", script);
         Assert.Contains("winget install --id RARLab.WinRAR -e", script);
+        Assert.Contains("winget install --id 9NCBCSZSJRSB -e --source msstore", Unattend.GerarScriptProgramas(["9NCBCSZSJRSB"]));
+        Assert.False(Programas.DaLoja("Google.Chrome"));
         Assert.EndsWith(":fim\r\n", script);
         Assert.Contains(@"start ""MontaWin - instalando programas"" /min cmd /c ""%SystemDrive%\Windows\Setup\Scripts\MontaWin-programas.cmd""",
             Unattend.GerarScriptPrimeiroLogin([], temProgramas: true));
