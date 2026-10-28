@@ -334,9 +334,11 @@ public partial class MainWindow : Window
             var versao = Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0);
             var certificado = Pendrive.CertificadoDoBoot(iso.Letra);
             InfoIso.Text = (iso.Edicoes.Count == 1 ? "1 edição encontrada" : $"{iso.Edicoes.Count} edições encontradas") +
-                (versao != null ? $" (versão {versao})." : $" (build {iso.Edicoes.FirstOrDefault()?.Build}: versão não reconhecida para as atualizações).") +
+                (versao != null ? $" (versão {versao})." : $" (build {iso.Edicoes.FirstOrDefault()?.Build}: versão não reconhecida, então as atualizações do mês ficam desmarcadas).") +
                 (certificado != null ? $" Boot com o certificado {certificado} do Secure Boot." : "") +
                 (certificado == "antigo (2011)" ? " Se algum PC recusar o boot do pendrive, use uma ISO mais nova da Microsoft." : "");
+            // Versão que o app não conhece: confere já, em vez de descobrir só depois de confirmar a gravação
+            if (versao == null) AtualizarAuto.IsChecked = false;
             Ocupado(false, "ISO pronta. Escolha o pendrive e clique em Criar pendrive.");
         }
         catch (Exception ex)
@@ -646,6 +648,12 @@ public partial class MainWindow : Window
         var licenca = Licenca.Text.Trim().Length == 0 ? null : Unattend.ChaveValida(Licenca.Text);
         if (Licenca.Text.Trim().Length > 0 && licenca == null) { Erro("A licença (na engrenagem) precisa ter o formato XXXXX-XXXXX-XXXXX-XXXXX-XXXXX."); return; }
         if (!File.Exists(Implantador)) { Erro($"Não encontrei o painel do pendrive (Implantador.exe):\n{Implantador}"); return; }
+        if (AtualizarAuto.IsChecked == true && PastaAtualizacoes.Text.Length == 0 && Atualizacoes.Versao(iso.Edicoes.First(x => x.Indice == indices[0]).Build) == null)
+        {
+            Erro($"Não reconheci a versão desta ISO (build {iso.Edicoes.First(x => x.Indice == indices[0]).Build}), então não sei quais atualizações servem.\n\n" +
+                 "Desmarque \"Baixar e instalar as atualizações do mês\" para criar sem elas. Nada foi apagado.");
+            return;
+        }
         var manter = Manter.IsChecked == true ? Pendrive.Existente(pendrive) : null;
         long imagem = new FileInfo(iso.Install).Length;
         long necessario = manter != null ? imagem : ((long)Pendrive.BootMb << 20) + imagem + (1L << 30);
