@@ -17,6 +17,8 @@ public static class Unattend
     public const string ScriptSetupComplete = @"Windows\Setup\Scripts\SetupComplete.cmd";
     public const string ScriptAntesDoLogin = @"Windows\Setup\Scripts\MontaWin-antes-do-login.cmd";
     public const string PerfilWifi = @"Windows\Setup\Scripts\MontaWin-wifi.xml";
+    /// <summary>Cópia do backup de drivers dentro do Windows novo, para a segunda tentativa da conferência.</summary>
+    public const string PastaDriversReserva = @"MontaWin\Drivers";
     public const string ScriptConferencia = @"Windows\Setup\Scripts\MontaWin-conferencia.ps1";
     public const string ChamadaConferencia = $"powershell -NoProfile -ExecutionPolicy Bypass -File %SystemDrive%\\{ScriptConferencia}";
     public const string ChamadaSetupComplete = $"call %SystemDrive%\\{ScriptAntesDoLogin}\r\n";
@@ -261,7 +263,22 @@ public static class Unattend
                 }
                 $linhas += ''
             }
-            $sem = @(Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.Status -in 'Error', 'Degraded' })
+            function SemDriver { @(Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.Status -in 'Error', 'Degraded' }) }
+            $sem = SemDriver
+            # Segunda tentativa: instala de novo a partir da cópia do backup de drivers que o painel deixou no disco
+            $reserva = Join-Path $env:SystemDrive '{{PastaDriversReserva}}'
+            if ($sem.Count -gt 0 -and (Test-Path $reserva)) {
+                $antes = $sem.Count
+                pnputil.exe /add-driver "$reserva\*.inf" /subdirs /install | Out-Null
+                Start-Sleep -Seconds 15
+                $sem = SemDriver
+                $linhas += "Segunda tentativa com o backup de drivers: $($antes - $sem.Count) de $antes dispositivo(s) resolvido(s)."
+            }
+            if ($sem.Count -eq 0 -and (Test-Path $reserva)) {
+                Remove-Item $reserva -Recurse -Force -ErrorAction SilentlyContinue
+                Remove-Item (Split-Path $reserva) -Force -ErrorAction SilentlyContinue # só se ficou vazia
+            }
+            elseif (Test-Path $reserva) { $linhas += "O backup de drivers ficou em $reserva (pode apagar quando estiver tudo certo)." }
             if ($sem.Count -eq 0) { $linhas += 'Drivers: todos os dispositivos estão funcionando.' }
             else {
                 $linhas += "Drivers: $($sem.Count) dispositivo(s) com problema (o Windows Update ainda pode instalar alguns):"

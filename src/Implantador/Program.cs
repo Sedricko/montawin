@@ -1145,6 +1145,10 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
                     if (pasta == null) continue;
                     Tui.Registro($"Instalando {Directory.GetFiles(pasta, "*.inf", SearchOption.AllDirectories).Length} drivers {nome}");
                     Comandos.Executar("dism", $"/Image:{w}:\\ /Add-Driver /Driver:\"{pasta}\" /Recurse", Tui.Progresso);
+                    // Cópia para a segunda tentativa no primeiro login, se não for grande demais para deixar no C:
+                    if (nome == "do backup deste PC" && Backup.Tamanho(pasta) < 1500L << 20
+                        && Comandos.Executar("robocopy", $"\"{pasta}\" \"{w}:\\{Unattend.PastaDriversReserva}\" /E /R:1 /W:1 /NP") < 8)
+                        Tui.Registro("Cópia dos drivers guardada no Windows novo para uma segunda tentativa no primeiro login");
                 }
             }));
         if (principal && restaurar)

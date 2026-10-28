@@ -130,6 +130,7 @@ public class TelasTests
         Assert.Contains("[pscustomobject]@{ Nome = 'Google Chrome'; Marcas = @('Google.Chrome') }", ps);
         Assert.Contains("'Sistema d''Loja'", ps); // aspas simples escapadas no PowerShell
         Assert.Contains("Get-PnpDevice", ps);
+        Assert.Contains(@"Join-Path $env:SystemDrive 'MontaWin\Drivers'", ps); // segunda tentativa dos drivers
         if (OperatingSystem.IsWindows()) // no CI: o PowerShell precisa conseguir ler o script (erro de sintaxe falha aqui)
         {
             var arquivo = Path.Combine(Path.GetTempPath(), "montawin-conferencia.ps1");
