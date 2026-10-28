@@ -633,18 +633,28 @@ public sealed unsafe partial class TelaGrafica : ISaida
             bx -= 10 * s;
         }
 
-        // Atalhos (itens 2 em diante): botões pequenos que quebram linha
-        float ax = x + pad, ay = y + pad + 50 * s, ah = 32 * s;
-        for (int i = 2; i < t.Itens.Count; i++)
+        // Abas (a ativa em degradê) e, embaixo, os botões da aba: pílulas que quebram linha
+        float ay = y + pad + 50 * s;
+        foreach (bool abas in new[] { true, false })
         {
-            float aw = Largura(t.Itens[i].Texto, fontePequena) + 28 * s;
-            if (ax + aw > x + w - pad) (ax, ay) = (x + pad, ay + ah + 8 * s);
-            Caixa(ax, ay, aw, ah, 16 * s, c.Cartao, c.Borda);
-            Texto(t.Itens[i].Texto, fontePequena, c.Texto, ax, ay, aw, ah, linhaCentro);
-            alvos.Add((ax, ay, aw, ah, i));
-            ax += aw + 8 * s;
+            float ax = x + pad, ah = abas ? 36 * s : 32 * s;
+            bool algum = false;
+            for (int i = 2; i < t.Itens.Count; i++)
+            {
+                var item = t.Itens[i];
+                if ((item.Tipo == TipoItem.Aba) != abas) continue;
+                var fonte = abas ? fonteForte : fontePequena;
+                float aw = Largura(item.Texto, fonte) + (abas ? 36 : 34) * s;
+                if (ax + aw > x + w - pad) (ax, ay) = (x + pad, ay + ah + 8 * s);
+                if (item.Marcado) Degrade(ax, ay, aw, ah, 18 * s);
+                else Caixa(ax, ay, aw, ah, 18 * s, abas ? 0 : c.Cartao, c.Borda);
+                Texto(item.Texto, fonte, item.Marcado ? 0xFFFFFFFF : c.Texto, ax, ay, aw, ah, linhaCentro);
+                alvos.Add((ax, ay, aw, ah, i));
+                ax += aw + 8 * s;
+                algum = true;
+            }
+            if (algum) ay += ah + 10 * s;
         }
-        if (t.Itens.Count > 2) ay += ah + 12 * s;
 
         // Saída do cmd, a mais nova embaixo; a última linha é o prompt (X:\>) com o que está sendo digitado
         float oy = ay, oh = y + h - pad - 30 * s - oy, lh = 20 * s;

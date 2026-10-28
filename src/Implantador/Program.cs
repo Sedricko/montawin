@@ -91,7 +91,7 @@ while (true)
             case 3: alvo = EscolherDisco("Disco do Windows atual (para os backups)", alvo) ?? alvo; break;
             case 4: MenuPerfis(); break;
             case 5: CapturarImagem(); break;
-            case 6: if (Tui.Grafica) Tui.Terminal(); else Tui.Pausar(PromptDeComando); break;
+            case 6: if (Tui.Grafica) Tui.Terminal(AbasDoPrompt()); else Tui.Pausar(PromptDeComando); break;
             case 7: Comandos.Executar("wpeutil", "reboot"); break;
             case 8: Comandos.Executar("wpeutil", "shutdown"); break;
         }
@@ -1328,6 +1328,60 @@ static bool ConfigurarRecuperacao(char windows, char recuperacao)
 static string Falha(string mensagem)
 {
     lock (Comandos.Saida) return mensagem + "\n" + string.Join("\n", Comandos.Saida);
+}
+
+// Botões do prompt. W = Windows encontrado no PC (C: se não achar), destino = MontaWin\Backups\Manual no pendrive.
+// Os que mudam alguma coisa (Direto: false) só preenchem o comando: o técnico confere, troca o que precisar e aperta Enter.
+List<Aba> AbasDoPrompt()
+{
+    string w = WindowsInstalados().Select(x => x.p.Letra).FirstOrDefault() is char l ? $"{l}:" : "C:";
+    string destino = raiz != null ? Path.Combine(raiz, "Backups", "Manual") : @"E:\Backup";
+    string? wim = raiz != null && Directory.Exists(Path.Combine(raiz, "Imagens")) ? Directory.EnumerateFiles(Path.Combine(raiz, "Imagens"), "*.wim").FirstOrDefault() : null;
+    var (uuid, serie) = (uuidPc, seriePc);
+    static string Eco(string texto) => "echo " + string.Concat(texto.Select(c => c is '&' or '|' or '<' or '>' or '^' ? $"^{c}" : c.ToString()));
+    return
+    [
+        new("Testes",
+        [
+            new("Resumo do PC", string.Join(" & ", new[] { Sistema.Resumo(), $"UUID: {uuid ?? "não informado"}", $"Série: {serie ?? "não informada"}",
+                $"Windows encontrado em: {w}" }.Select(Eco))),
+            new("Discos", "(echo list disk) | diskpart"),
+            new("Partições", "(echo list volume) | diskpart"),
+            new("Partições sem letra", "mountvol"),
+            new($"Verificar {w} (só lê)", $"chkdsk {w}"),
+            new("Rede", "ipconfig /all"),
+            new("Testar internet", "ping -n 4 8.8.8.8 & nslookup microsoft.com"),
+            new("BitLocker", "manage-bde -status"),
+        ]),
+        new("Reparo",
+        [
+            new($"Corrigir erros de {w}", $"chkdsk {w} /f /x", false),
+            new("Reparar arquivos do Windows", $@"sfc /scannow /offbootdir={w}\ /offwindir={w}\Windows", false),
+            new("Reparar imagem do Windows", $@"dism /Image:{w}\ /Cleanup-Image /RestoreHealth" + (wim != null ? $" \"/Source:wim:{wim}:1\" /LimitAccess" : ""), false),
+            new("Desfazer atualização travada", $@"dism /Image:{w}\ /Cleanup-Image /RevertPendingActions", false),
+            new("Recriar o boot", $@"bcdboot {w}\Windows", false),
+            new("Drivers instalados", $@"dism /Image:{w}\ /Get-Drivers"),
+            new("Destravar BitLocker", $"manage-bde -unlock {w} -RecoveryPassword CHAVE-DE-48-NUMEROS", false),
+        ]),
+        new("Backup e acesso",
+        [
+            new($"Pastas na raiz de {w}", $@"dir {w}\ /a:d"),
+            new("Procurar e-mails do Outlook", $@"dir {w}\*.pst {w}\*.ost /s /b"),
+            new("Procurar arquivo por nome", $@"dir {w}\*NOME* /s /b", false),
+            new("Copiar uma pasta (até protegida)", $@"robocopy ""{w}\PASTA"" ""{destino}\PASTA"" /E /B /R:0 /W:0 /XJ", false),
+            new("Copiar um disco inteiro", $@"robocopy D:\ ""{destino}\Disco D"" /E /B /R:0 /W:0 /XJ /XD ""System Volume Information"" ""$RECYCLE.BIN""", false),
+            new("Dar letra a partição sem letra", "(echo select volume 3& echo assign letter=R) | diskpart", false),
+            new("Exportar drivers", $@"dism /Image:{w}\ /Export-Driver /Destination:""{destino}\Drivers""", false),
+            new("Navegar nas pastas", "start notepad"),
+        ]),
+        new("Geral",
+        [
+            new("Log do MontaWin", Comandos.Log is string log ? $"start \"\" notepad \"{log}\"" : Eco("Sem log nesta sessão.")),
+            new("Arquivos do pendrive", raiz != null ? $"dir \"{raiz}\"" : Eco("Pendrive MontaWin não encontrado.")),
+            new("Bloco de notas", "start notepad"),
+            new("Limpar tela", "cls"),
+        ]),
+    ];
 }
 
 static void PromptDeComando()

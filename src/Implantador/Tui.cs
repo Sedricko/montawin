@@ -5,9 +5,13 @@ namespace MontaWin.Implantador;
 
 public enum TipoTela { Lista, Mensagem, Pergunta, Progresso, Contagem, Terminal }
 public enum Alerta { Nenhum, Atencao, Perigo }
-public enum TipoItem { Opcao, Caixa, MarcarTodos, Continuar, Voltar }
+public enum TipoItem { Opcao, Caixa, MarcarTodos, Continuar, Voltar, Aba }
 
 public readonly record struct Item(string Texto, TipoItem Tipo = TipoItem.Opcao, bool Marcado = false);
+
+/// <summary>Botão do prompt. <paramref name="Direto"/> roda na hora; senão só preenche o comando para conferir e apertar Enter.</summary>
+public readonly record struct Atalho(string Nome, string Comando, bool Direto = true);
+public sealed record Aba(string Nome, IReadOnlyList<Atalho> Atalhos);
 
 /// <summary>Tecla (com o caractere digitado) ou clique num item da lista (<see cref="Item"/> &gt;= 0).</summary>
 public readonly record struct Evento(ConsoleKey Tecla, char Caractere = '\0', int Item = -1);
@@ -80,27 +84,15 @@ public static class Tui
     /// Prompt de comando dentro do painel: o cmd roda escondido e a saída aparece num cartão.
     /// Não tem janela própria, então nada fecha o painel por engano. Volta com Esc, "← Voltar" ou exit.
     /// </summary>
-    // Atalhos do prompt (F1 a F8): só comandos que leem ou mostram, nenhum apaga nada
-    static (string Nome, string Comando)[] Atalhos =>
-    [
-        ("Discos", "(echo list disk) | diskpart"),
-        ("Partições", "(echo list volume) | diskpart"),
-        ("Rede (IP)", "ipconfig"),
-        ("Testar internet", "ping -n 4 8.8.8.8"),
-        ("Verificar C:", "chkdsk C:"),
-        ("Log do MontaWin", Comandos.Log is string log ? $"start notepad \"{log}\"" : "echo Sem log nesta sessao."),
-        ("Bloco de notas", "start notepad"),
-        ("Limpar tela", "cls"),
-    ];
-
-    public static void Terminal()
+    public static void Terminal(IReadOnlyList<Aba> abas)
     {
+        int aba = 0;
         var linhas = new List<string> { "" };
         var historico = new List<string>();
         var texto = new StringBuilder();
         int rolagem = 0, posHistorico = 0;
         Process? cmd = null;
-        (int, string, string, int) ultimo = default;
+        (int, string, string, int, int) ultimo = default;
 
         void Escrever(string pedaco)
         {
@@ -122,7 +114,7 @@ public static class Tui
             {
                 UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Environment.SystemDirectory,
                 RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
-                StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
+                StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8, StandardInputEncoding = new UTF8Encoding(false),
             })!;
             cmd.StandardInput.AutoFlush = true;
             foreach (var leitor in new[] { cmd.StandardOutput, cmd.StandardError })
@@ -143,13 +135,14 @@ public static class Tui
                 List<string> copia;
                 lock (linhas) copia = [.. linhas];
                 // Só redesenha quando algo mudou: redesenhar à toa atrasaria os cliques
-                var estado = (copia.Count, copia[^1], texto.ToString(), rolagem);
+                var estado = (copia.Count, copia[^1], texto.ToString(), rolagem, aba);
                 if (estado != ultimo) Mostrar(new Tela
                 {
                     Tipo = TipoTela.Terminal, Titulo = "Prompt de comando", Registro = copia, Campo = texto.ToString(), Selecionado = rolagem,
                     Itens = [new Item("← Voltar ao painel", TipoItem.Voltar), new Item("Parar comando", TipoItem.Continuar),
-                        .. Atalhos.Select((a, i) => new Item($"F{i + 1}  {a.Nome}"))],
-                    Rodape = "Enter: executar    F1–F8: atalhos    ↑↓: comandos anteriores    PgUp/PgDn: rolar    Esc: voltar",
+                        .. abas.Select((a, i) => new Item(a.Nome, TipoItem.Aba, i == aba)),
+                        .. abas[aba].Atalhos.Select((a, i) => new Item($"F{i + 1}  {a.Nome}{(a.Direto ? "" : " …")}"))],
+                    Rodape = "Enter: executar    Tab: trocar de aba    F1–F8: botões    Botões com … só preenchem: confira e aperte Enter    Esc: voltar",
                 });
                 ultimo = estado;
                 if (cmd!.HasExited) return; // exit
@@ -164,10 +157,15 @@ public static class Tui
                     Abrir();
                     continue;
                 }
-                int atalho = e.Item >= 2 ? e.Item - 2 : e.Tecla is >= ConsoleKey.F1 and <= ConsoleKey.F8 ? e.Tecla - ConsoleKey.F1 : -1;
-                if (atalho >= 0 && atalho < Atalhos.Length)
+                if (e.Item >= 2 && e.Item < 2 + abas.Count) { aba = e.Item - 2; continue; }
+                if (e.Tecla == ConsoleKey.Tab) { aba = (aba + 1) % abas.Count; continue; }
+                var botoes = abas[aba].Atalhos;
+                int atalho = e.Item >= 2 + abas.Count ? e.Item - 2 - abas.Count : e.Tecla is >= ConsoleKey.F1 and <= ConsoleKey.F8 ? e.Tecla - ConsoleKey.F1 : -1;
+                if (atalho >= 0 && atalho < botoes.Count)
                 {
-                    texto.Clear().Append(Atalhos[atalho].Comando);
+                    texto.Clear().Append(botoes[atalho].Comando);
+                    rolagem = 0;
+                    if (!botoes[atalho].Direto) continue; // o técnico confere (e troca o que precisar) antes do Enter
                     e = new Evento(ConsoleKey.Enter);
                 }
                 switch (e.Tecla)

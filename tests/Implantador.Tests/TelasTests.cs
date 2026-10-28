@@ -91,9 +91,27 @@ public class TelasTests
         {
             Tipo = TipoTela.Terminal, Titulo = "Prompt de comando", Campo = "list volume",
             Itens = [new Item("← Voltar ao painel", TipoItem.Voltar), new Item("Parar comando", TipoItem.Continuar),
-                .. new[] { "Discos", "Partições", "Rede (IP)", "Testar internet", "Verificar C:", "Log do MontaWin", "Bloco de notas", "Limpar tela" }
+                new Item("Testes", TipoItem.Aba, true), new Item("Reparo", TipoItem.Aba), new Item("Backup e acesso", TipoItem.Aba), new Item("Geral", TipoItem.Aba),
+                .. new[] { "Resumo do PC", "Discos", "Partições", "Partições sem letra", "Verificar C: (só lê)", "Rede", "Testar internet", "BitLocker" }
                     .Select((n, i) => new Item($"F{i + 1}  {n}"))],
-            Rodape = "Enter: executar    F1–F8: atalhos    ↑↓: comandos anteriores    PgUp/PgDn: rolar    Esc: voltar",
+            Rodape = "Enter: executar    Tab: trocar de aba    F1–F8: botões    Botões com … só preenchem: confira e aperte Enter    Esc: voltar",
+            Registro = ["Prompt de comando do MontaWin. Digite exit ou aperte Esc para voltar ao painel.", "",
+                "X:\\Windows\\System32>diskpart", "", "Microsoft DiskPart versão 10.0.26100.1", "", "No computador: MINWINPC", "",
+                "DISKPART> list disk", "",
+                "  Disco ###  Status         Tam.     Livre    Din  GPT",
+                "  ---------  -------------  -------  -------  ---  ---",
+                "  Disco 0    Online          476 GB      0 B        *",
+                "  Disco 1    Online          238 GB  1024 KB        *", "",
+                "DISKPART> "],
+        });
+        yield return ("9b-prompt-backup", new Tela
+        {
+            Tipo = TipoTela.Terminal, Titulo = "Prompt de comando", Campo = "robocopy \"C:\\Sistema Loja\" \"D:\\MontaWin\\Backups\\Manual\\Sistema Loja\" /E /B /R:0 /W:0 /XJ",
+            Itens = [new Item("← Voltar ao painel", TipoItem.Voltar), new Item("Parar comando", TipoItem.Continuar),
+                new Item("Testes", TipoItem.Aba), new Item("Reparo", TipoItem.Aba), new Item("Backup e acesso", TipoItem.Aba, true), new Item("Geral", TipoItem.Aba),
+                .. new[] { "Pastas na raiz de C:", "Procurar e-mails do Outlook", "Procurar arquivo por nome …", "Copiar uma pasta (até protegida) …", "Copiar um disco inteiro …", "Dar letra a partição sem letra …", "Exportar drivers …", "Navegar nas pastas" }
+                    .Select((n, i) => new Item($"F{i + 1}  {n}"))],
+            Rodape = "Enter: executar    Tab: trocar de aba    F1–F8: botões    Botões com … só preenchem: confira e aperte Enter    Esc: voltar",
             Registro = ["Prompt de comando do MontaWin. Digite exit ou aperte Esc para voltar ao painel.", "",
                 "X:\\Windows\\System32>diskpart", "", "Microsoft DiskPart versão 10.0.26100.1", "", "No computador: MINWINPC", "",
                 "DISKPART> list disk", "",
