@@ -295,12 +295,12 @@ public static class Tui
         }
     }
 
-    public static void Mensagem(string titulo, IReadOnlyList<string> linhas, bool erro = false)
+    public static void Mensagem(string titulo, IReadOnlyList<string> linhas, bool erro = false, string botao = "Continuar")
     {
         Mostrar(new Tela
         {
             Tipo = TipoTela.Mensagem, Titulo = titulo, Info = linhas, Alerta = erro ? Alerta.Perigo : Alerta.Nenhum,
-            Itens = [new Item("Continuar", TipoItem.Continuar)], Rodape = "Enter: continuar",
+            Itens = [new Item(botao, TipoItem.Continuar)], Rodape = botao.StartsWith('←') ? "Enter ou Esc: voltar" : "Enter: continuar",
         });
         Ler();
     }

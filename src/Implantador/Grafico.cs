@@ -485,6 +485,9 @@ public sealed unsafe partial class TelaGrafica : ISaida
         float fixo = pad + 40 * s + alturaInfo + (t.Tipo == TipoTela.Pergunta ? 30 * s + 56 * s + 20 * s : 0)
                      + (lista && botoes < 0 ? 0 : linhaItem + 10 * s) + 36 * s + pad;
         int visiveis = lista ? Math.Min(rolaveis, Math.Max(3, (int)((altura - 120 * s - fixo) / (linhaItem + espaco)))) : 0;
+        // Faltam poucas opções para caber (ex.: Reiniciar e Desligar no menu em 1280x720): linhas um pouco mais baixas
+        if (lista && rolaveis > visiveis && (altura - 120 * s - fixo) / rolaveis - espaco >= 30 * s)
+            (linhaItem, visiveis) = ((altura - 120 * s - fixo) / rolaveis - espaco, rolaveis);
         float h = fixo + visiveis * (linhaItem + espaco);
         var (x, y, _, hp) = Vidro(w, h);
 

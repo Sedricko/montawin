@@ -149,7 +149,7 @@ Disco? EscolherDisco(string titulo, Disco? sugerido)
 
 bool Exigir(bool condicao, string mensagem)
 {
-    if (!condicao) Tui.Mensagem("Atenção", [mensagem]); // aviso neutro: o vermelho fica para o que apaga dados
+    if (!condicao) Tui.Mensagem("Atenção", [mensagem], botao: "← Voltar"); // aviso neutro; não dá para seguir, então o botão é voltar
     return condicao;
 }
 
