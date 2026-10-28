@@ -15,11 +15,17 @@ public static class Unattend
     public const string PastaInstaladores = @"Windows\Setup\Scripts\Instaladores";
     /// <summary>O Windows roda este script como sistema no fim da instalação, antes da tela de login e sem janela.</summary>
     public const string ScriptSetupComplete = @"Windows\Setup\Scripts\SetupComplete.cmd";
-    public const string ChamadaSetupComplete = $"call %SystemDrive%\\{ScriptProgramas} sistema\r\n";
+    public const string ScriptAntesDoLogin = @"Windows\Setup\Scripts\MontaWin-antes-do-login.cmd";
+    public const string PerfilWifi = @"Windows\Setup\Scripts\MontaWin-wifi.xml";
+    public const string ChamadaSetupComplete = $"call %SystemDrive%\\{ScriptAntesDoLogin}\r\n";
 
     const string Componente = "processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\"";
 
-    public static string Gerar(string idioma, string usuario, string senha)
+    /// <summary>Nome do computador na rede: até 15 letras, números ou hífen, sem ser só números.</summary>
+    public static bool NomePcValido(string nome) =>
+        nome.Length is > 0 and <= 15 && nome.All(c => char.IsAsciiLetterOrDigit(c) || c == '-') && !nome.All(char.IsAsciiDigit);
+
+    public static string Gerar(string idioma, string usuario, string senha, string? nomePc = null)
     {
         // shortcut: grupo e fuso traduzidos só para pt-BR; outros idiomas usam o nome em inglês e o fuso padrão
         var (grupo, fuso) = idioma.Equals("pt-BR", StringComparison.OrdinalIgnoreCase)
@@ -27,9 +33,14 @@ public static class Unattend
             : ("Administrators", "");
         var u = SecurityElement.Escape(usuario);
         var s = SecurityElement.Escape(senha);
+        // O nome do computador é aplicado na fase "specialize", antes das telas iniciais.
+        var especializar = nomePc == null ? "" :
+            $"<settings pass=\"specialize\"><component name=\"Microsoft-Windows-Shell-Setup\" {Componente}>" +
+            $"<ComputerName>{SecurityElement.Escape(nomePc)}</ComputerName></component></settings>";
         return $"""
             <?xml version="1.0" encoding="utf-8"?>
             <unattend xmlns="urn:schemas-microsoft-com:unattend" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State">
+              {especializar}
               <settings pass="oobeSystem">
                 <component name="Microsoft-Windows-International-Core" {Componente}>
                   <InputLocale>{idioma}</InputLocale>
@@ -90,6 +101,44 @@ public static class Unattend
         return s.ToString();
     }
 
+    /// <summary>Rede Wi-Fi para o Windows novo conectar sozinho (WPA2/WPA3 com senha, ou aberta sem senha).</summary>
+    public static string GerarPerfilWifi(string rede, string senha)
+    {
+        var nome = SecurityElement.Escape(rede);
+        var seguranca = senha.Length == 0
+            ? "<authEncryption><authentication>open</authentication><encryption>none</encryption><useOneX>false</useOneX></authEncryption>"
+            : "<authEncryption><authentication>WPA2PSK</authentication><encryption>AES</encryption><useOneX>false</useOneX></authEncryption>" +
+              $"<sharedKey><keyType>passPhrase</keyType><protected>false</protected><keyMaterial>{SecurityElement.Escape(senha)}</keyMaterial></sharedKey>";
+        return "<?xml version=\"1.0\"?>\r\n<WLANProfile xmlns=\"http://www.microsoft.com/networking/WLAN/profile/v1\">" +
+               $"<name>{nome}</name><SSIDConfig><SSID><name>{nome}</name></SSID></SSIDConfig>" +
+               $"<connectionType>ESS</connectionType><connectionMode>auto</connectionMode><MSM><security>{seguranca}</security></MSM></WLANProfile>\r\n";
+    }
+
+    /// <summary>
+    /// Roda como sistema antes da tela de login (chamado pelo SetupComplete.cmd), sem janela: conecta o Wi-Fi, ativa com
+    /// a licença do técnico e instala os programas. No fim apaga a si mesmo e o arquivo do Wi-Fi (têm a chave e a senha).
+    /// </summary>
+    public static string GerarScriptAntesDoLogin(string? rede, string? chave, bool programas)
+    {
+        var s = new System.Text.StringBuilder("@echo off\r\nrem Gerado pelo MontaWin: roda uma vez, antes da tela de login.\r\nset LOG=%~dp0MontaWin-antes-do-login.log\r\n");
+        if (rede != null)
+            s.Append($"netsh wlan add profile filename=\"%SystemDrive%\\{PerfilWifi}\" user=all >>\"%LOG%\" 2>&1\r\n" +
+                     $"del /f /q \"%SystemDrive%\\{PerfilWifi}\"\r\n" +
+                     $"netsh wlan connect name=\"{rede.Replace("\"", "")}\" >>\"%LOG%\" 2>&1\r\n");
+        if (chave != null)
+            // Chave que não é da edição instalada: o Windows só recusa e segue normal.
+            s.Append("powershell -NoProfile -Command \"$s = Get-CimInstance SoftwareLicensingService; " +
+                     $"Invoke-CimMethod -InputObject $s -MethodName InstallProductKey -Arguments @{{ProductKey='{chave}'}} | Out-Null; " +
+                     "Invoke-CimMethod -InputObject $s -MethodName RefreshLicenseStatus | Out-Null\" >>\"%LOG%\" 2>&1\r\n");
+        if (programas) s.Append($"call %SystemDrive%\\{ScriptProgramas} sistema {(rede != null ? "esperar" : "\"\"")}\r\n");
+        s.Append("(goto) 2>nul & del /f /q \"%~f0\"\r\n");
+        return s.ToString();
+    }
+
+    /// <summary>Chave do produto no formato XXXXX-XXXXX-XXXXX-XXXXX-XXXXX (maiúsculas).</summary>
+    public static string? ChaveValida(string texto) =>
+        texto.Trim().ToUpperInvariant() is var c && System.Text.RegularExpressions.Regex.IsMatch(c, "^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$") ? c : null;
+
     /// <summary>
     /// Script dos programas, rodado duas vezes e sem janela (o resultado vai para MontaWin-programas.log):
     /// "sistema" pelo SetupComplete.cmd, antes da tela de login: instaladores do pendrive e, com internet, o winget
@@ -103,9 +152,10 @@ public static class Unattend
         var s = new System.Text.StringBuilder("""
             @echo off
             rem Gerado pelo MontaWin: instala os programas escolhidos no painel.
-            if not "%2"=="log" (call "%~f0" %1 log >>"%~dp0MontaWin-programas.log" 2>&1 & exit /b)
+            if not "%3"=="log" (call "%~f0" %1 "%~2" log >>"%~dp0MontaWin-programas.log" 2>&1 & exit /b)
             setlocal
             set MODO=%1
+            set ESPERAR=%~2
             set FEITOS=%~dp0MontaWin-feitos
             md "%FEITOS%" 2>nul
             echo [%date% %time%] Instalando programas (%MODO%)
@@ -139,7 +189,16 @@ public static class Unattend
             set WINGETDIR=
             for /d %%d in ("%ProgramFiles%\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe") do if exist "%%d\winget.exe" set WINGETDIR=%%d
             if not defined WINGETDIR goto fim
-            curl.exe -s -m 15 -o nul https://cdn.winget.microsoft.com/cache/source.msix || goto fim
+            rem Com Wi-Fi configurado, espera ele conectar (até ~1 min); sem ele, testa uma vez só
+            set tentativas=0
+            :rede
+            curl.exe -s -m 10 -o nul https://cdn.winget.microsoft.com/cache/source.msix && goto temrede
+            if not "%ESPERAR%"=="esperar" goto fim
+            set /a tentativas+=1
+            if %tentativas% geq 6 goto fim
+            ping -n 6 127.0.0.1 >nul
+            goto rede
+            :temrede
             cd /d "%WINGETDIR%"
             set WINGET=%WINGETDIR%\winget.exe
             set ESCOPO=--scope machine

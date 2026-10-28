@@ -132,7 +132,7 @@ public partial class MainWindow : Window
     void Ocupado(bool ocupado, string status)
     {
         BotaoIso.IsEnabled = BotaoAtualizar.IsEnabled = BotaoCriar.IsEnabled = ListaPendrives.IsEnabled = ListaEdicoes.IsEnabled =
-            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = Temas.IsEnabled = AtualizarAuto.IsEnabled = BaixarProgramas.IsEnabled =
+            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = Temas.IsEnabled = AtualizarAuto.IsEnabled = BaixarProgramas.IsEnabled = NetFx3.IsEnabled = Licenca.IsEnabled =
             BotaoProcurar.IsEnabled = BotaoAdicionar.IsEnabled = BotaoRemover.IsEnabled = BotaoArquivo.IsEnabled = BotaoSalvarProgramas.IsEnabled = !ocupado;
         Status.Text = status;
     }
@@ -187,6 +187,9 @@ public partial class MainWindow : Window
         Manter.IsChecked = existente != null;
         BotaoSalvarProgramas.Visibility = existente != null ? Visibility.Visible : Visibility.Collapsed;
         // Primeira vez neste PC: a lista que o técnico já editou no pendrive vira a lista do MontaWin.
+        // Licença já gravada nesse pendrive: aparece no campo, para não precisar digitar de novo.
+        if (existente is (_, char comLicenca) && Licenca.Text.Length == 0 && File.Exists($@"{comLicenca}:\MontaWin\licenca.txt"))
+            Licenca.Text = File.ReadAllText($@"{comLicenca}:\MontaWin\licenca.txt").Trim();
         if (existente is (_, char dados) && !File.Exists(ListaProgramas.Arquivo) && File.Exists($@"{dados}:\MontaWin\Programas.txt"))
         {
             ListaProgramas.Salvar(File.ReadAllText($@"{dados}:\MontaWin\Programas.txt"));
@@ -298,6 +301,8 @@ public partial class MainWindow : Window
         if (iso == null) { Erro("Escolha a ISO do Windows."); return; }
         if (indices.Length == 0) { Erro("Marque pelo menos uma edição."); return; }
         if (ListaPendrives.SelectedItem is not Disco pendrive) { Erro("Escolha o pendrive."); return; }
+        var licenca = Licenca.Text.Trim().Length == 0 ? null : Unattend.ChaveValida(Licenca.Text);
+        if (Licenca.Text.Trim().Length > 0 && licenca == null) { Erro("A licença precisa ter o formato XXXXX-XXXXX-XXXXX-XXXXX-XXXXX."); return; }
         if (!File.Exists(Implantador)) { Erro($"Não encontrei o Implantador.exe:\n{Implantador}"); return; }
         var manter = Manter.IsChecked == true ? Pendrive.Existente(pendrive) : null;
         long imagem = new FileInfo(iso.Install).Length;
@@ -350,7 +355,8 @@ public partial class MainWindow : Window
             SalvarFundo(FundoDoTema, fundo, desfocado: false);
             SalvarFundo(FundoDoTema, desfocado, desfocado: true);
             var gravacao = new Gravacao(iso, indices, pendrive, Implantador, Rapida.IsChecked == true, manter, atualizacoes, tema,
-                (fundo, desfocado), BaixarProgramas.IsChecked == true, (ListaProgramas.Ler(), ListaProgramas.PastaInstaladores));
+                (fundo, desfocado), BaixarProgramas.IsChecked == true, (ListaProgramas.Ler(), ListaProgramas.PastaInstaladores),
+                NetFx3.IsChecked == true, licenca);
             var falhas = await Task.Run(() => Pendrive.Gravar(gravacao, Progresso));
             Ocupado(false, "Pendrive pronto! Dê boot por ele no PC do cliente.");
             MessageBox.Show(this, "Pendrive pronto!\n\nDê boot por ele no PC do cliente: o painel MontaWin abre sozinho." +

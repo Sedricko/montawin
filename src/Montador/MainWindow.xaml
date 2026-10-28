@@ -142,6 +142,9 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
+              <CheckBox x:Name="NetFx3" IsChecked="True" Margin="0,0,0,8">
+                <TextBlock TextWrapping="Wrap" Text="Ativar o .NET Framework 3.5 (muitos programas antigos pedem; vem da própria ISO)" />
+              </CheckBox>
               <CheckBox x:Name="AtualizarAuto" IsChecked="True" Margin="0,0,0,8">
                 <TextBlock TextWrapping="Wrap" Text="Baixar e instalar as atualizações do mês (automático; cerca de 5 GB na primeira vez, depois reaproveita)" />
               </CheckBox>
@@ -151,6 +154,9 @@
                 <Button x:Name="BotaoAtualizacoes" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher pasta..." Click="EscolherAtualizacoes" />
                 <TextBox x:Name="PastaAtualizacoes" IsReadOnly="True" VerticalContentAlignment="Center" />
               </DockPanel>
+              <TextBlock Style="{StaticResource Dica}" Margin="0,14,0,6"
+                         Text="Sua licença do Windows (opcional): o painel oferece ativar com ela. Precisa ser da mesma edição (Home ou Pro). Em branco, a instalação segue normal." />
+              <TextBox x:Name="Licenca" VerticalContentAlignment="Center" MaxLength="29" CharacterCasing="Upper" ToolTip="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" />
             </StackPanel>
           </Border>
 

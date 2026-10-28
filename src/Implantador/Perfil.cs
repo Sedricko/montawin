@@ -22,12 +22,19 @@ public record Perfil(string Nome)
     public bool Otimizar { get; init; } = true;
     public bool RemoverOneDrive { get; init; } = true;
     public bool AltoDesempenho { get; init; }
+    /// <summary>Nome do computador na rede (null = o Windows escolhe).</summary>
+    public string? NomePc { get; init; }
+    /// <summary>Rede Wi-Fi do Windows novo (null = sem Wi-Fi); a senha segue a regra da senha da conta.</summary>
+    public string? Wifi { get; init; }
+    public string? SenhaWifi { get; init; }
+    /// <summary>Ativar com a licença gravada no pendrive pelo MontaWin.exe, quando houver.</summary>
+    public bool Licenca { get; init; } = true;
 
     public string Texto()
     {
         var linhas = new List<string>
         {
-            "# Perfil MontaWin. Pode editar; apagar a linha Senha faz o painel perguntar a senha na hora.",
+            "# Perfil MontaWin. Pode editar; apagar a linha Senha (ou SenhaWifi) faz o painel perguntar na hora.",
             $"Nome = {Nome}",
             $"PC = {Pc}",
             $"Modelo = {Modelo}",
@@ -42,6 +49,10 @@ public record Perfil(string Nome)
         linhas.Add($"Otimizar = {(Otimizar ? "sim" : "nao")}");
         linhas.Add($"RemoverOneDrive = {(RemoverOneDrive ? "sim" : "nao")}");
         linhas.Add($"AltoDesempenho = {(AltoDesempenho ? "sim" : "nao")}");
+        linhas.Add($"NomePc = {NomePc}");
+        linhas.Add($"Wifi = {Wifi}");
+        if (SenhaWifi != null) linhas.Add($"SenhaWifi = {SenhaWifi}");
+        linhas.Add($"Licenca = {(Licenca ? "sim" : "nao")}");
         return string.Join("\r\n", linhas) + "\r\n";
     }
 
@@ -69,6 +80,10 @@ public record Perfil(string Nome)
             Otimizar = !string.Equals(Campo("Otimizar"), "nao", StringComparison.OrdinalIgnoreCase),
             RemoverOneDrive = !string.Equals(Campo("RemoverOneDrive"), "nao", StringComparison.OrdinalIgnoreCase),
             AltoDesempenho = string.Equals(Campo("AltoDesempenho"), "sim", StringComparison.OrdinalIgnoreCase),
+            NomePc = Campo("NomePc"),
+            Wifi = Campo("Wifi"),
+            SenhaWifi = campos.TryGetValue("SenhaWifi", out var senhaWifi) ? senhaWifi : null,
+            Licenca = !string.Equals(Campo("Licenca"), "nao", StringComparison.OrdinalIgnoreCase),
         };
     }
 

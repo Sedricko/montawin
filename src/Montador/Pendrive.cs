@@ -9,11 +9,13 @@ public record IsoAberta(string Iso, char Letra, string Install, List<Edicao> Edi
 /// <param name="Tema">Visual do painel no boot: ondas, bloom ou pastel (gravado em MontaWin\tema.txt).</param>
 /// <param name="Fundos">Imagens do fundo do tema (normal e desfocada) já desenhadas pelo Montador, para o painel gráfico.</param>
 /// <param name="BaixarProgramas">Baixa os programas da lista para o pendrive: no primeiro login instalam sem internet.</param>
+/// <param name="NetFx3">Ativa o .NET Framework 3.5 em cada edição (vem da própria ISO; muitos programas antigos pedem).</param>
+/// <param name="Licenca">Chave do produto do técnico (opcional): o painel ativa o Windows com ela; null apaga a do pendrive.</param>
 /// <param name="Programas">Lista de programas do técnico (texto do Programas.txt) e a pasta com os instaladores adicionados por arquivo.</param>
 /// <param name="Atualizacoes">Pasta com as atualizações .msu do Microsoft Update Catalog, injetadas em cada edição (null = nenhuma).</param>
 public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador, bool Rapida, (char Boot, char Dados)? Manter,
     string? Atualizacoes = null, string Tema = "ondas", (string Fundo, string Desfocado)? Fundos = null, bool BaixarProgramas = false,
-    (string Lista, string PastaInstaladores)? Programas = null);
+    (string Lista, string PastaInstaladores)? Programas = null, bool NetFx3 = true, string? Licenca = null);
 
 /// <summary>
 /// Monta o pendrive: partição FAT32 de boot (UEFI e BIOS) com o WinPE da ISO abrindo o Implantador,
@@ -151,6 +153,9 @@ public static class Pendrive
         if (!File.Exists(leiaMe)) File.WriteAllText(leiaMe, LeiaMeDrivers);
 
         File.WriteAllText($@"{dados}:\MontaWin\tema.txt", g.Tema);
+        var licenca = $@"{dados}:\MontaWin\licenca.txt";
+        if (g.Licenca != null) File.WriteAllText(licenca, g.Licenca);
+        else File.Delete(licenca);
         if (g.Fundos is (string fundo, string desfocado))
         {
             File.Copy(fundo, $@"{dados}:\MontaWin\fundo.png", overwrite: true);
@@ -160,37 +165,58 @@ public static class Pendrive
         else if (!File.Exists($@"{dados}:\MontaWin\Programas.txt")) SalvarProgramas(dados, Programas.Padrao, null);
         var destino = Path.Combine(pastaImagens, Path.GetFileNameWithoutExtension(g.Iso.Iso) + ".wim");
         if (File.Exists(destino)) File.Delete(destino); // mesma ISO de novo: substitui em vez de duplicar as edições
-        // Com atualizações, a imagem é montada no disco do PC (bem mais rápido que no pendrive) e copiada no fim.
-        var imagem = g.Atualizacoes != null ? Path.Combine(trabalho, "imagem.wim") : destino;
-        double fatia = (g.Atualizacoes != null ? 45.0 : 85.0) / g.Indices.Length;
+        // Para mexer nas edições (.NET 3.5, atualizações), a imagem fica no disco do PC (bem mais rápido que no pendrive)
+        // e no fim cada edição é exportada de novo para o pendrive: assim o que as atualizações substituíram não ocupa espaço.
+        bool modificar = g.Atualizacoes != null || g.NetFx3;
+        var imagem = modificar ? Path.Combine(trabalho, "imagem.wim") : destino;
+        double fatia = (modificar ? 30.0 : 85.0) / g.Indices.Length;
         for (int k = 0; k < g.Indices.Length; k++)
         {
             double inicio = 15 + k * fatia;
             var nome = g.Iso.Edicoes.First(e => e.Indice == g.Indices[k]).Nome;
             progresso($"Copiando {nome} ({k + 1} de {g.Indices.Length})", inicio);
             Exigir(Comandos.Executar("dism",
-                $"/Export-Image /SourceImageFile:\"{g.Iso.Install}\" /SourceIndex:{g.Indices[k]} /DestinationImageFile:\"{imagem}\" /Compress:{(g.Rapida ? "fast" : "max")}",
+                $"/Export-Image /SourceImageFile:\"{g.Iso.Install}\" /SourceIndex:{g.Indices[k]} /DestinationImageFile:\"{imagem}\" /Compress:{(g.Rapida || modificar ? "fast" : "max")}",
                 p => progresso(null, inicio + p * fatia / 100)), $"O DISM não conseguiu copiar {nome}.");
         }
-        if (g.Atualizacoes != null)
+        if (modificar)
         {
             for (int k = 0; k < g.Indices.Length; k++)
             {
-                double inicio = 60 + k * 30.0 / g.Indices.Length;
+                double inicio = 45 + k * 40.0 / g.Indices.Length;
                 var nome = g.Iso.Edicoes.First(e => e.Indice == g.Indices[k]).Nome;
-                progresso($"Atualizando {nome} ({k + 1} de {g.Indices.Length})", inicio);
+                progresso($"Preparando {nome} ({k + 1} de {g.Indices.Length})", inicio);
                 Exigir(Comandos.Executar("dism", $"/Mount-Image /ImageFile:\"{imagem}\" /Index:{k + 1} /MountDir:\"{mount}\""), $"O DISM não conseguiu abrir {nome}.");
-                int codigo = Comandos.Executar("dism", $"/Image:\"{mount}\" /Add-Package /PackagePath:\"{g.Atualizacoes}\"",
-                    p => progresso(null, inicio + p * 30.0 / g.Indices.Length / 100));
-                if (codigo != 0)
+                void Passo(string etapa, string argumentos, string erro)
                 {
+                    progresso($"{etapa}: {nome} ({k + 1} de {g.Indices.Length})", inicio);
+                    int codigo = Comandos.Executar("dism", $"/Image:\"{mount}\" {argumentos}");
+                    if (codigo == 0) return;
                     Comandos.Executar("dism", $"/Unmount-Image /MountDir:\"{mount}\" /Discard");
-                    Exigir(codigo, $"O DISM não conseguiu instalar as atualizações em {nome}. Confira se são da mesma versão do Windows da ISO (ex.: 24H2).");
+                    Exigir(codigo, erro);
+                }
+                // O .NET 3.5 vem antes das atualizações, como a Microsoft manda (depois, a atualização cobre ele também).
+                if (g.NetFx3)
+                    Passo("Ativando o .NET Framework 3.5", $"/Enable-Feature /FeatureName:NetFx3 /All /LimitAccess /Source:\"{iso}:\\sources\\sxs\"",
+                        $"O DISM não conseguiu ativar o .NET 3.5 em {nome}. Desmarque \".NET Framework 3.5\" para criar sem ele.");
+                if (g.Atualizacoes != null)
+                {
+                    Passo("Instalando as atualizações", $"/Add-Package /PackagePath:\"{g.Atualizacoes}\"",
+                        $"O DISM não conseguiu instalar as atualizações em {nome}. Confira se são da mesma versão do Windows da ISO (ex.: 24H2).");
+                    Passo("Limpando o que as atualizações substituíram", "/Cleanup-Image /StartComponentCleanup /ResetBase",
+                        $"O DISM não conseguiu limpar {nome}.");
                 }
                 Exigir(Comandos.Executar("dism", $"/Unmount-Image /MountDir:\"{mount}\" /Commit"), $"O DISM não conseguiu salvar {nome}.");
             }
-            progresso("Copiando a imagem atualizada para o pendrive", 90);
-            File.Copy(imagem, destino, overwrite: true);
+            for (int k = 0; k < g.Indices.Length; k++)
+            {
+                double inicio = 85 + k * 7.0 / g.Indices.Length;
+                var nome = g.Iso.Edicoes.First(e => e.Indice == g.Indices[k]).Nome;
+                progresso($"Gravando {nome} no pendrive ({k + 1} de {g.Indices.Length})", inicio);
+                Exigir(Comandos.Executar("dism",
+                    $"/Export-Image /SourceImageFile:\"{imagem}\" /SourceIndex:{k + 1} /DestinationImageFile:\"{destino}\" /Compress:{(g.Rapida ? "fast" : "max")}",
+                    p => progresso(null, inicio + p * 7.0 / g.Indices.Length / 100)), $"O DISM não conseguiu gravar {nome} no pendrive.");
+            }
         }
 
         Directory.Delete(trabalho, recursive: true);

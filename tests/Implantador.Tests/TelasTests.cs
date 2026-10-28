@@ -233,4 +233,57 @@ public class TelasTests
         var script = Unattend.GerarScriptProgramas([], [("erp.msi", "/qn /norestart")]);
         Assert.Contains(@"msiexec /i ""%SystemDrive%\Windows\Setup\Scripts\Instaladores\erp.msi"" /qn /norestart && type nul>", script);
     }
+
+    [Fact]
+    public void NomeDoComputadorVaiNaFaseSpecialize()
+    {
+        Assert.True(Unattend.NomePcValido("JOAO-ESCRITORIO"));
+        Assert.False(Unattend.NomePcValido("NOME-GRANDE-DEMAIS")); // mais de 15
+        Assert.False(Unattend.NomePcValido("PC JOAO"));
+        Assert.False(Unattend.NomePcValido("12345"));
+        var ns = (System.Xml.Linq.XNamespace)"urn:schemas-microsoft-com:unattend";
+        var xml = System.Xml.Linq.XDocument.Parse(Unattend.Gerar("pt-BR", "Joao", "", "JOAO-PC"));
+        Assert.Equal("specialize", xml.Descendants(ns + "ComputerName").Single().Parent!.Parent!.Attribute("pass")!.Value);
+        Assert.Empty(System.Xml.Linq.XDocument.Parse(Unattend.Gerar("pt-BR", "Joao", "")).Descendants(ns + "ComputerName"));
+    }
+
+    [Fact]
+    public void WifiDoWindowsNovo()
+    {
+        var ns = (System.Xml.Linq.XNamespace)"http://www.microsoft.com/networking/WLAN/profile/v1";
+        var xml = System.Xml.Linq.XDocument.Parse(Unattend.GerarPerfilWifi("Casa & Cia", "senha<123>"));
+        Assert.Equal("Casa & Cia", xml.Descendants(ns + "name").First().Value);
+        Assert.Equal("senha<123>", xml.Descendants(ns + "keyMaterial").Single().Value);
+        Assert.Equal("auto", xml.Descendants(ns + "connectionMode").Single().Value);
+        var aberta = System.Xml.Linq.XDocument.Parse(Unattend.GerarPerfilWifi("Loja", ""));
+        Assert.Equal("open", aberta.Descendants(ns + "authentication").Single().Value);
+        Assert.Empty(aberta.Descendants(ns + "keyMaterial"));
+    }
+
+    [Fact]
+    public void AntesDoLoginConectaAtivaInstalaEApagaTudo()
+    {
+        Assert.Equal("ABCDE-12345-FGHIJ-67890-KLMNO", Unattend.ChaveValida(" abcde-12345-fghij-67890-klmno "));
+        Assert.Null(Unattend.ChaveValida("ABCDE-12345"));
+        var script = Unattend.GerarScriptAntesDoLogin("Casa", "ABCDE-12345-FGHIJ-67890-KLMNO", programas: true);
+        Assert.Contains(@"netsh wlan add profile filename=""%SystemDrive%\Windows\Setup\Scripts\MontaWin-wifi.xml"" user=all", script);
+        Assert.Contains(@"del /f /q ""%SystemDrive%\Windows\Setup\Scripts\MontaWin-wifi.xml""", script); // a senha não fica no disco
+        Assert.Contains("ProductKey='ABCDE-12345-FGHIJ-67890-KLMNO'", script);
+        Assert.Contains(@"call %SystemDrive%\Windows\Setup\Scripts\MontaWin-programas.cmd sistema esperar", script); // espera o Wi-Fi conectar
+        Assert.EndsWith("(goto) 2>nul & del /f /q \"%~f0\"\r\n", script); // a chave não fica no disco
+        var soPrograma = Unattend.GerarScriptAntesDoLogin(null, null, programas: true);
+        Assert.DoesNotContain("netsh", soPrograma);
+        Assert.DoesNotContain("ProductKey", soPrograma);
+        Assert.Contains(@"MontaWin-programas.cmd sistema """"", soPrograma);
+    }
+
+    [Fact]
+    public void PerfilGuardaNomeWifiELicenca()
+    {
+        var p = Perfil.Ler(new Perfil("Casa") { NomePc = "JOAO-PC", Wifi = "Casa", SenhaWifi = "abc", Licenca = false }.Texto())!;
+        Assert.Equal(("JOAO-PC", "Casa", "abc", false), (p.NomePc, p.Wifi, p.SenhaWifi, p.Licenca));
+        var sem = Perfil.Ler(new Perfil("Outro") { Wifi = "Casa" }.Texto())!;
+        Assert.Null(sem.SenhaWifi); // perguntada na hora
+        Assert.True(sem.Licenca);
+    }
 }

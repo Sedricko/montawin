@@ -322,6 +322,63 @@ string? PerguntarUsuario(string titulo, string? atual)
     }
 }
 
+// Nome do computador: "" = o Windows escolhe; null = voltou.
+string? PerguntarNomePc(string titulo, string? atual)
+{
+    while (true)
+    {
+        var n = Tui.Perguntar(titulo, ["Como o PC aparece na rede (ex.: JOAO-ESCRITORIO).", "Até 15 letras, números ou hífen. Em branco: o Windows escolhe."],
+            "Nome do computador", inicial: atual ?? "");
+        if (n == null || n.Length == 0) return n;
+        if (Unattend.NomePcValido(n)) return n.ToUpperInvariant();
+        Tui.Mensagem("Nome inválido", ["Use até 15 letras, números ou hífen (sem espaço), e não só números."], erro: true);
+    }
+}
+
+// Licença gravada pelo MontaWin.exe (MontaWin\licenca.txt); null se não houver ou estiver errada.
+string? LicencaDoPendrive()
+{
+    var arquivo = raiz == null ? null : Path.Combine(raiz, "licenca.txt");
+    return File.Exists(arquivo) ? Unattend.ChaveValida(File.ReadAllText(arquivo)) : null;
+}
+
+// Só os nomes das redes que o Windows antigo conhecia: as senhas ficam protegidas pelo Windows e não são lidas.
+List<string> RedesConhecidas(Disco? d)
+{
+    var pasta = d?.LetraWindows is char l ? $@"{l}:\ProgramData\Microsoft\Wlansvc\Profiles\Interfaces" : null;
+    if (pasta == null || !Directory.Exists(pasta)) return [];
+    return Directory.GetFiles(pasta, "*.xml", SearchOption.AllDirectories)
+        .Select(f =>
+        {
+            try { return System.Xml.Linq.XDocument.Load(f).Descendants().FirstOrDefault(e => e.Name.LocalName == "name")?.Value; }
+            catch (Exception) { return null; }
+        })
+        .OfType<string>().Distinct().ToList();
+}
+
+// Wi-Fi do Windows novo: rede conhecida do Windows antigo, outra digitada ou nenhuma (Rede null). null = voltou.
+(string? Rede, string Senha)? EscolherWifi(Disco? antigo, string? atual)
+{
+    var conhecidas = RedesConhecidas(antigo);
+    var opcoes = conhecidas.Select(r => $"Wi-Fi: {r}").Append("Outra rede Wi-Fi (digitar o nome)").Append("Sem Wi-Fi (cabo de rede, ou conectar depois)").ToList();
+    while (true)
+    {
+        int sel = atual == null ? opcoes.Count - 1 : conhecidas.Contains(atual) ? conhecidas.IndexOf(atual) : conhecidas.Count;
+        int i = Tui.Menu("Internet no Windows novo", [
+            "Com o Wi-Fi configurado, o Windows já liga conectado e os programas da internet instalam antes da tela de login.",
+            "As telas iniciais da Microsoft continuam puladas, com ou sem rede."], opcoes, sel);
+        if (i < 0) return null;
+        if (i == opcoes.Count - 1) return (null, "");
+        var nome = i < conhecidas.Count ? conhecidas[i]
+            : Tui.Perguntar("Rede Wi-Fi", ["Nome da rede exatamente como aparece (maiúsculas e minúsculas contam)."], "Nome da rede", inicial: atual ?? "");
+        if (string.IsNullOrWhiteSpace(nome)) continue;
+        var senha = Tui.Perguntar($"Senha do Wi-Fi {nome}", ["Deixe em branco se a rede for aberta.",
+            "A senha é apagada do Windows novo assim que a rede é configurada."], "Senha do Wi-Fi", oculto: true);
+        if (senha == null) continue;
+        return (nome.Trim(), senha);
+    }
+}
+
 string? PerguntarSenha(string titulo, string usuario) => Tui.Perguntar(titulo, [$"Senha da conta {usuario}.", "Deixe em branco para entrar sem senha."],
     "Senha", oculto: true);
 
@@ -364,7 +421,8 @@ void AdicionarPerfil()
     int edicao = 0, modo = 0, configuracao = 0, guardar = 0, gb = 120;
     string? usuario = null, senha = null;
     var escolhidos = new List<Programa>();
-    bool restaurar = true, drivers = true, otimizar = true, removerOneDrive = true, altoDesempenho = false, vincular = true;
+    bool restaurar = true, drivers = true, otimizar = true, removerOneDrive = true, altoDesempenho = false, vincular = true, licenca = true;
+    string? nomePc = null, wifi = null, senhaWifi = null;
 
     if (!Assistente(
         _ =>
@@ -412,6 +470,31 @@ void AdicionarPerfil()
         },
         _ =>
         {
+            if (usuario == null) { nomePc = null; return Passo.Pular; }
+            var n = PerguntarNomePc($"{nome}: nome do computador", nomePc);
+            if (n == null) return Passo.Voltar;
+            nomePc = n.Length == 0 ? null : n;
+            return Passo.Avancar;
+        },
+        _ =>
+        {
+            var r = Tui.Perguntar($"{nome}: Wi-Fi", ["Rede Wi-Fi que o Windows novo usa (exatamente como aparece).", "Em branco: sem Wi-Fi (cabo de rede)."],
+                "Nome da rede", inicial: wifi ?? "");
+            if (r == null) return Passo.Voltar;
+            wifi = r.Length == 0 ? null : r;
+            return Passo.Avancar;
+        },
+        _ =>
+        {
+            // Mesma regra da senha da conta: só fica no perfil se escolheu guardar.
+            if (wifi == null || guardar == 0) { senhaWifi = null; return Passo.Pular; }
+            senhaWifi = Tui.Perguntar($"{nome}: senha do Wi-Fi {wifi}", ["Deixe em branco se a rede for aberta."], "Senha do Wi-Fi", oculto: true);
+            return senhaWifi == null ? Passo.Voltar : Passo.Avancar;
+        },
+        _ => LicencaDoPendrive() is not string chave ? Passo.Pular : SimNao(Tui.Menu($"{nome}: licença", [$"Licença gravada no pendrive (final {chave[^5..]})."],
+            ["Ativar o Windows com a licença do pendrive", "Não usar a licença"], licenca ? 0 : 1), ref licenca),
+        _ =>
+        {
             if (usuario == null) { escolhidos = []; return Passo.Pular; }
             var e = EscolherProgramas($"{nome}: programas", programas, escolhidos);
             if (e == null) return Passo.Voltar;
@@ -448,6 +531,10 @@ void AdicionarPerfil()
         Otimizar = otimizar,
         RemoverOneDrive = removerOneDrive,
         AltoDesempenho = altoDesempenho,
+        NomePc = nomePc,
+        Wifi = wifi,
+        SenhaWifi = senhaWifi,
+        Licenca = licenca,
     };
     Directory.CreateDirectory(Path.Combine(raiz!, "Perfis"));
     File.WriteAllText(ArquivoPerfil(perfil.Nome), perfil.Texto());
@@ -493,6 +580,9 @@ void Instalar()
     string senha = "";
     var escolhidos = new List<Programa>();
     bool otimizar = true, removerOneDrive = true, altoDesempenho = false, restaurar = pastaArquivos != null;
+    string? nomePc = null, rede = null, licenca = LicencaDoPendrive();
+    string senhaRede = "";
+    bool usarLicenca = licenca != null;
     Edicao? velocidadeMedida = null;
     string? avisoLento = null;
 
@@ -678,6 +768,40 @@ void Instalar()
             senha = s;
             return Passo.Avancar;
         },
+        _ =>
+        {
+            if (usuario == null) { nomePc = null; return Passo.Pular; }
+            if (perfil != null) { nomePc = perfil.NomePc; return Passo.Pular; }
+            var n = PerguntarNomePc("Nome do computador", nomePc);
+            if (n == null) return Passo.Voltar;
+            nomePc = n.Length == 0 ? null : n;
+            return Passo.Avancar;
+        },
+        _ =>
+        {
+            if (perfil != null)
+            {
+                (rede, senhaRede) = (perfil.Wifi, perfil.SenhaWifi ?? "");
+                if (rede == null || perfil.SenhaWifi != null) return Passo.Pular;
+                var sw = Tui.Perguntar($"Senha do Wi-Fi {rede}", ["Rede do perfil. Deixe em branco se a rede for aberta."], "Senha do Wi-Fi", oculto: true);
+                if (sw == null) return Passo.Voltar;
+                senhaRede = sw;
+                return Passo.Avancar;
+            }
+            var escolha = EscolherWifi(disco, rede);
+            if (escolha == null) return Passo.Voltar;
+            (rede, senhaRede) = escolha.Value;
+            return Passo.Avancar;
+        },
+        _ =>
+        {
+            if (licenca == null) return Passo.Pular;
+            if (perfil != null) { usarLicenca = perfil.Licenca; return Passo.Pular; }
+            return SimNao(Tui.Menu("Ativar o Windows com a sua licença?", [
+                $"Licença gravada no pendrive pelo MontaWin.exe (final {licenca[^5..]}).",
+                "Ela precisa ser da mesma edição (Home ou Pro). Sem ela, o Windows ativa sozinho se o PC tiver licença de fábrica."],
+                ["Sim, ativar com a licença do pendrive", "Não usar a licença"], usarLicenca ? 0 : 1), ref usarLicenca);
+        },
         // Programas no primeiro login: só com a configuração automática, que roda o script do primeiro login.
         _ =>
         {
@@ -743,6 +867,9 @@ void Instalar()
         });
         r.Add(usuario != null ? $"Conta: {usuario} ({(senha.Length > 0 ? "com senha" : "sem senha")}) · telas iniciais da Microsoft puladas"
                               : "Conta: o cliente cria nas telas da Microsoft");
+        if (nomePc != null) r.Add($"Nome do computador: {nomePc}");
+        r.Add(rede != null ? $"Internet: Wi-Fi {rede} (o Windows já liga conectado)" : "Internet: cabo de rede, ou conectar depois");
+        if (licenca != null) r.Add(usarLicenca ? $"Licença: a do pendrive (final {licenca[^5..]})" : "Licença: não usar a do pendrive");
         if (usuario != null) r.Add("Programas: " + (escolhidos.Count > 0 ? string.Join(", ", escolhidos.Select(x => x.Nome)) : "nenhum"));
         var ajustes = new List<string>();
         if (otimizar) ajustes.Add("otimizado" + (disco.Ssd ? " (SSD: inicialização sem atraso)" : ""));
@@ -762,11 +889,13 @@ void Instalar()
         return r;
     }
 
-    Executar(perfil, edicao, extras, disco, modo, plano, particao, uefi, usuario, senha, escolhidos, otimizar, removerOneDrive, altoDesempenho, restaurar, windowsGb);
+    Executar(perfil, edicao, extras, disco, modo, plano, particao, uefi, usuario, senha, escolhidos, otimizar, removerOneDrive, altoDesempenho, restaurar, windowsGb,
+        nomePc, rede, senhaRede, usarLicenca ? licenca : null);
 }
 
 void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, int modo, PlanoParticoes plano, Particao? particao, bool uefi,
-    string? usuario, string senha, List<Programa> escolhidos, bool otimizar, bool removerOneDrive, bool altoDesempenho, bool restaurar, int? windowsGb)
+    string? usuario, string senha, List<Programa> escolhidos, bool otimizar, bool removerOneDrive, bool altoDesempenho, bool restaurar, int? windowsGb,
+    string? nomePc, string? rede, string senhaRede, string? chave)
 {
     Tui.Etapa("Instalando o Windows", "Preparando..."); // a tela de confirmação não fica parada enquanto calcula
     bool backupDriversAutomatico = perfil?.BackupDrivers == true && disco.LetraWindows != null && pastaDrivers == null;
@@ -814,7 +943,7 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
             if (usuario != null)
             {
                 Directory.CreateDirectory($@"{w}:\Windows\Panther");
-                File.WriteAllText($@"{w}:\Windows\Panther\unattend.xml", Unattend.Gerar(ed.Idioma, usuario, senha));
+                File.WriteAllText($@"{w}:\Windows\Panther\unattend.xml", Unattend.Gerar(ed.Idioma, usuario, senha, nomePc));
                 Tui.Registro($"Conta local {usuario} preparada; as telas iniciais da Microsoft serão puladas");
             }
         }));
@@ -867,11 +996,23 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
                     }
                     File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(ids,
                         instaladores.Select(x => (Path.GetFileName(x.Item1), x.Parametros)), offline.Select(x => (x.Id, x.Comando, x.SoUsuario))));
-                    // Antes da tela de login, como sistema e sem janela; se a imagem já tem um SetupComplete, só acrescenta.
-                    File.AppendAllText($@"{w}:\{Unattend.ScriptSetupComplete}", Unattend.ChamadaSetupComplete);
                     Tui.Registro($"{escolhidos.Count} programas no primeiro login: {string.Join(", ", escolhidos.Select(x => x.Nome))}" +
                         (offline.Count + instaladores.Count > 0 ? $" ({offline.Count + instaladores.Count} sem precisar de internet)" : ""));
                 }
+            }
+            // Antes da tela de login, como sistema e sem janela: Wi-Fi, licença e programas. Se a imagem já tem um SetupComplete, só acrescenta.
+            bool programasAntes = usuario != null && temProgramas;
+            if (rede != null || chave != null || programasAntes)
+            {
+                Directory.CreateDirectory($@"{w}:\Windows\Setup\Scripts");
+                if (rede != null)
+                {
+                    File.WriteAllText($@"{w}:\{Unattend.PerfilWifi}", Unattend.GerarPerfilWifi(rede, senhaRede));
+                    Tui.Registro($"Wi-Fi {rede} configurado: o Windows já liga conectado");
+                }
+                if (chave != null) Tui.Registro($"Licença do pendrive (final {chave[^5..]}): ativa antes da tela de login");
+                File.WriteAllText($@"{w}:\{Unattend.ScriptAntesDoLogin}", Unattend.GerarScriptAntesDoLogin(rede, chave, programasAntes));
+                File.AppendAllText($@"{w}:\{Unattend.ScriptSetupComplete}", Unattend.ChamadaSetupComplete);
             }
             if (Comandos.Executar("bcdboot", $"{w}:\\Windows /s {plano.Sistema}: /f {(uefi ? "UEFI" : "BIOS")}") != 0)
                 throw new Exception(Falha("O bcdboot não conseguiu criar a inicialização."));
@@ -902,7 +1043,7 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
     if (multi) avisos.Add("Ao ligar, o menu de boot mostra os Windows por 10 segundos.");
     if (restaurar && usuario == null) avisos.Add($"Arquivos do backup em C:\\{Unattend.PastaRestaurados}.");
     if (temProgramas && usuario != null)
-        avisos.Add("Programas: instalam antes do primeiro login (os do pendrive sempre; os da internet se houver cabo de rede) e o resto logo depois, sem janelas.");
+        avisos.Add("Programas: instalam antes do primeiro login (os do pendrive sempre; os da internet se houver rede) e o resto logo depois, sem janelas.");
 
     // Com perfil, reinicia sozinho; sem perfil, oferece salvar as escolhas como perfil.
     if (perfil != null)
@@ -924,6 +1065,10 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
             Otimizar = otimizar,
             RemoverOneDrive = removerOneDrive,
             AltoDesempenho = altoDesempenho,
+            NomePc = nomePc,
+            Wifi = rede,
+            SenhaWifi = senhaRede,
+            Licenca = chave != null,
         });
     if (Tui.Menu("Instalação concluída", avisos, ["Reiniciar agora", "Voltar ao menu"], voltar: null) == 0)
         Comandos.Executar("wpeutil", "reboot");
@@ -933,7 +1078,7 @@ void SalvarComoPerfil(Perfil escolhas)
 {
     var nome = Tui.Perguntar("Salvar como perfil", ["Um perfil guarda as respostas desta instalação."], "Nome do perfil (ex.: PC Escritório)");
     if (string.IsNullOrEmpty(nome) || Perfil.NomeSeguro(nome).Length == 0) return;
-    bool guardarSenha = escolhas.Usuario != null && Tui.Menu("Senha", [], ["Perguntar a senha na hora de instalar (mais seguro)",
+    bool guardarSenha = (escolhas.Usuario != null || escolhas.Wifi != null) && Tui.Menu("Senhas (conta e Wi-Fi)", [], ["Perguntar a senha na hora de instalar (mais seguro)",
         "Guardar a senha no perfil (mais rápido; fica escrita no pendrive)"], voltar: null) == 1;
     bool vincular = Tui.Menu("Este PC", [$"PC atual: {Sistema.Resumo()}"],
         ["Vincular a este PC: o painel sugere este perfil sozinho aqui", "Não vincular"], voltar: null) == 0;
@@ -941,6 +1086,7 @@ void SalvarComoPerfil(Perfil escolhas)
     {
         Nome = nome.Trim(),
         Senha = guardarSenha ? escolhas.Senha : null,
+        SenhaWifi = guardarSenha ? escolhas.SenhaWifi : null,
         Pc = vincular ? idPc : null,
         Modelo = vincular ? Sistema.Modelo() : null,
     };
