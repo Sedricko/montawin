@@ -351,6 +351,10 @@
                         <Border Grid.Column="1" Width="28" Height="28" CornerRadius="8" Background="{DynamicResource CorDestaque}" Margin="0,0,10,0">
                           <TextBlock Text="{Binding Inicial}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
+                        <!-- Ícone original do programa por cima da inicial, quando já baixou -->
+                        <Border Grid.Column="1" Width="28" Height="28" CornerRadius="8" Background="White" Margin="0,0,10,0" Visibility="{Binding VisIcone}">
+                          <Image Source="{Binding Icone}" Width="20" Height="20" RenderOptions.BitmapScalingMode="HighQuality" />
+                        </Border>
                         <StackPanel Grid.Column="2" VerticalAlignment="Center">
                           <TextBlock Text="{Binding Nome}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                           <TextBlock Text="{Binding Detalhe}" Opacity="0.6" FontSize="11" TextTrimming="CharacterEllipsis" />

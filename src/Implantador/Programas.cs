@@ -58,6 +58,11 @@ public static class Programas
     /// <summary>Não dá para baixar para o pendrive: Microsoft Store e pacotes que o winget proíbe baixar (o Microsoft 365).</summary>
     public static bool SoInternet(string id) => DaLoja(id) || id.Equals("Microsoft.Office", StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>Domínio do primeiro endereço da saída do "winget show" (o site do fabricante), sem os genéricos do winget.</summary>
+    public static string? SiteNaSaida(string saida) =>
+        Regex.Matches(saida, @"https?://([A-Za-z0-9.-]+)").Select(m => m.Groups[1].Value.ToLowerInvariant())
+            .FirstOrDefault(h => h is not ("github.com" or "aka.ms" or "go.microsoft.com"));
+
     /// <summary>"NVIDIA_app*.exe -s" vira ("NVIDIA_app*.exe", "-s").</summary>
     public static (string Arquivo, string Parametros) Separar(string instalador)
     {

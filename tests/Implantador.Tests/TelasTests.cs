@@ -199,6 +199,16 @@ public class TelasTests
     }
 
     [Fact]
+    public void SiteDoProgramaVemDoWingetShow()
+    {
+        var saida = "Encontrado Google Chrome [Google.Chrome]\r\nVersão: 130.0\r\nFornecedor: Google LLC\r\nUrl do Fornecedor: https://www.google.com/\r\n" +
+                    "Página Inicial: https://www.google.com/chrome\r\nLicença: https://github.com/x\r\n";
+        Assert.Equal("www.google.com", Programas.SiteNaSaida(saida));
+        Assert.Equal("notepad-plus-plus.org", Programas.SiteNaSaida("Url: https://github.com/notepad-plus-plus\nHome: https://notepad-plus-plus.org/"));
+        Assert.Null(Programas.SiteNaSaida("Nenhum pacote encontrado."));
+    }
+
+    [Fact]
     public void RedesVisiveisVemDoNetsh()
     {
         var saida = "Nome da interface : Wi-Fi\r\nHá 2 redes visíveis no momento.\r\n\r\nSSID 1 : Casa 5G\r\n    Tipo de rede : Infraestrutura\r\n"

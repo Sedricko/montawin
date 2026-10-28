@@ -386,9 +386,19 @@ public partial class MainWindow : Window
     {
         var dados = DadosDoPendrive;
         var lista = Programas.Ler(ListaProgramas.Ler());
-        ListaProgramasUi.ItemsSource = lista.Select(p => new ItemLista(p, ItemLista.SeloDe(p, dados))).ToList();
+        var itens = lista.Select(p => new ItemLista(p, ItemLista.SeloDe(p, dados))).ToList();
+        ListaProgramasUi.ItemsSource = itens;
+        _ = BaixarIcones(itens);
         var ids = lista.SelectMany(p => p.Ids).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (Button b in PainelPopulares.Children) b.Visibility = ids.Contains(((string Nome, string Id))b.Tag is var (_, id) ? id : "") ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    // Ícones que faltam, um por vez em segundo plano (cada um é um "winget show" + o ícone do site)
+    static readonly System.Net.Http.HttpClient http = new() { Timeout = TimeSpan.FromSeconds(15) };
+    static async Task BaixarIcones(List<ItemLista> itens)
+    {
+        foreach (var item in itens.Where(i => i.Icone == null))
+            if (await Icones.Baixar(item.Programa, http) is string arquivo) item.Icone = arquivo;
     }
 
     void MontarPopulares()

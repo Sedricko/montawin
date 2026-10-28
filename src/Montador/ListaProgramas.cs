@@ -8,8 +8,18 @@ public record ResultadoBusca(string Nome, string Id)
 }
 
 /// <summary>Uma linha da lista de programas no app: a caixa marca se vem escolhido no painel; o selo diz de onde instala.</summary>
-public class ItemLista(Programa programa, string selo)
+public class ItemLista(Programa programa, string selo) : System.ComponentModel.INotifyPropertyChanged
 {
+    public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    string? icone = Icones.EmCache(programa);
+    /// <summary>Ícone do próprio programa (PNG em cache); null enquanto não baixou: aparece a inicial.</summary>
+    public string? Icone
+    {
+        get => icone;
+        set { icone = value; PropertyChanged?.Invoke(this, new(nameof(Icone))); PropertyChanged?.Invoke(this, new(nameof(VisIcone))); }
+    }
+    public string VisIcone => icone != null ? "Visible" : "Collapsed"; // texto: o WPF converte, e o arquivo compila também nos testes
+
     public Programa Programa { get; } = programa;
     public string Nome => Programa.Nome;
     public bool Marcado { get; set; } = programa.Marcado;
@@ -30,6 +40,40 @@ public class ItemLista(Programa programa, string selo)
         if (p.Ids.Any(id => Programas.SoInternet(id))) return "só internet";
         if (dados is char d && p.Ids.All(id => Directory.Exists($@"{d}:\MontaWin\Instaladores\winget\{id}"))) return "no pendrive";
         return "internet";
+    }
+}
+
+/// <summary>
+/// Ícone original de cada programa: o site do fabricante vem do "winget show" (o primeiro endereço da saída, que não
+/// depende do idioma) e o ícone do site é guardado em %LOCALAPPDATA%\MontaWin\Icones.
+/// </summary>
+public static class Icones
+{
+    static string Pasta => Path.Combine(ListaProgramas.Pasta, "Icones");
+    static string Arquivo(Programa p) => Path.Combine(Pasta, Perfil.NomeSeguro(p.Ids.FirstOrDefault() ?? p.Nome) + ".png");
+
+    public static string? EmCache(Programa p) => File.Exists(Arquivo(p)) ? Arquivo(p) : null;
+
+    // shortcut: instaladores por arquivo ficam com a inicial (sem site no winget), dá para tirar o ícone do .exe se fizer falta
+    public static async Task<string?> Baixar(Programa p, System.Net.Http.HttpClient http)
+    {
+        if (EmCache(p) is string pronto) return pronto;
+        if (p.Ids.FirstOrDefault() is not string id) return null;
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("winget",
+                $"show --id {id} -e --source {(Programas.DaLoja(id) ? "msstore" : "winget")} --accept-source-agreements --disable-interactivity")
+                { RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true, StandardOutputEncoding = System.Text.Encoding.UTF8 };
+            using var winget = System.Diagnostics.Process.Start(psi)!;
+            var saida = await winget.StandardOutput.ReadToEndAsync();
+            await winget.WaitForExitAsync();
+            if (Programas.SiteNaSaida(saida) is not string site) return null;
+            var png = await http.GetByteArrayAsync($"https://www.google.com/s2/favicons?domain={Uri.EscapeDataString(site)}&sz=64");
+            Directory.CreateDirectory(Pasta);
+            await File.WriteAllBytesAsync(Arquivo(p), png);
+            return Arquivo(p);
+        }
+        catch (Exception) { return null; } // sem internet ou sem winget: fica a inicial
     }
 }
 
