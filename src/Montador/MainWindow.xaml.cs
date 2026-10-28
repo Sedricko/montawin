@@ -110,9 +110,16 @@ public partial class MainWindow : Window
         foreach (RadioButton r in Temas.Children)
         {
             r.IsChecked = true;
-            UpdateLayout();
             var conteudo = (FrameworkElement)Content;
-            Salvar(conteudo, Path.Combine(pasta, $"montador-{tema}.png"), (int)conteudo.ActualWidth, (int)conteudo.ActualHeight);
+            // A janela rola: uma imagem por "página", de cima até o fim.
+            Rolagem.ScrollToTop();
+            for (int pagina = 1; ; pagina++)
+            {
+                UpdateLayout();
+                Salvar(conteudo, Path.Combine(pasta, $"montador-{tema}-{pagina}.png"), (int)conteudo.ActualWidth, (int)conteudo.ActualHeight);
+                if (Rolagem.VerticalOffset >= Rolagem.ScrollableHeight - 1) break;
+                Rolagem.ScrollToVerticalOffset(Rolagem.VerticalOffset + Rolagem.ViewportHeight * 0.9);
+            }
             SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-{tema}.png"), desfocado: false);
             SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-desfocado-{tema}.png"), desfocado: true);
         }

@@ -111,7 +111,7 @@
       </Canvas>
     </Viewbox>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <ScrollViewer x:Name="Rolagem" VerticalScrollBarVisibility="Auto">
       <Border Background="{DynamicResource CorPainel}" BorderBrush="{DynamicResource CorBordaPainel}" BorderThickness="1" CornerRadius="22"
               MaxWidth="720" Margin="24,32" Padding="30,26" VerticalAlignment="Center">
         <Border.Effect><DropShadowEffect BlurRadius="60" ShadowDepth="16" Opacity="0.4" /></Border.Effect>
