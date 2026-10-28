@@ -303,7 +303,7 @@ List<Programa>? EscolherProgramas(string titulo, List<Programa> programas, List<
 {
     bool offline = raiz != null && Directory.Exists(Path.Combine(raiz, "Instaladores", "winget"));
     var marcados = Tui.Selecao(titulo, [
-        "Instalados sozinhos no primeiro login do Windows novo.",
+        "Instalam sozinhos no Windows novo: antes da tela de login, ou logo depois dela.",
         offline ? "Os baixados no pendrive instalam sem internet; os outros precisam de internet." : "Precisa de internet no primeiro login.",
         "Lista editável no pendrive: MontaWin\\Programas.txt"],
         programas.Select(x => x.Nome).ToList(), programas.Select(p => escolhidos.Any(e => e.Nome == p.Nome)).ToArray());

@@ -40,7 +40,7 @@ public class TelasTests
         {
             Tipo = TipoTela.Lista, Titulo = "Quais programas instalar?", Selecionado = 3,
             Rodape = "Enter ou Espaço: marcar/desmarcar    Tab: ir para Continuar    Esc: voltar",
-            Info = ["Instalados sozinhos no primeiro login do Windows novo.", "Os baixados no pendrive instalam sem internet; os outros precisam de internet."],
+            Info = ["Instalam sozinhos no Windows novo: antes da tela de login, ou logo depois dela.", "Os baixados no pendrive instalam sem internet; os outros precisam de internet."],
             Itens = [new Item("Marcar todos", TipoItem.MarcarTodos), .. NomesProgramas.Select((p, i) => new Item(p, TipoItem.Caixa, i is 0 or 2 or 3)),
                 new Item("Continuar →   (3 marcados)", TipoItem.Continuar), new Item("← Voltar", TipoItem.Voltar)],
         });
