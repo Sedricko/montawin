@@ -141,45 +141,112 @@ void Instalar()
     var edicao = edicoes[e];
     var disco = EscolherDisco("Disco onde o Windows será instalado", alvo);
     if (disco == null) return;
-    var backupNoDisco = backupsFeitos.FirstOrDefault(b => Discos.DiscoDaLetra(b[0]) == disco.Numero);
-    if (!Exigir(backupNoDisco == null, $"O backup em {backupNoDisco} está nesse disco e seria apagado. Escolha outro disco.")) return;
+    bool uefi = Discos.Uefi;
+    var letras = Comandos.LetrasLivres(3);
+    if (!Exigir(letras.Length == 3, "Não há letras de unidade livres.")) return;
 
-    var aviso = new List<string>
+    int modo = Tui.Menu($"Como instalar no {disco.Descricao.Trim()}?", disco.Particoes.Select(p => p.Descricao).ToList(), [
+        "Apagar o disco inteiro (automático)",
+        "Apagar o disco e dividir: Windows + Dados",
+        "Instalar numa partição existente (mantém as outras)",
+    ]);
+    if (modo < 0) return;
+
+    PlanoParticoes plano;
+    var aviso = new List<string>();
+    Particao? particao = null;
+    if (modo < 2)
     {
-        $"TODOS os dados de {disco.Descricao.Trim()} serão apagados.",
-        $"Instalar: {edicao.Nome}   ·   Modo: {(Discos.Uefi ? "UEFI (GPT)" : "BIOS (MBR)")}",
-    };
+        int? windowsGb = null;
+        if (modo == 1)
+        {
+            long gbDisco = disco.Tamanho / (1L << 30);
+            var resposta = Tui.Perguntar("Tamanho do Windows (C:)", [
+                $"O disco tem {gbDisco} GB. Digite quantos GB ficam para o Windows.",
+                "O resto vira a partição Dados (D:), que você pode manter nas próximas formatações.",
+                "Recomendado: 120 GB ou mais.",
+            ], "Digite o tamanho em GB e Enter, ou só Enter para cancelar");
+            if (resposta.Length == 0) return;
+            if (!Exigir(int.TryParse(resposta, out int gb) && gb >= 40 && gb <= gbDisco - 5,
+                $"Tamanho inválido: use de 40 a {gbDisco - 5} GB.")) return;
+            windowsGb = gb;
+        }
+        plano = Particionamento.ApagarDisco(disco.Numero, uefi, letras[0], letras[1], letras[2], windowsGb);
+        aviso.Add($"TODOS os dados de {disco.Descricao.Trim()} serão apagados.");
+        var fabrica = disco.Particoes.Where(p => p.Tipo == TipoParticao.Fabricante).ToList();
+        if (fabrica.Count > 0)
+            aviso.Add($"Este disco tem recuperação de fábrica/fabricante ({Formatar.Tamanho(fabrica.Sum(p => p.Tamanho))}): ela também será apagada.");
+        var backupNoDisco = backupsFeitos.FirstOrDefault(b => Discos.DiscoDaLetra(b[0]) == disco.Numero);
+        if (!Exigir(backupNoDisco == null, $"O backup em {backupNoDisco} está nesse disco e seria apagado. Escolha outro disco.")) return;
+    }
+    else
+    {
+        if (!Exigir(disco.Particoes.Count > 0, "O disco não tem partições. Use uma das opções que apagam o disco.")) return;
+        while (true)
+        {
+            int i = Tui.Menu("Escolher a partição onde o Windows será instalado", [], disco.Particoes.Select(p => p.Descricao).ToList());
+            if (i < 0) return;
+            var (encontrado, erro) = Particionamento.ParticaoExistente(disco, disco.Particoes[i], uefi, letras[0], letras[1], letras[2]);
+            if (encontrado == null) { Tui.Mensagem("Atenção", [erro], erro: true); continue; }
+            plano = encontrado;
+            particao = disco.Particoes[i];
+            break;
+        }
+        if (!Exigir(particao.Tamanho >= 32L << 30, "A partição precisa ter pelo menos 32 GB.")) return;
+        var backupNaParticao = backupsFeitos.FirstOrDefault(b => particao.Letra is char l && char.ToUpperInvariant(b[0]) == l);
+        if (!Exigir(backupNaParticao == null, $"O backup em {backupNaParticao} está nessa partição e seria apagado.")) return;
+        aviso.Add($"Só a {particao.Descricao.Trim()} será apagada.");
+        aviso.Add("As outras partições do disco ficam intactas.");
+    }
+    aviso.Add($"Instalar: {edicao.Nome}   ·   Modo: {(uefi ? "UEFI (GPT)" : "BIOS (MBR)")}");
     if (disco.LetraWindows != null && pastaDrivers == null) aviso.Add("Atenção: o backup de drivers ainda não foi feito.");
     if (!Tui.Confirmar("Formatar e instalar", aviso, "FORMATAR")) return;
 
-    var letras = Comandos.LetrasLivres(2);
-    if (!Exigir(letras.Length == 2, "Não há letras de unidade livres.")) return;
-    var (sistema, windows) = (letras[0], letras[1]);
-
-    Tui.Etapa("Instalando", "1/4 · Particionando o disco");
+    Tui.Etapa("Instalando", "1/5 · Preparando as partições");
     var script = Path.Combine(Path.GetTempPath(), "montawin-diskpart.txt");
-    File.WriteAllText(script, Comandos.ScriptParticionamento(disco.Numero, Discos.Uefi, sistema, windows));
-    if (Comandos.Executar("diskpart", $"/s \"{script}\"") != 0) throw new Exception(Falha("O diskpart não conseguiu particionar o disco."));
+    File.WriteAllText(script, plano.Script);
+    if (Comandos.Executar("diskpart", $"/s \"{script}\"") != 0) throw new Exception(Falha("O diskpart não conseguiu preparar as partições."));
+    var w = plano.Windows;
 
-    Tui.Etapa("Instalando", $"2/4 · Aplicando {edicao.Nome}");
-    if (Comandos.Executar("dism", $"/Apply-Image /ImageFile:\"{edicao.Arquivo}\" /Index:{edicao.Indice} /ApplyDir:{windows}:\\", Tui.Progresso) != 0)
+    Tui.Etapa("Instalando", $"2/5 · Aplicando {edicao.Nome}");
+    if (Comandos.Executar("dism", $"/Apply-Image /ImageFile:\"{edicao.Arquivo}\" /Index:{edicao.Indice} /ApplyDir:{w}:\\", Tui.Progresso) != 0)
         throw new Exception(Falha("O DISM não conseguiu aplicar a imagem."));
 
     if (pastaDrivers != null)
     {
-        Tui.Etapa("Instalando", "3/4 · Reinstalando os drivers do backup");
+        Tui.Etapa("Instalando", "3/5 · Reinstalando os drivers do backup");
         // Driver que falhar não impede a instalação: o Windows Update completa depois.
-        Comandos.Executar("dism", $"/Image:{windows}:\\ /Add-Driver /Driver:\"{pastaDrivers}\" /Recurse", Tui.Progresso);
+        Comandos.Executar("dism", $"/Image:{w}:\\ /Add-Driver /Driver:\"{pastaDrivers}\" /Recurse", Tui.Progresso);
     }
 
-    Tui.Etapa("Instalando", "4/4 · Criando a inicialização");
-    if (Comandos.Executar("bcdboot", $"{windows}:\\Windows /s {sistema}: /f {(Discos.Uefi ? "UEFI" : "BIOS")}") != 0)
+    Tui.Etapa("Instalando", "4/5 · Criando a inicialização");
+    if (Comandos.Executar("bcdboot", $"{w}:\\Windows /s {plano.Sistema}: /f {(uefi ? "UEFI" : "BIOS")}") != 0)
         throw new Exception(Falha("O bcdboot não conseguiu criar a inicialização."));
+
+    var avisos = new List<string> { $"{edicao.Nome} instalado.", "Remova o pendrive e reinicie." };
+    if (plano.Recuperacao is char r)
+    {
+        Tui.Etapa("Instalando", "5/5 · Configurando a recuperação do Windows");
+        if (!ConfigurarRecuperacao(w, r)) avisos.Add("Aviso: a recuperação do Windows não foi configurada (o Windows funciona normalmente).");
+    }
     Tui.Progresso(100);
 
     alvo = null;
-    if (Tui.Menu("Instalação concluída", [$"{edicao.Nome} instalado.", "Remova o pendrive e reinicie."], ["Reiniciar agora", "Voltar ao menu"]) == 0)
+    if (Tui.Menu("Instalação concluída", avisos, ["Reiniciar agora", "Voltar ao menu"]) == 0)
         Comandos.Executar("wpeutil", "reboot");
+}
+
+// Copia o WinRE da imagem aplicada para a partição de recuperação e registra no Windows novo.
+static bool ConfigurarRecuperacao(char windows, char recuperacao)
+{
+    var origem = $@"{windows}:\Windows\System32\Recovery\Winre.wim";
+    if (!File.Exists(origem)) return false;
+    var pasta = $@"{recuperacao}:\Recovery\WindowsRE";
+    Directory.CreateDirectory(pasta);
+    var destino = Path.Combine(pasta, "Winre.wim");
+    if (File.Exists(destino)) File.SetAttributes(destino, FileAttributes.Normal); // o antigo fica oculto/sistema
+    File.Copy(origem, destino, overwrite: true);
+    return Comandos.Executar($@"{windows}:\Windows\System32\Reagentc.exe", $@"/Setreimage /Path {pasta} /Target {windows}:\Windows") == 0;
 }
 
 static string Falha(string mensagem)

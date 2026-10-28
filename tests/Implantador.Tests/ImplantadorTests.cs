@@ -60,22 +60,115 @@ public class ImplantadorTests
         Assert.Equal(Path.Combine("D:", "joao"), perfil.Destino("D:"));
     }
 
+    static Particao Dados(int n, char? letra, long gb = 200) => new(n, n * 1000L, gb << 30, TipoParticao.Dados, "", false) { Letra = letra };
+
     [Fact]
-    public void ParticionaUefiComGpt()
+    public void ApagaDiscoUefiComRecuperacaoNoFim()
     {
-        var s = Comandos.ScriptParticionamento(2, uefi: true, 'S', 'W');
-        Assert.StartsWith("select disk 2\n", s.Replace("\r", ""));
-        Assert.Contains("convert gpt", s);
-        Assert.Contains("create partition efi size=300", s);
-        Assert.Contains("assign letter=W", s);
+        var p = Particionamento.ApagarDisco(2, uefi: true, 'S', 'W', 'R');
+        var linhas = p.Script.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(new[] { "select disk 2", "clean", "convert gpt", "create partition efi size=300" }, linhas[..4]);
+        Assert.Contains("shrink minimum=1024", linhas);
+        Assert.Contains("set id=de94bba4-06d1-4d40-a16a-bfd50179d6ac", linhas);
+        Assert.DoesNotContain("format quick fs=ntfs label=Dados", linhas);
+        Assert.Equal(('S', 'W', (char?)'R'), (p.Sistema, p.Windows, p.Recuperacao));
     }
 
     [Fact]
-    public void ParticionaBiosComMbrAtiva()
+    public void DivideDiscoMbrEmWindowsEDados()
     {
-        var s = Comandos.ScriptParticionamento(0, uefi: false, 'S', 'W');
-        Assert.Contains("convert mbr", s);
-        Assert.Contains("active", s);
-        Assert.DoesNotContain("efi", s);
+        var p = Particionamento.ApagarDisco(0, uefi: false, 'S', 'W', 'R', windowsGb: 150);
+        Assert.Contains("convert mbr", p.Script);
+        Assert.Contains("active", p.Script);
+        Assert.Contains("create partition primary size=153600", p.Script);
+        Assert.Contains("set id=27", p.Script);
+        Assert.Contains("format quick fs=ntfs label=Dados", p.Script);
+        Assert.DoesNotContain("shrink", p.Script);
+    }
+
+    [Fact]
+    public void InstalaEmParticaoExistenteReaproveitandoEfiERecuperacao()
+    {
+        var efi = new Particao(1, 1, 300 << 20, TipoParticao.Efi, "", false);
+        var rec = new Particao(4, 4, 1L << 30, TipoParticao.RecuperacaoWindows, "", false);
+        var fabrica = new Particao(5, 5, 20L << 30, TipoParticao.Fabricante, "DELLSUPPORT", false);
+        var disco = new Disco(0, 500L << 30, "SSD", false, true, [efi, Dados(3, 'C'), rec, fabrica, Dados(6, 'D')]);
+
+        var (plano, erro) = Particionamento.ParticaoExistente(disco, disco.Particoes[1], uefi: true, 'S', 'W', 'R');
+
+        Assert.Equal("", erro);
+        Assert.Contains("select volume C", plano!.Script);
+        Assert.Contains("select partition 1\nassign letter=S", plano.Script.Replace("\r", ""));
+        Assert.Contains("select partition 4\nassign letter=R", plano.Script.Replace("\r", ""));
+        Assert.DoesNotContain("clean", plano.Script);
+        Assert.DoesNotContain("select partition 5", plano.Script);
+        Assert.DoesNotContain("select volume D", plano.Script);
+        Assert.Equal(('S', 'C', (char?)'R'), (plano.Sistema, plano.Windows, plano.Recuperacao));
+    }
+
+    [Fact]
+    public void RecusaParticaoProtegidaOuEstiloErrado()
+    {
+        var fabrica = new Particao(5, 5, 20L << 30, TipoParticao.Fabricante, "DELLSUPPORT", false);
+        var gpt = new Disco(0, 500L << 30, "SSD", false, true, [fabrica, Dados(2, 'C')]);
+        Assert.Null(Particionamento.ParticaoExistente(gpt, fabrica, true, 'S', 'W', 'R').Plano);
+        Assert.Contains("BIOS", Particionamento.ParticaoExistente(gpt, gpt.Particoes[1], false, 'S', 'W', 'R').Erro);
+        Assert.Contains("EFI", Particionamento.ParticaoExistente(gpt, gpt.Particoes[1], true, 'S', 'W', 'R').Erro);
+    }
+
+    [Fact]
+    public void MbrSemParticaoAtivaTornaOWindowsAtivo()
+    {
+        var disco = new Disco(0, 500L << 30, "HD", false, false, [Dados(1, null)]);
+        var (plano, _) = Particionamento.ParticaoExistente(disco, disco.Particoes[0], false, 'S', 'W', 'R');
+        Assert.Contains("select partition 1", plano!.Script);
+        Assert.Contains("assign letter=W", plano.Script);
+        Assert.Contains("active", plano.Script);
+        Assert.Equal(('W', 'W', (char?)null), (plano.Sistema, plano.Windows, plano.Recuperacao));
+    }
+
+    [Theory]
+    [InlineData("c12a7328-f81f-11d2-ba4b-00a0c93ec93b", 0UL, 1L, TipoParticao.Efi)]
+    [InlineData("de94bba4-06d1-4d40-a16a-bfd50179d6ac", 0UL, 1L, TipoParticao.RecuperacaoWindows)]
+    [InlineData("de94bba4-06d1-4d40-a16a-bfd50179d6ac", 0UL, 20L, TipoParticao.Fabricante)]
+    [InlineData("ebd0a0a2-b9e5-4433-87c0-68b6b72699c7", 0UL, 200L, TipoParticao.Dados)]
+    [InlineData("ebd0a0a2-b9e5-4433-87c0-68b6b72699c7", 0x8000000000000000UL, 20L, TipoParticao.Fabricante)]
+    [InlineData("0fc63daf-8483-4772-8e79-3d69d8477de4", 0UL, 50L, TipoParticao.Outra)]
+    public void ClassificaParticoesGpt(string tipo, ulong atributos, long gb, TipoParticao esperado) =>
+        Assert.Equal(esperado, Discos.ClassificarGpt(new Guid(tipo), atributos, gb << 30));
+
+    [Theory]
+    [InlineData(0x07, true, 1L, TipoParticao.SistemaMbr)]
+    [InlineData(0x07, true, 200L, TipoParticao.Dados)]
+    [InlineData(0x27, false, 1L, TipoParticao.RecuperacaoWindows)]
+    [InlineData(0x27, false, 15L, TipoParticao.Fabricante)]
+    [InlineData(0xDE, false, 1L, TipoParticao.Fabricante)]
+    public void ClassificaParticoesMbr(int tipo, bool ativa, long gb, TipoParticao esperado) =>
+        Assert.Equal(esperado, Discos.ClassificarMbr((byte)tipo, ativa, gb << 30));
+
+    [Fact]
+    public void LeLayoutGptDoDisco()
+    {
+        var b = new byte[48 + 2 * 144];
+        BitConverter.GetBytes(1).CopyTo(b, 0);   // GPT
+        BitConverter.GetBytes(2).CopyTo(b, 4);
+        void Entrada(int i, long inicio, long tamanho, int numero, string tipo, string nome)
+        {
+            int o = 48 + i * 144;
+            BitConverter.GetBytes(inicio).CopyTo(b, o + 8);
+            BitConverter.GetBytes(tamanho).CopyTo(b, o + 16);
+            BitConverter.GetBytes(numero).CopyTo(b, o + 24);
+            new Guid(tipo).ToByteArray().CopyTo(b, o + 32);
+            Encoding.Unicode.GetBytes(nome).CopyTo(b, o + 72);
+        }
+        Entrada(0, 1 << 20, 300 << 20, 1, "c12a7328-f81f-11d2-ba4b-00a0c93ec93b", "EFI system partition");
+        Entrada(1, 400 << 20, 100L << 30, 3, "ebd0a0a2-b9e5-4433-87c0-68b6b72699c7", "Basic data partition");
+
+        var (gpt, particoes) = Discos.LerLayout(b);
+
+        Assert.True(gpt);
+        Assert.Equal(new[] { (1, TipoParticao.Efi, 1L << 20), (3, TipoParticao.Dados, 400L << 20) },
+            particoes.Select(p => (p.Numero, p.Tipo, p.Inicio)));
+        Assert.Equal("Basic data partition", particoes[1].Nome);
     }
 }

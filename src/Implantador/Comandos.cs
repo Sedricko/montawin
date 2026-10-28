@@ -56,38 +56,10 @@ public static partial class Comandos
     public static double? Percentual(string linha) =>
         RegexPercentual().Match(linha) is { Success: true } m ? double.Parse(m.Groups[1].Value) : null;
 
-    public static string ScriptParticionamento(int disco, bool uefi, char sistema, char windows) => uefi
-        ? $"""
-          select disk {disco}
-          clean
-          convert gpt
-          create partition efi size=300
-          format quick fs=fat32 label=System
-          assign letter={sistema}
-          create partition msr size=16
-          create partition primary
-          format quick fs=ntfs label=Windows
-          assign letter={windows}
-          exit
-          """
-        : $"""
-          select disk {disco}
-          clean
-          convert mbr
-          create partition primary size=300
-          format quick fs=ntfs label=System
-          active
-          assign letter={sistema}
-          create partition primary
-          format quick fs=ntfs label=Windows
-          assign letter={windows}
-          exit
-          """;
-
     /// <summary>Letras livres para as partições novas (pula A, B e X, que é o próprio WinPE).</summary>
     public static char[] LetrasLivres(int quantidade)
     {
         var usadas = DriveInfo.GetDrives().Select(d => char.ToUpperInvariant(d.Name[0])).ToHashSet();
-        return "STWDEFGHIJKLMNOPQRUVYZ".Where(l => !usadas.Contains(l)).Take(quantidade).ToArray();
+        return "SWRDEFGHIJKLMNOPQTUVYZ".Where(l => !usadas.Contains(l)).Take(quantidade).ToArray();
     }
 }

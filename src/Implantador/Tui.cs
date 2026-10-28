@@ -110,15 +110,19 @@ public static class Tui
     }
 
     /// <summary>Pede para digitar uma palavra exata antes de algo destrutivo.</summary>
-    public static bool Confirmar(string titulo, IReadOnlyList<string> linhas, string palavra)
+    public static bool Confirmar(string titulo, IReadOnlyList<string> linhas, string palavra) =>
+        Perguntar(titulo, linhas, $"Digite {palavra} e Enter para continuar, ou só Enter para cancelar")
+            .Equals(palavra, StringComparison.OrdinalIgnoreCase);
+
+    public static string Perguntar(string titulo, IReadOnlyList<string> linhas, string rodape)
     {
-        Moldura($"Digite {palavra} e Enter para continuar, ou só Enter para cancelar");
+        Moldura(rodape);
         int y = Caixa(2, titulo, Simples(linhas), ConsoleColor.Yellow);
         Escrever(1, y, "> ", Destaque);
         Console.CursorVisible = true;
         var digitado = Console.ReadLine() ?? "";
         Console.CursorVisible = false;
-        return digitado.Trim().Equals(palavra, StringComparison.OrdinalIgnoreCase);
+        return digitado.Trim();
     }
 
     static string tituloProgresso = "", etapaProgresso = "";
