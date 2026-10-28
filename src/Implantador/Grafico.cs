@@ -259,7 +259,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
                     InvalidateRect(hwnd, 0, 0);
                     return 0;
                 case 0x0100 when t != null: // WM_KEYDOWN: teclas sem caractere
-                    if ((int)wParam is 8 or 9 or 13 or 27 or (>= 33 and <= 40) or 46) t.fila.Add(new Evento((ConsoleKey)(int)wParam));
+                    if ((int)wParam is 8 or 9 or 13 or 27 or (>= 33 and <= 40) or 46 or (>= 112 and <= 119)) t.fila.Add(new Evento((ConsoleKey)(int)wParam));
                     return 0;
                 case 0x0102 when t != null: // WM_CHAR
                     char ch = (char)wParam;
@@ -622,7 +622,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
 
         // Botões no topo: Voltar à direita do título, Parar ao lado
         float bx = x + w - pad;
-        for (int i = t.Itens.Count - 1; i >= 0; i--)
+        for (int i = 1; i >= 0; i--)
         {
             var item = t.Itens[i];
             float bw = Largura(item.Texto, fonteForte) + 36 * s;
@@ -633,8 +633,21 @@ public sealed unsafe partial class TelaGrafica : ISaida
             bx -= 10 * s;
         }
 
+        // Atalhos (itens 2 em diante): botões pequenos que quebram linha
+        float ax = x + pad, ay = y + pad + 50 * s, ah = 32 * s;
+        for (int i = 2; i < t.Itens.Count; i++)
+        {
+            float aw = Largura(t.Itens[i].Texto, fontePequena) + 28 * s;
+            if (ax + aw > x + w - pad) (ax, ay) = (x + pad, ay + ah + 8 * s);
+            Caixa(ax, ay, aw, ah, 16 * s, c.Cartao, c.Borda);
+            Texto(t.Itens[i].Texto, fontePequena, c.Texto, ax, ay, aw, ah, linhaCentro);
+            alvos.Add((ax, ay, aw, ah, i));
+            ax += aw + 8 * s;
+        }
+        if (t.Itens.Count > 2) ay += ah + 12 * s;
+
         // Saída do cmd, a mais nova embaixo; a última linha é o prompt (X:\>) com o que está sendo digitado
-        float oy = y + pad + 50 * s, oh = y + h - pad - 30 * s - oy, lh = 20 * s;
+        float oy = ay, oh = y + h - pad - 30 * s - oy, lh = 20 * s;
         Caixa(x + pad, oy, dentro, oh, 12 * s, 0xE6141026, c.Borda);
         int cabem = Math.Max(1, (int)((oh - 24 * s) / lh));
         var linhas = t.Registro.Count > 0 ? t.Registro.ToList() : [""];

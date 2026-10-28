@@ -80,6 +80,19 @@ public static class Tui
     /// Prompt de comando dentro do painel: o cmd roda escondido e a saída aparece num cartão.
     /// Não tem janela própria, então nada fecha o painel por engano. Volta com Esc, "← Voltar" ou exit.
     /// </summary>
+    // Atalhos do prompt (F1 a F8): só comandos que leem ou mostram, nenhum apaga nada
+    static (string Nome, string Comando)[] Atalhos =>
+    [
+        ("Discos", "(echo list disk) | diskpart"),
+        ("Partições", "(echo list volume) | diskpart"),
+        ("Rede (IP)", "ipconfig"),
+        ("Testar internet", "ping -n 4 8.8.8.8"),
+        ("Verificar C:", "chkdsk C:"),
+        ("Log do MontaWin", Comandos.Log is string log ? $"start notepad \"{log}\"" : "echo Sem log nesta sessao."),
+        ("Bloco de notas", "start notepad"),
+        ("Limpar tela", "cls"),
+    ];
+
     public static void Terminal()
     {
         var linhas = new List<string> { "" };
@@ -134,8 +147,9 @@ public static class Tui
                 if (estado != ultimo) Mostrar(new Tela
                 {
                     Tipo = TipoTela.Terminal, Titulo = "Prompt de comando", Registro = copia, Campo = texto.ToString(), Selecionado = rolagem,
-                    Itens = [new Item("← Voltar ao painel", TipoItem.Voltar), new Item("Parar comando", TipoItem.Continuar)],
-                    Rodape = "Enter: executar    ↑↓: comandos anteriores    PgUp/PgDn: rolar    Esc: voltar ao painel",
+                    Itens = [new Item("← Voltar ao painel", TipoItem.Voltar), new Item("Parar comando", TipoItem.Continuar),
+                        .. Atalhos.Select((a, i) => new Item($"F{i + 1}  {a.Nome}"))],
+                    Rodape = "Enter: executar    F1–F8: atalhos    ↑↓: comandos anteriores    PgUp/PgDn: rolar    Esc: voltar",
                 });
                 ultimo = estado;
                 if (cmd!.HasExited) return; // exit
@@ -149,6 +163,12 @@ public static class Tui
                     Escrever("\n(comando interrompido)\n\n");
                     Abrir();
                     continue;
+                }
+                int atalho = e.Item >= 2 ? e.Item - 2 : e.Tecla is >= ConsoleKey.F1 and <= ConsoleKey.F8 ? e.Tecla - ConsoleKey.F1 : -1;
+                if (atalho >= 0 && atalho < Atalhos.Length)
+                {
+                    texto.Clear().Append(Atalhos[atalho].Comando);
+                    e = new Evento(ConsoleKey.Enter);
                 }
                 switch (e.Tecla)
                 {

@@ -90,8 +90,10 @@ public class TelasTests
         yield return ("9-prompt", new Tela
         {
             Tipo = TipoTela.Terminal, Titulo = "Prompt de comando", Campo = "list volume",
-            Itens = [new Item("← Voltar ao painel", TipoItem.Voltar), new Item("Parar comando", TipoItem.Continuar)],
-            Rodape = "Enter: executar    ↑↓: comandos anteriores    PgUp/PgDn: rolar    Esc: voltar ao painel",
+            Itens = [new Item("← Voltar ao painel", TipoItem.Voltar), new Item("Parar comando", TipoItem.Continuar),
+                .. new[] { "Discos", "Partições", "Rede (IP)", "Testar internet", "Verificar C:", "Log do MontaWin", "Bloco de notas", "Limpar tela" }
+                    .Select((n, i) => new Item($"F{i + 1}  {n}"))],
+            Rodape = "Enter: executar    F1–F8: atalhos    ↑↓: comandos anteriores    PgUp/PgDn: rolar    Esc: voltar",
             Registro = ["Prompt de comando do MontaWin. Digite exit ou aperte Esc para voltar ao painel.", "",
                 "X:\\Windows\\System32>diskpart", "", "Microsoft DiskPart versão 10.0.26100.1", "", "No computador: MINWINPC", "",
                 "DISKPART> list disk", "",
