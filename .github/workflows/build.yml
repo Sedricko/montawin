@@ -32,7 +32,10 @@ jobs:
         timeout-minutes: 5
         shell: pwsh
         run: |
-          Start-Process publicar/MontaWin.exe -ArgumentList '--captura', "$PWD\previa" -Wait
+          $p = Start-Process publicar/MontaWin.exe -ArgumentList '--captura', "$PWD\previa" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); 'MontaWin.exe não terminou em 2 minutos' }
+          "MontaWin.exe saiu com código $($p.ExitCode)"
+          Get-ChildItem previa -ErrorAction SilentlyContinue
           if (Test-Path previa\erro.txt) { Get-Content previa\erro.txt }
           foreach ($t in 'ondas', 'bloom', 'pastel') {
             New-Item -ItemType Directory -Force "fundos\$t" | Out-Null
