@@ -1239,8 +1239,8 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
         if (Tui.Contagem("Instalação concluída", avisos, "Reiniciando", 15)) Comandos.Executar("wpeutil", "reboot");
         return;
     }
-    if (!multi && Tui.Menu("Salvar estas escolhas como perfil?", ["Da próxima vez neste PC, a instalação só pede o disco e a confirmação."],
-            ["Não", "Sim, salvar como perfil"], voltar: null) == 1)
+    if (!multi && Tui.Acoes("Salvar estas escolhas como perfil?", ["Da próxima vez neste PC, a instalação só pede o disco e a confirmação."],
+            [new("Não", TipoItem.Voltar), new("Sim, salvar como perfil →", TipoItem.Continuar)], 0) == 1)
         SalvarComoPerfil(new Perfil("")
         {
             Edicao = edicao.Nome,
@@ -1259,7 +1259,7 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
             Chave = chave,
             PontoRestauracao = pontoRestauracao,
         });
-    if (Tui.Menu("Instalação concluída", avisos, ["Reiniciar agora", "Voltar ao menu"], voltar: null) == 0)
+    if (Tui.Acoes("Instalação concluída", avisos, [new("Voltar ao menu", TipoItem.Voltar), new("Reiniciar agora →", TipoItem.Continuar)], 1) == 1)
         Comandos.Executar("wpeutil", "reboot");
 }
 
