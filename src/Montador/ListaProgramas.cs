@@ -32,7 +32,7 @@ public static class ListaProgramas
         File.WriteAllText(Arquivo, texto);
     }
 
-    static string NomeDaLinha(string linha) => linha.Trim().TrimStart('-').Split('=', 2)[0].Trim();
+    static string NomeDaLinha(string linha) => linha.Trim().TrimStart('-', '+').Split('=', 2)[0].Trim();
 
     /// <summary>Acrescenta "Nome = valor" (substitui se já existir um programa com esse nome).</summary>
     public static string Adicionar(string texto, string nome, string valor)

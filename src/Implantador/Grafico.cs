@@ -22,6 +22,9 @@ public sealed unsafe partial class TelaGrafica : ISaida
             0xFF2F8CFF, 0xFF60CDFF, 0xFF60CDFF, 0xFFFF6B7D, 0xFFFFD66B),
         ["pastel"] = new(0xFFE9ECF8, 0xFFC9CFF2, 0x99FFFFFF, 0xCCFFFFFF, 0xFF1B1640, 0xAD1B1640, 0x8CFFFFFF, 0x1F1B1640, 0xCCFFFFFF,
             0xFF4D5BFF, 0xFF9B4DFF, 0xFF4D5BFF, 0xFFC81E3A, 0xFFA86A00),
+        // Cristal: vidro claro sobre um brilho furta-cor (rosa, lilás, azul-água)
+        ["cristal"] = new(0xFFF7E9FF, 0xFFD8F4FF, 0x80FFFFFF, 0xE6FFFFFF, 0xFF1D1747, 0xAD1D1747, 0x80FFFFFF, 0x261D1747, 0xCCFFFFFF,
+            0xFFFF5FB0, 0xFF36C9FF, 0xFF8A5CFF, 0xFFC81E3A, 0xFFA86A00),
     };
 
     static TelaGrafica? atual; // a janela chama o WndProc estático
@@ -29,7 +32,8 @@ public sealed unsafe partial class TelaGrafica : ISaida
     readonly string? pasta;
     readonly BlockingCollection<Evento> fila = new();
     readonly List<(float X, float Y, float W, float H, int Item)> alvos = []; // onde cada item foi desenhado (clique)
-    nint janela, memDc, memBmp, fundo, desfocado;
+    nint janela, memDc, memBmp, fundo, desfocado, icone;
+    int hover = -1; // item sob o mouse (destaque), -1 = nenhum
     int largura, altura;
     float s; // escala: o layout foi pensado em 1280x720
     nint fonteTitulo, fonteNormal, fontePequena, fonteForte, fonteGrande, fonteMono;
@@ -127,6 +131,10 @@ public sealed unsafe partial class TelaGrafica : ISaida
 
         fundo = Fundo(pasta == null ? null : Path.Combine(pasta, "fundo.png"), gradiente: true);
         desfocado = Fundo(pasta == null ? null : Path.Combine(pasta, "fundo-desfocado.png"), gradiente: false);
+        // Ícone do Aurora Win (o Montador grava MontaWin\icone.png); sem ele, um quadrado com degradê e "A"
+        var arquivoIcone = pasta == null ? null : Path.Combine(pasta, "icone.png");
+        nint img = 0;
+        if (arquivoIcone != null && File.Exists(arquivoIcone) && GdipLoadImageFromFile(arquivoIcone, &img) == 0) icone = img;
     }
 
     /// <summary>Desenha uma tela num arquivo PNG, sem janela (testes e imagens de exemplo).</summary>
@@ -286,6 +294,13 @@ public sealed unsafe partial class TelaGrafica : ISaida
                     foreach (var a in t.alvos)
                         if (x >= a.X && x <= a.X + a.W && y >= a.Y && y <= a.Y + a.H) { t.fila.Add(new Evento(0, '\0', a.Item)); break; }
                     return 0;
+                case 0x0200 when t != null: // WM_MOUSEMOVE: destaca o item sob o mouse
+                    float mx = (short)(lParam & 0xFFFF), my = (short)((lParam >> 16) & 0xFFFF);
+                    int sob = -1;
+                    foreach (var a in t.alvos)
+                        if (mx >= a.X && mx <= a.X + a.W && my >= a.Y && my <= a.Y + a.H) { sob = a.Item; break; }
+                    if (sob != t.hover) { t.hover = sob; InvalidateRect(hwnd, 0, 0); }
+                    return 0;
                 case 0x020A when t != null: // WM_MOUSEWHEEL (no prompt rola a saída; as setas são do histórico)
                     bool cima = (short)((wParam >> 16) & 0xFFFF) > 0;
                     t.fila.Add(new Evento(t.tela?.Tipo == TipoTela.Terminal ? (cima ? ConsoleKey.PageUp : ConsoleKey.PageDown) : cima ? ConsoleKey.UpArrow : ConsoleKey.DownArrow));
@@ -416,9 +431,13 @@ public sealed unsafe partial class TelaGrafica : ISaida
 
         // Marca no canto e o resumo do PC
         float m = 32 * s;
-        Degrade(m, 24 * s, 34 * s, 34 * s, 10 * s);
-        Texto("M", fonteForte, 0xFFFFFFFF, m, 24 * s, 34 * s, 34 * s, linhaCentro);
-        Texto("MontaWin", fonteForte, c.Texto, m + 44 * s, 24 * s, 300 * s, 34 * s);
+        if (icone != 0) GdipDrawImageRectI(g, icone, (int)m, (int)(24 * s), (int)(34 * s), (int)(34 * s));
+        else
+        {
+            Degrade(m, 24 * s, 34 * s, 34 * s, 10 * s);
+            Texto("A", fonteForte, 0xFFFFFFFF, m, 24 * s, 34 * s, 34 * s, linhaCentro);
+        }
+        Texto("Aurora Win", fonteForte, c.Texto, m + 44 * s, 24 * s, 300 * s, 34 * s);
         Texto(Tui.InfoSistema.Trim(), fontePequena, c.Suave, largura / 2f, 24 * s, largura / 2f - m, 34 * s, linhaDireita);
 
         if (t != null)
@@ -580,6 +599,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
     {
         if (selecionado) Degrade(x, y, w, h, 10 * s);
         else Caixa(x, y, w, h, 10 * s, item.Tipo == TipoItem.Voltar ? 0 : c.Cartao, item.Tipo == TipoItem.Voltar ? 0 : c.Borda);
+        if (!selecionado && indice == hover) Caixa(x, y, w, h, 10 * s, 0, c.CorDestaque); // mouse em cima
         alvos.Add((x, y, w, h, indice));
         uint cor = selecionado ? 0xFFFFFFFF : item.Tipo == TipoItem.Voltar ? c.Suave : item.Tipo == TipoItem.Continuar ? c.CorDestaque : c.Texto;
         float tx = x + 18 * s;

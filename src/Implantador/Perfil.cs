@@ -38,7 +38,7 @@ public record Perfil(string Nome)
     {
         var linhas = new List<string>
         {
-            "# Perfil MontaWin. Pode editar; apagar a linha Senha (ou SenhaWifi) faz o painel perguntar na hora.",
+            "# Perfil Aurora Win. Pode editar; apagar a linha Senha (ou SenhaWifi) faz o painel perguntar na hora.",
             $"Nome = {Nome}",
             $"PC = {Pc}",
             $"Serie = {Serie}",

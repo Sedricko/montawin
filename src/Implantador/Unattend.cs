@@ -85,7 +85,7 @@ public static class Unattend
 
     /// <summary>Ponto de restauração "Windows recém-instalado": dá para voltar ao Windows limpo, com os programas, sem formatar.</summary>
     public const string PontoDeRestauracao = "powershell -NoProfile -Command \"Enable-ComputerRestore -Drive $env:SystemDrive\\; " +
-        "Checkpoint-Computer -Description 'Windows recem-instalado (MontaWin)' -RestorePointType MODIFY_SETTINGS\" >nul 2>&1";
+        "Checkpoint-Computer -Description 'Windows recem-instalado (Aurora Win)' -RestorePointType MODIFY_SETTINGS\" >nul 2>&1";
 
     /// <summary>
     /// Script do primeiro login: move as pastas pessoais restauradas (ex.: "joao\Documents") para as pastas

@@ -56,7 +56,8 @@ public interface ISaida
 /// </summary>
 public static class Tui
 {
-    public static readonly string[] Temas = ["ondas", "bloom", "pastel"];
+    // Nomes por dentro (tema.txt) ficam os antigos, para os pendrives já gravados: Ondas = Aurora, Bloom = Galáxia, Pastel = Alvorada
+    public static readonly string[] Temas = ["ondas", "bloom", "pastel", "cristal"];
     public static string Tema { get; private set; } = "ondas";
     public static string InfoSistema = "";
     static ISaida saida = new TelaTexto();
@@ -126,7 +127,7 @@ public static class Tui
                 }) { IsBackground = true }.Start();
         }
 
-        Escrever("Prompt de comando do MontaWin. Digite exit ou aperte Esc para voltar ao painel.\n\n");
+        Escrever("Prompt de comando do Aurora Win. Digite exit ou aperte Esc para voltar ao painel.\n\n");
         Abrir();
         try
         {
@@ -457,12 +458,12 @@ sealed class TelaTexto : ISaida
     public void Iniciar(string tema)
     {
         Console.OutputEncoding = Encoding.UTF8;
-        Console.Title = "MontaWin";
+        Console.Title = "Aurora Win";
         Console.CursorVisible = false;
         (borda, destaque) = tema switch
         {
             "bloom" => (ConsoleColor.DarkCyan, ConsoleColor.Cyan),
-            "pastel" => (ConsoleColor.DarkBlue, ConsoleColor.Blue),
+            "pastel" or "cristal" => (ConsoleColor.DarkBlue, ConsoleColor.Blue),
             _ => (ConsoleColor.DarkMagenta, ConsoleColor.Magenta),
         };
     }

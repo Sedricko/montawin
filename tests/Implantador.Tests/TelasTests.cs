@@ -403,7 +403,7 @@ public class TelasTests
     {
         var login = Unattend.GerarScriptPrimeiroLogin([], temProgramas: false, pontoRestauracao: true);
         Assert.Contains("UsoClient.exe StartScan", login);
-        Assert.Contains("Checkpoint-Computer -Description 'Windows recem-instalado (MontaWin)'", login); // sem programas: já cria
+        Assert.Contains("Checkpoint-Computer -Description 'Windows recem-instalado (Aurora Win)'", login); // sem programas: já cria
         Assert.DoesNotContain("Checkpoint", Unattend.GerarScriptPrimeiroLogin([], temProgramas: true, pontoRestauracao: true)); // espera os programas
         var programas = Unattend.GerarScriptProgramas(["Google.Chrome"], pontoRestauracao: true);
         Assert.True(programas.IndexOf("w32tm /resync /force") < programas.IndexOf("install --id Google.Chrome"));

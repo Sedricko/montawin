@@ -268,12 +268,13 @@ public class ImplantadorTests
     [Fact]
     public void LeAListaDeProgramas()
     {
-        var lista = Programas.Ler("# comentário\r\nGoogle Chrome = Google.Chrome\r\n- Visual C++ = Microsoft.VCRedist.2015+.x86 Microsoft.VCRedist.2015+.x64\r\nsem igual\r\n= sem nome\r\n");
-        Assert.Equal(2, lista.Count);
-        Assert.Equal(("Google Chrome", true), (lista[0].Nome, lista[0].Marcado));
+        var lista = Programas.Ler("# comentário\r\n+ Google Chrome = Google.Chrome\r\n- Visual C++ = Microsoft.VCRedist.2015+.x86 Microsoft.VCRedist.2015+.x64\r\nNotepad++ = Notepad++.Notepad++\r\nsem igual\r\n= sem nome\r\n");
+        Assert.Equal(3, lista.Count);
+        Assert.Equal(("Google Chrome", true), (lista[0].Nome, lista[0].Marcado)); // + = vem marcado no painel
         Assert.Equal(("Visual C++", false), (lista[1].Nome, lista[1].Marcado));
+        Assert.Equal(("Notepad++", false), (lista[2].Nome, lista[2].Marcado)); // sem marca: desmarcado
         Assert.Equal(new[] { "Microsoft.VCRedist.2015+.x86", "Microsoft.VCRedist.2015+.x64" }, lista[1].Ids);
-        Assert.Contains(Programas.Ler(Programas.Padrao), p => p.Nome == "Lightshot" && p.Ids.Single() == "Skillbrains.Lightshot" && p.Marcado);
+        Assert.Contains(Programas.Ler(Programas.Padrao), p => p.Nome == "Lightshot" && p.Ids.Single() == "Skillbrains.Lightshot" && !p.Marcado);
     }
 
     [Fact]

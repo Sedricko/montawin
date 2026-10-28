@@ -25,7 +25,7 @@ var (uuidPc, seriePc) = Sistema.Identidade();
 bool pcIdentificado = uuidPc != null || seriePc != null;
 // Perfil vinculado a este PC (pela identidade da placa-mãe): sugerido na instalação e usado no nome da pasta de backup.
 Perfil? perfilDoPc = LerPerfis().FirstOrDefault(EstePc);
-Comandos.Registrar($"MontaWin iniciado: {Sistema.Resumo()} · PC {uuidPc ?? "-"} / série {seriePc ?? "-"} · perfil {perfilDoPc?.Nome ?? "(nenhum)"} · tema {Tui.Tema}");
+Comandos.Registrar($"Aurora Win iniciado: {Sistema.Resumo()} · PC {uuidPc ?? "-"} / série {seriePc ?? "-"} · perfil {perfilDoPc?.Nome ?? "(nenhum)"} · tema {Tui.Tema}");
 
 // Plano Alto desempenho: o WinPE inicia em Equilibrado e a Microsoft recomenda trocar para acelerar a implantação.
 Comandos.Executar("powercfg", "/s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c");
@@ -170,7 +170,7 @@ void BackupDrivers(Disco? origem = null, bool automatico = false)
 {
     origem ??= alvo;
     if (!Exigir(origem?.LetraWindows != null, "Escolha um disco que tenha Windows instalado (em \"Escolher disco\").")) return;
-    if (!Exigir(raiz != null, "Pendrive MontaWin não encontrado para salvar os drivers.")) return;
+    if (!Exigir(raiz != null, "Pendrive do Aurora Win não encontrado para salvar os drivers.")) return;
     var destino = Path.Combine(PastaBackup(Path.GetPathRoot(raiz)!), "Drivers");
     Directory.CreateDirectory(destino);
     if (!automatico) Tui.Etapa("Backup de drivers", $"Copiando os drivers do Windows em {origem!.LetraWindows}:");
@@ -256,7 +256,7 @@ void BackupArquivos()
     int i = Tui.Menu("Salvar o backup em", [$"Backup: {itens.Count} pastas, {Formatar.Tamanho(total)}"], destinos.Select(d =>
         $"{d.Name}  {Formatar.Ajustar(d.VolumeLabel, 20)}  livre: {Formatar.Tamanho(d.AvailableFreeSpace)}" +
         (d.AvailableFreeSpace > total ? "  cabe" : "  NÃO CABE") +
-        (raiz != null && raiz.StartsWith(d.Name, StringComparison.OrdinalIgnoreCase) ? "  (pendrive MontaWin)" : "")).ToList());
+        (raiz != null && raiz.StartsWith(d.Name, StringComparison.OrdinalIgnoreCase) ? "  (pendrive Aurora Win)" : "")).ToList());
     if (i < 0) return;
     var destino = destinos[i];
     if (!Exigir(total < destino.AvailableFreeSpace,
@@ -490,7 +490,7 @@ static string DescreverInstalacao(string instalacao) => instalacao switch
 
 void MenuPerfis()
 {
-    if (!Exigir(raiz != null, "Pendrive MontaWin não encontrado (os perfis ficam em MontaWin\\Perfis).")) return;
+    if (!Exigir(raiz != null, "Pendrive do Aurora Win não encontrado (os perfis ficam em MontaWin\\Perfis).")) return;
     int sel = 0;
     while (true)
     {
@@ -519,7 +519,7 @@ void AdicionarPerfil()
     string nome = "";
     int edicao = 0, modo = 0, configuracao = 0, guardar = 0, gb = 120;
     string? usuario = null, senha = null;
-    var escolhidos = new List<Programa>();
+    var escolhidos = programas.Where(x => x.Marcado).ToList(); // os marcados na lista do MontaWin já vêm escolhidos
     bool restaurar = true, drivers = true, otimizar = true, removerOneDrive = true, altoDesempenho = false, vincular = true, pontoRestauracao = true;
     string? chave = null;
     string? nomePc = null, wifi = null, senhaWifi = null;
@@ -673,7 +673,7 @@ static int SimNao(int resposta, ref bool sim)
 // inicial: perfil já escolhido (PC reconhecido na abertura): o assistente começa direto no disco.
 void Instalar(Perfil? inicial = null)
 {
-    if (!Exigir(raiz != null, "Pendrive MontaWin não encontrado (pasta MontaWin\\Imagens).")) return;
+    if (!Exigir(raiz != null, "Pendrive do Aurora Win não encontrado (pasta MontaWin\\Imagens).")) return;
     var edicoes = LerEdicoes();
     if (!Exigir(edicoes.Count > 0, "Nenhuma imagem .wim na pasta MontaWin\\Imagens.")) return;
     var perfis = LerPerfis().OrderByDescending(EstePc).ToList();
@@ -691,7 +691,7 @@ void Instalar(Perfil? inicial = null)
     var tamanhos = new List<int>();
     string? usuario = null;
     string senha = "";
-    var escolhidos = new List<Programa>();
+    var escolhidos = programas.Where(x => x.Marcado).ToList(); // os marcados na lista do MontaWin já vêm escolhidos
     bool otimizar = true, removerOneDrive = true, altoDesempenho = false, restaurar = pastaArquivos != null, pontoRestauracao = true;
     string? nomePc = null, rede = null, chave = LicencaDoPendrive();
     string senhaRede = "";
@@ -996,7 +996,7 @@ void Instalar(Perfil? inicial = null)
                     if (conferencia.Result == false)
                     {
                         Tui.Mensagem("Imagem do Windows corrompida", [$"O arquivo {Path.GetFileName(e.Arquivo)} no pendrive está com defeito.",
-                            "Nada foi apagado. Grave o pendrive de novo no MontaWin.exe (ou troque o pendrive, se repetir)."], erro: true);
+                            "Nada foi apagado. Grave o pendrive de novo no Aurora Win (ou troque o pendrive, se repetir)."], erro: true);
                         return Passo.Sair;
                     }
                 }
@@ -1268,7 +1268,7 @@ string? SalvarRelatorio(char windows, List<string> resumo)
 {
     var linhas = new List<string>
     {
-        "RELATÓRIO DA FORMATAÇÃO (MontaWin)",
+        "RELATÓRIO DA FORMATAÇÃO (Aurora Win)",
         $"Data: {DateTime.Now:dd/MM/yyyy HH:mm}",
         $"Computador: {Sistema.Resumo()}",
         $"Número de série: {seriePc ?? "não informado pelo fabricante"}",
@@ -1324,7 +1324,7 @@ void SalvarComoPerfil(Perfil escolhas)
 // Salva um Windows instalado como imagem no pendrive (MontaWin\Imagens\Personalizadas.wim); aparece na lista de edições.
 void CapturarImagem()
 {
-    if (!Exigir(raiz != null, "Pendrive MontaWin não encontrado.")) return;
+    if (!Exigir(raiz != null, "Pendrive do Aurora Win não encontrado.")) return;
     var windows = WindowsInstalados();
     if (!Exigir(windows.Count > 0, "Nenhum Windows instalado encontrado nos discos internos.")) return;
     int w = Tui.Menu("Capturar qual Windows?", [
@@ -1417,8 +1417,8 @@ List<Aba> AbasDoPrompt()
         ]),
         new("Geral",
         [
-            new("Log do MontaWin", Comandos.Log is string log ? $"start \"\" notepad \"{log}\"" : Eco("Sem log nesta sessão.")),
-            new("Arquivos do pendrive", raiz != null ? $"dir \"{raiz}\"" : Eco("Pendrive MontaWin não encontrado.")),
+            new("Log do Aurora Win", Comandos.Log is string log ? $"start \"\" notepad \"{log}\"" : Eco("Sem log nesta sessão.")),
+            new("Arquivos do pendrive", raiz != null ? $"dir \"{raiz}\"" : Eco("Pendrive do Aurora Win não encontrado.")),
             new("Bloco de notas", "start notepad"),
             new("Limpar tela", "cls"),
         ]),
@@ -1427,7 +1427,7 @@ List<Aba> AbasDoPrompt()
 
 static void PromptDeComando()
 {
-    Console.WriteLine("Digite exit para voltar ao MontaWin.");
+    Console.WriteLine("Digite exit para voltar ao Aurora Win.");
     Process.Start(new ProcessStartInfo("cmd.exe") { UseShellExecute = false })!.WaitForExit();
 }
 
