@@ -109,6 +109,10 @@ public static class Pendrive
     /// </summary>
     public static List<string> Gravar(Gravacao g, Action<string?, double> progresso)
     {
+        // A lista é lida bem antes de gravar: se o pendrive foi trocado nesse meio tempo, outro disco USB
+        // (o HD dos backups) pode ter ficado com o mesmo número
+        if (!Discos.MesmoPendrive(g.Pendrive, Discos.Listar().FirstOrDefault(d => d.Numero == g.Pendrive.Numero)))
+            throw new Exception("O pendrive mudou desde que foi escolhido (tirado ou trocado). Clique em Atualizar e escolha de novo: nada foi apagado.");
         char boot, dados;
         if (g.Manter is (char b, char d)) (boot, dados) = (b, d);
         else
@@ -309,7 +313,7 @@ public static class Pendrive
     /// </summary>
     public static List<string> BaixarProgramas(char dados, Action<string?, double> progresso)
     {
-        var ids = Programas.Ler(File.ReadAllText($@"{dados}:\MontaWin\Programas.txt")).SelectMany(p => p.Ids).Where(id => !Programas.DaLoja(id)).Distinct().ToList();
+        var ids = Programas.Ler(File.ReadAllText($@"{dados}:\MontaWin\Programas.txt")).SelectMany(p => p.Ids).Where(id => !Programas.SoInternet(id)).Distinct().ToList();
         var falhas = new List<string>();
         for (int i = 0; i < ids.Count; i++)
         {

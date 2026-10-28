@@ -55,6 +55,9 @@ public static class Programas
     /// <summary>Id de app da Microsoft Store (ex.: 9NCBCSZSJRSB): 12 letras/números começando com 9 ou X.</summary>
     public static bool DaLoja(string id) => id.Length == 12 && id[0] is '9' or 'X' && id.All(char.IsAsciiLetterOrDigit);
 
+    /// <summary>Não dá para baixar para o pendrive: Microsoft Store e pacotes que o winget proíbe baixar (o Microsoft 365).</summary>
+    public static bool SoInternet(string id) => DaLoja(id) || id.Equals("Microsoft.Office", StringComparison.OrdinalIgnoreCase);
+
     /// <summary>"NVIDIA_app*.exe -s" vira ("NVIDIA_app*.exe", "-s").</summary>
     public static (string Arquivo, string Parametros) Separar(string instalador)
     {

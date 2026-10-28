@@ -86,6 +86,10 @@ public static partial class Discos
             return DeviceIoControl(h, codigo, e, entrada.Length, s, saida.Length, out _, 0);
     }
 
+    /// <summary>O disco com esse número agora ainda é o pendrive escolhido antes (USB, mesmo modelo e tamanho)?</summary>
+    public static bool MesmoPendrive(Disco escolhido, Disco? agora) =>
+        agora is { Usb: true } && agora.Modelo == escolhido.Modelo && agora.Tamanho == escolhido.Tamanho;
+
     public static List<Disco> Listar()
     {
         // (disco, início da partição) -> letra

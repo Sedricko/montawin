@@ -83,14 +83,14 @@ public static class Unattend
             """;
     }
 
-    /// <summary>
-    /// Script do primeiro login: move as pastas pessoais restauradas (ex.: "joao\Documents") para as pastas
-    /// do usuário novo e apaga o unattend.xml, que guarda a senha em texto simples.
-    /// </summary>
     /// <summary>Ponto de restauração "Windows recém-instalado": dá para voltar ao Windows limpo, com os programas, sem formatar.</summary>
     public const string PontoDeRestauracao = "powershell -NoProfile -Command \"Enable-ComputerRestore -Drive $env:SystemDrive\\; " +
         "Checkpoint-Computer -Description 'Windows recem-instalado (MontaWin)' -RestorePointType MODIFY_SETTINGS\" >nul 2>&1";
 
+    /// <summary>
+    /// Script do primeiro login: move as pastas pessoais restauradas (ex.: "joao\Documents") para as pastas
+    /// do usuário novo e apaga o unattend.xml, que guarda a senha em texto simples.
+    /// </summary>
     public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas, bool temProgramas = false, bool pontoRestauracao = false,
         bool conferencia = false)
     {
@@ -98,7 +98,7 @@ public static class Unattend
         foreach (var rel in pastasRestauradas)
         {
             var origem = $@"%SystemDrive%\{PastaRestaurados}\{rel}";
-            s.Append($"robocopy \"{origem}\" \"%USERPROFILE%\\{Path.GetFileName(rel)}\" /E /MOVE /MT:16 /R:1 /W:1 >nul\r\n");
+            s.Append($"robocopy \"{origem}\" \"%USERPROFILE%\\{rel.Split('\\')[^1]}\" /E /MOVE /MT:16 /R:1 /W:1 >nul\r\n");
         }
         // Remove as pastas que ficaram vazias (rd sem /s não apaga pasta com arquivos)
         foreach (var usuario in pastasRestauradas.Select(r => r.Split('\\')[0]).Distinct())
@@ -139,7 +139,7 @@ public static class Unattend
         if (rede != null)
             s.Append($"netsh wlan add profile filename=\"%SystemDrive%\\{PerfilWifi}\" user=all >>\"%LOG%\" 2>&1\r\n" +
                      $"del /f /q \"%SystemDrive%\\{PerfilWifi}\"\r\n" +
-                     $"netsh wlan connect name=\"{rede.Replace("\"", "")}\" >>\"%LOG%\" 2>&1\r\n");
+                     $"netsh wlan connect name=\"{rede.Replace("\"", "").Replace("%", "%%")}\" >>\"%LOG%\" 2>&1\r\n"); // no .cmd, % sozinho vira variável
         if (chave != null)
             // Chave que não é da edição instalada: o Windows só recusa e segue normal.
             s.Append("powershell -NoProfile -Command \"$s = Get-CimInstance SoftwareLicensingService; " +

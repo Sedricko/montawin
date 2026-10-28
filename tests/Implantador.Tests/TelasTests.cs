@@ -152,6 +152,23 @@ public class TelasTests
     }
 
     [Fact]
+    public void SoApagaSeAindaForOMesmoPendrive()
+    {
+        var pendrive = new Disco(2, 64_000_000_000, "Kingston DataTraveler", true, false, []);
+        Assert.True(Discos.MesmoPendrive(pendrive, pendrive with { Particoes = [] }));
+        Assert.False(Discos.MesmoPendrive(pendrive, new Disco(2, 2_000_000_000_000, "WD Elements", true, true, []))); // HD dos backups
+        Assert.False(Discos.MesmoPendrive(pendrive, pendrive with { Usb = false }));
+        Assert.False(Discos.MesmoPendrive(pendrive, null)); // pendrive tirado
+    }
+
+    [Fact]
+    public void ScriptsAguentamNomesDificeis()
+    {
+        Assert.Contains("name=\"Casa%%20\"", Unattend.GerarScriptAntesDoLogin("Casa%20", null, false));
+        Assert.True(Programas.SoInternet("Microsoft.Office") && Programas.SoInternet("9NCBCSZSJRSB") && !Programas.SoInternet("Google.Chrome"));
+    }
+
+    [Fact]
     public void RedesVisiveisVemDoNetsh()
     {
         var saida = "Nome da interface : Wi-Fi\r\nHá 2 redes visíveis no momento.\r\n\r\nSSID 1 : Casa 5G\r\n    Tipo de rede : Infraestrutura\r\n"

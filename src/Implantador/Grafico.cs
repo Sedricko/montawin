@@ -36,7 +36,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
     nint linha, linhaCentro, linhaDireita, paragrafo;
     Tela? tela;
     Tela? pintada;          // a tela cujos alvos estão em "alvos"
-    string? tituloPintado;
+    (string, IReadOnlyList<string>)? telaPintada; // título e textos: o que muda de uma tela para outra
     long novaEm;            // quando uma tela com outro título apareceu
     int topoLista;
     string tituloLista = "";
@@ -215,7 +215,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
         // Teclas apertadas durante uma tarefa longa não podem escolher nada na tela seguinte.
         if (antes?.Tipo == TipoTela.Progresso && t.Tipo != TipoTela.Progresso) while (fila.TryTake(out _)) { }
         // Cliques que ficaram na fila foram dados na tela anterior
-        else if (antes?.Titulo != t.Titulo)
+        else if (antes == null || Nova((antes.Titulo, antes.Info), t))
         {
             var teclas = new List<Evento>();
             while (fila.TryTake(out var e)) if (e.Item < 0) teclas.Add(e);
@@ -224,6 +224,9 @@ public sealed unsafe partial class TelaGrafica : ISaida
         Volatile.Write(ref tela, t);
         PostMessageW(janela, 0x8000, 0, 0);
     }
+
+    static bool Nova((string Titulo, IReadOnlyList<string> Info)? anterior, Tela t) =>
+        anterior is not var (titulo, info) || titulo != t.Titulo || !ReferenceEquals(info, t.Info);
 
     public Evento? Ler(int ms = -1) => fila.TryTake(out var e, ms) ? e : null;
 
@@ -402,7 +405,9 @@ public sealed unsafe partial class TelaGrafica : ISaida
     {
         alvos.Clear();
         var t = Volatile.Read(ref tela);
-        if (t != null && t.Titulo != tituloPintado) (tituloPintado, novaEm) = (t.Titulo, Environment.TickCount64);
+        // Tela nova = outro título ou outros textos (duas mensagens "Atenção" seguidas também contam);
+        // a mesma lista redesenhada pelas setas mantém a mesma lista de textos
+        if (t != null && Nova(telaPintada, t)) (telaPintada, novaEm) = ((t.Titulo, t.Info), Environment.TickCount64);
         pintada = t;
         g = graficos;
         GdipSetSmoothingMode(g, 4);
