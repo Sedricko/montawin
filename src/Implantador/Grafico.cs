@@ -351,12 +351,12 @@ public sealed unsafe partial class TelaGrafica : ISaida
         GdipDeletePath(path);
     }
 
-    void Degrade(float x, float y, float w, float h, float r)
+    void Degrade(float x, float y, float w, float h, float r, uint de = 0, uint ate = 0)
     {
         var p1 = new PontoF(x, y);
         var p2 = new PontoF(x + w, y + h);
         nint pincel;
-        GdipCreateLineBrush(&p1, &p2, c.Destaque1, c.Destaque2, 3, &pincel);
+        GdipCreateLineBrush(&p1, &p2, de != 0 ? de : c.Destaque1, ate != 0 ? ate : c.Destaque2, 3, &pincel);
         var path = Arredondado(x, y, w, h, r);
         GdipFillPath(g, pincel, path);
         GdipDeletePath(path);
@@ -578,7 +578,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
                 bool principal = item.Tipo == TipoItem.Continuar;
                 float px = principal ? bx - bw : esquerda;
                 if (!principal) esquerda += bw + 10 * s;
-                if (t.Itens.Count > 1 && i == t.Selecionado) // foco do teclado
+                if (t.Itens.Count > 1 && i == t.Selecionado && !(perigo && principal)) // foco do teclado (o botão de perigo já se destaca sozinho)
                 {
                     var anel = Arredondado(px - 3 * s, cy - 3 * s, bw + 6 * s, linhaItem + 6 * s, 12 * s);
                     GdipDrawPath(g, Caneta(c.CorDestaque, 2 * s), anel);
@@ -586,7 +586,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
                 }
                 if (principal)
                 {
-                    if (perigo) Caixa(px, cy, bw, linhaItem, 10 * s, 0xFFE5354F);
+                    if (perigo) Degrade(px, cy, bw, linhaItem, 10 * s, 0xFFE0436B, 0xFFB8327E); // vermelho-rosado em degradê, como os outros botões
                     else Degrade(px, cy, bw, linhaItem, 10 * s);
                 }
                 else Caixa(px, cy, bw, linhaItem, 10 * s, c.Cartao, c.Borda);
