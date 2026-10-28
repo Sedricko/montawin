@@ -261,8 +261,8 @@ public class ImplantadorTests
         Assert.Contains(@"robocopy ""%SystemDrive%\Arquivos restaurados\joao\Documents"" ""%USERPROFILE%\Documents"" /E /MOVE /MT:16 /R:1 /W:1 >nul", linhas);
         Assert.Contains(@"robocopy ""%SystemDrive%\Arquivos restaurados\maria\Pictures"" ""%USERPROFILE%\Pictures"" /E /MOVE /MT:16 /R:1 /W:1 >nul", linhas);
         Assert.Contains(@"rd ""%SystemDrive%\Arquivos restaurados\joao"" 2>nul", linhas);
-        Assert.Equal(@"del /f /q ""%WINDIR%\Panther\unattend.xml""", linhas[^1]);
-        Assert.Equal(2, Unattend.GerarScriptPrimeiroLogin([]).Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Count(l => !l.StartsWith('@') && !l.StartsWith("rem")));
+        Assert.Equal(@"del /f /q ""%WINDIR%\Panther\unattend.xml""", linhas[^2]); // a senha sai logo; por último, a busca de drivers
+        Assert.Equal(3, Unattend.GerarScriptPrimeiroLogin([]).Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Count(l => !l.StartsWith('@') && !l.StartsWith("rem")));
     }
 
     [Fact]

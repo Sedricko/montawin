@@ -82,6 +82,24 @@ public static class Pendrive
         return new IsoAberta(iso, letra[0], install, Wim.Ler(install));
     }
 
+    /// <summary>
+    /// Quem assinou o boot da ISO (efi\boot\bootx64.efi): a Microsoft troca o certificado do Secure Boot de 2011 pelo de 2023.
+    /// PCs que já receberam a troca completa podem recusar mídia com o certificado antigo.
+    /// </summary>
+    public static string? CertificadoDoBoot(char letra)
+    {
+        var efi = $@"{letra}:\efi\boot\bootx64.efi";
+        if (!File.Exists(efi)) return null;
+        try
+        {
+#pragma warning disable SYSLIB0057 // só lê o emissor da assinatura, não carrega certificado
+            var emissor = System.Security.Cryptography.X509Certificates.X509Certificate.CreateFromSignedFile(efi).Issuer;
+#pragma warning restore SYSLIB0057
+            return emissor.Contains("2023") ? "novo (2023)" : emissor.Contains("2011") ? "antigo (2011)" : null;
+        }
+        catch (System.Security.Cryptography.CryptographicException) { return null; }
+    }
+
     public static void FecharIso(string iso) =>
         Comandos.Executar("powershell", $"-NoProfile -Command \"Dismount-DiskImage -ImagePath '{Aspas(iso)}' -ErrorAction SilentlyContinue\"");
 
@@ -165,6 +183,7 @@ public static class Pendrive
         else if (!File.Exists($@"{dados}:\MontaWin\Programas.txt")) SalvarProgramas(dados, Programas.Padrao, null);
         var destino = Path.Combine(pastaImagens, Path.GetFileNameWithoutExtension(g.Iso.Iso) + ".wim");
         if (File.Exists(destino)) File.Delete(destino); // mesma ISO de novo: substitui em vez de duplicar as edições
+        File.Delete(destino + ".sha256");
         // Para mexer nas edições (.NET 3.5, atualizações), a imagem fica no disco do PC (bem mais rápido que no pendrive)
         // e no fim cada edição é exportada de novo para o pendrive: assim o que as atualizações substituíram não ocupa espaço.
         bool modificar = g.Atualizacoes != null || g.NetFx3;
@@ -219,6 +238,11 @@ public static class Pendrive
             }
         }
 
+        // Impressão digital da imagem: o painel confere antes de formatar e não instala uma cópia corrompida.
+        progresso("Conferindo a imagem gravada no pendrive", 93);
+        File.Delete(destino + ".conferido");
+        using (var f = File.OpenRead(destino))
+            File.WriteAllText(destino + ".sha256", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(f)));
         Directory.Delete(trabalho, recursive: true);
         var falhas = g.BaixarProgramas ? BaixarProgramas(dados, progresso) : [];
         progresso("Pendrive pronto", 100);

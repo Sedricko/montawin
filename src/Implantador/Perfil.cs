@@ -29,6 +29,8 @@ public record Perfil(string Nome)
     public string? SenhaWifi { get; init; }
     /// <summary>Ativar com a licença gravada no pendrive pelo MontaWin.exe, quando houver.</summary>
     public bool Licenca { get; init; } = true;
+    /// <summary>Ponto de restauração "Windows recém-instalado" depois dos programas.</summary>
+    public bool PontoRestauracao { get; init; } = true;
 
     public string Texto()
     {
@@ -53,6 +55,7 @@ public record Perfil(string Nome)
         linhas.Add($"Wifi = {Wifi}");
         if (SenhaWifi != null) linhas.Add($"SenhaWifi = {SenhaWifi}");
         linhas.Add($"Licenca = {(Licenca ? "sim" : "nao")}");
+        linhas.Add($"PontoRestauracao = {(PontoRestauracao ? "sim" : "nao")}");
         return string.Join("\r\n", linhas) + "\r\n";
     }
 
@@ -84,6 +87,7 @@ public record Perfil(string Nome)
             Wifi = Campo("Wifi"),
             SenhaWifi = campos.TryGetValue("SenhaWifi", out var senhaWifi) ? senhaWifi : null,
             Licenca = !string.Equals(Campo("Licenca"), "nao", StringComparison.OrdinalIgnoreCase),
+            PontoRestauracao = !string.Equals(Campo("PontoRestauracao"), "nao", StringComparison.OrdinalIgnoreCase),
         };
     }
 

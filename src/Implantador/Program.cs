@@ -421,7 +421,7 @@ void AdicionarPerfil()
     int edicao = 0, modo = 0, configuracao = 0, guardar = 0, gb = 120;
     string? usuario = null, senha = null;
     var escolhidos = new List<Programa>();
-    bool restaurar = true, drivers = true, otimizar = true, removerOneDrive = true, altoDesempenho = false, vincular = true, licenca = true;
+    bool restaurar = true, drivers = true, otimizar = true, removerOneDrive = true, altoDesempenho = false, vincular = true, licenca = true, pontoRestauracao = true;
     string? nomePc = null, wifi = null, senhaWifi = null;
 
     if (!Assistente(
@@ -507,10 +507,10 @@ void AdicionarPerfil()
             "Segurança e atualizações do Windows não são alteradas."], ["Otimizar o Windows (recomendado)", "Windows como a Microsoft entrega"], otimizar ? 0 : 1), ref otimizar),
         _ =>
         {
-            var m = Tui.Selecao($"{nome}: ajustes opcionais", [], ["Remover o OneDrive", "Modo de energia Alto desempenho (melhor em PC de mesa)"],
-                [removerOneDrive, altoDesempenho]);
+            var m = Tui.Selecao($"{nome}: ajustes opcionais", [], ["Remover o OneDrive", "Modo de energia Alto desempenho (melhor em PC de mesa)",
+                "Ponto de restauração \"Windows recém-instalado\" (usa 2 a 5 GB do disco)"], [removerOneDrive, altoDesempenho, pontoRestauracao]);
             if (m == null) return Passo.Voltar;
-            (removerOneDrive, altoDesempenho) = (m[0], m[1]);
+            (removerOneDrive, altoDesempenho, pontoRestauracao) = (m[0], m[1], m[2]);
             return Passo.Avancar;
         },
         _ => SimNao(Tui.Menu($"{nome}: este PC", [$"PC atual: {Sistema.Resumo()}"],
@@ -535,6 +535,7 @@ void AdicionarPerfil()
         Wifi = wifi,
         SenhaWifi = senhaWifi,
         Licenca = licenca,
+        PontoRestauracao = pontoRestauracao,
     };
     Directory.CreateDirectory(Path.Combine(raiz!, "Perfis"));
     File.WriteAllText(ArquivoPerfil(perfil.Nome), perfil.Texto());
@@ -579,7 +580,7 @@ void Instalar()
     string? usuario = null;
     string senha = "";
     var escolhidos = new List<Programa>();
-    bool otimizar = true, removerOneDrive = true, altoDesempenho = false, restaurar = pastaArquivos != null;
+    bool otimizar = true, removerOneDrive = true, altoDesempenho = false, restaurar = pastaArquivos != null, pontoRestauracao = true;
     string? nomePc = null, rede = null, licenca = LicencaDoPendrive();
     string senhaRede = "";
     bool usarLicenca = licenca != null;
@@ -606,7 +607,8 @@ void Instalar()
                     continue;
                 perfil = p;
                 if (perfil != null)
-                    (otimizar, removerOneDrive, altoDesempenho, restaurar) = (perfil.Otimizar, perfil.RemoverOneDrive, perfil.AltoDesempenho, perfil.Restaurar && pastaArquivos != null);
+                    (otimizar, removerOneDrive, altoDesempenho, restaurar, pontoRestauracao) =
+                        (perfil.Otimizar, perfil.RemoverOneDrive, perfil.AltoDesempenho, perfil.Restaurar && pastaArquivos != null, perfil.PontoRestauracao);
                 return Passo.Avancar;
             }
         },
@@ -823,9 +825,10 @@ void Instalar()
             var m = Tui.Selecao("Ajustes opcionais", [], [
                 "Remover o OneDrive",
                 "Modo de energia Alto desempenho (melhor em PC de mesa; em notebook gasta mais bateria e esquenta)",
-            ], [removerOneDrive, altoDesempenho]);
+                "Ponto de restauração \"Windows recém-instalado\" depois dos programas (usa 2 a 5 GB do disco)",
+            ], [removerOneDrive, altoDesempenho, pontoRestauracao]);
             if (m == null) return Passo.Voltar;
-            (removerOneDrive, altoDesempenho) = (m[0], m[1]);
+            (removerOneDrive, altoDesempenho, pontoRestauracao) = (m[0], m[1], m[2]);
             return Passo.Avancar;
         },
         _ => pastaArquivos == null || perfil != null ? Passo.Pular
@@ -838,6 +841,16 @@ void Instalar()
         {
             if (velocidadeMedida != edicao)
             {
+                foreach (var arquivo in extras.Prepend(edicao).Select(x => x.Arquivo).Distinct())
+                {
+                    Tui.Etapa("Conferindo", $"Conferindo a imagem do Windows no pendrive ({Path.GetFileName(arquivo)})...");
+                    if (Wim.Conferir(arquivo, Tui.Progresso) == false)
+                    {
+                        Tui.Mensagem("Imagem do Windows corrompida", [$"O arquivo {Path.GetFileName(arquivo)} no pendrive está com defeito.",
+                            "Nada foi apagado. Grave o pendrive de novo no MontaWin.exe (ou troque o pendrive, se repetir)."], erro: true);
+                        return Passo.Sair;
+                    }
+                }
                 Tui.Etapa("Conferindo", "Verificando a velocidade do pendrive...");
                 avisoLento = Sistema.AvisoPendriveLento(Sistema.VelocidadeLeitura(edicao.Arquivo), new FileInfo(edicao.Arquivo).Length);
                 velocidadeMedida = edicao;
@@ -870,6 +883,7 @@ void Instalar()
         if (nomePc != null) r.Add($"Nome do computador: {nomePc}");
         r.Add(rede != null ? $"Internet: Wi-Fi {rede} (o Windows já liga conectado)" : "Internet: cabo de rede, ou conectar depois");
         if (licenca != null) r.Add(usarLicenca ? $"Licença: a do pendrive (final {licenca[^5..]})" : "Licença: não usar a do pendrive");
+        if (usuario != null && pontoRestauracao) r.Add("Ponto de restauração: \"Windows recém-instalado\", depois dos programas");
         if (usuario != null) r.Add("Programas: " + (escolhidos.Count > 0 ? string.Join(", ", escolhidos.Select(x => x.Nome)) : "nenhum"));
         var ajustes = new List<string>();
         if (otimizar) ajustes.Add("otimizado" + (disco.Ssd ? " (SSD: inicialização sem atraso)" : ""));
@@ -890,12 +904,12 @@ void Instalar()
     }
 
     Executar(perfil, edicao, extras, disco, modo, plano, particao, uefi, usuario, senha, escolhidos, otimizar, removerOneDrive, altoDesempenho, restaurar, windowsGb,
-        nomePc, rede, senhaRede, usarLicenca ? licenca : null);
+        nomePc, rede, senhaRede, usarLicenca ? licenca : null, pontoRestauracao, Resumo());
 }
 
 void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, int modo, PlanoParticoes plano, Particao? particao, bool uefi,
     string? usuario, string senha, List<Programa> escolhidos, bool otimizar, bool removerOneDrive, bool altoDesempenho, bool restaurar, int? windowsGb,
-    string? nomePc, string? rede, string senhaRede, string? chave)
+    string? nomePc, string? rede, string senhaRede, string? chave, bool pontoRestauracao, List<string> resumo)
 {
     Tui.Etapa("Instalando o Windows", "Preparando..."); // a tela de confirmação não fica parada enquanto calcula
     bool backupDriversAutomatico = perfil?.BackupDrivers == true && disco.LetraWindows != null && pastaDrivers == null;
@@ -980,7 +994,7 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
                     : new List<string>();
                 var script = $@"{w}:\{Unattend.ScriptPrimeiroLogin}";
                 Directory.CreateDirectory(Path.GetDirectoryName(script)!);
-                File.WriteAllText(script, Unattend.GerarScriptPrimeiroLogin(pessoais, temProgramas));
+                File.WriteAllText(script, Unattend.GerarScriptPrimeiroLogin(pessoais, temProgramas, pontoRestauracao));
                 if (temProgramas)
                 {
                     // Instaladores vão do pendrive para dentro do Windows novo: no primeiro login o pendrive já foi removido.
@@ -995,7 +1009,7 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
                             File.Copy(arquivo, Path.Combine(destino, id, Path.GetFileName(arquivo)), overwrite: true);
                     }
                     File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(ids,
-                        instaladores.Select(x => (Path.GetFileName(x.Item1), x.Parametros)), offline.Select(x => (x.Id, x.Comando, x.SoUsuario))));
+                        instaladores.Select(x => (Path.GetFileName(x.Item1), x.Parametros)), offline.Select(x => (x.Id, x.Comando, x.SoUsuario)), pontoRestauracao));
                     Tui.Registro($"{escolhidos.Count} programas no primeiro login: {string.Join(", ", escolhidos.Select(x => x.Nome))}" +
                         (offline.Count + instaladores.Count > 0 ? $" ({offline.Count + instaladores.Count} sem precisar de internet)" : ""));
                 }
@@ -1039,6 +1053,7 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
     if (multi) Comandos.Executar("bcdedit", $"/store \"{bcd}\" /timeout 10");
     Tui.Etapa(trabalho.Count, "Pronto!");
     Tui.Registro($"Instalação concluída: {string.Join(" + ", instalacoes.Select(x => x.Edicao.Nome))} no disco {disco.Numero}");
+    if (SalvarRelatorio(plano.Windows, resumo) is string relatorio) avisos.Add($"Relatório na área de trabalho e no pendrive ({relatorio}).");
     alvo = null;
     if (multi) avisos.Add("Ao ligar, o menu de boot mostra os Windows por 10 segundos.");
     if (restaurar && usuario == null) avisos.Add($"Arquivos do backup em C:\\{Unattend.PastaRestaurados}.");
@@ -1069,9 +1084,44 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
             Wifi = rede,
             SenhaWifi = senhaRede,
             Licenca = chave != null,
+            PontoRestauracao = pontoRestauracao,
         });
     if (Tui.Menu("Instalação concluída", avisos, ["Reiniciar agora", "Voltar ao menu"], voltar: null) == 0)
         Comandos.Executar("wpeutil", "reboot");
+}
+
+// Relatório da formatação: na área de trabalho do Windows novo (para o cliente) e em MontaWin\Relatorios (para você).
+string? SalvarRelatorio(char windows, List<string> resumo)
+{
+    var linhas = new List<string>
+    {
+        "RELATÓRIO DA FORMATAÇÃO (MontaWin)",
+        $"Data: {DateTime.Now:dd/MM/yyyy HH:mm}",
+        $"Computador: {Sistema.Resumo()}",
+        "",
+        "O QUE FOI ESCOLHIDO",
+    };
+    linhas.AddRange(resumo.Select(l => "  " + l));
+    linhas.AddRange(["", "O QUE FOI FEITO"]);
+    linhas.AddRange(Tui.Registros().Select(l => "  " + l));
+    linhas.AddRange(["", "Programas e licença são aplicados antes da tela de login e no primeiro login; o resultado fica em",
+        @"C:\Windows\Setup\Scripts\MontaWin-programas.log e MontaWin-antes-do-login.log."]);
+    var texto = string.Join("\r\n", linhas) + "\r\n";
+    var nome = $"{sessao} {Perfil.NomeSeguro(Sistema.Modelo() is { Length: > 0 } m ? m : "PC")}.txt";
+    try
+    {
+        Directory.CreateDirectory($@"{windows}:\Users\Public\Desktop");
+        File.WriteAllText($@"{windows}:\Users\Public\Desktop\Relatório da formatação.txt", texto);
+        if (raiz == null) return "área de trabalho";
+        Directory.CreateDirectory(Path.Combine(raiz, "Relatorios"));
+        File.WriteAllText(Path.Combine(raiz, "Relatorios", nome), texto);
+        return $"MontaWin\\Relatorios\\{nome}";
+    }
+    catch (IOException e)
+    {
+        Comandos.Registrar($"Relatório não salvo: {e.Message}"); // o relatório nunca derruba a instalação
+        return null;
+    }
 }
 
 void SalvarComoPerfil(Perfil escolhas)

@@ -250,9 +250,15 @@ public static class Tui
         lock (registro)
         {
             registro.Add(texto);
-            if (registro.Count > 40) registro.RemoveAt(0);
+            if (registro.Count > 300) registro.RemoveAt(0);
         }
         DesenharProgresso(forcar: true);
+    }
+
+    /// <summary>Tudo o que foi registrado na tarefa atual (para o relatório).</summary>
+    public static List<string> Registros()
+    {
+        lock (registro) return [.. registro];
     }
 
     /// <summary>Percentual total: etapas prontas + a parte feita da atual, pelos pesos.</summary>

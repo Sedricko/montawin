@@ -9,6 +9,37 @@ public record Edicao(string Arquivo, int Indice, string Nome, string Idioma, int
 // Lê a lista de edições direto do cabeçalho do .wim: não depende da saída (traduzida) do DISM.
 public static class Wim
 {
+    /// <summary>
+    /// Confere a imagem pelo SHA-256 que o Montador gravou ao lado (arquivo.wim.sha256), para não formatar o PC com uma
+    /// imagem corrompida no pendrive. Conferida uma vez, fica marcada (arquivo.wim.conferido) até o arquivo mudar.
+    /// Retorna null se não há como conferir (imagem antiga ou capturada), true se está boa, false se está corrompida.
+    /// </summary>
+    public static bool? Conferir(string arquivo, Action<double>? progresso = null)
+    {
+        var esperado = arquivo + ".sha256";
+        if (!File.Exists(esperado)) return null;
+        var info = new FileInfo(arquivo);
+        var marca = arquivo + ".conferido";
+        var assinatura = $"{info.Length}|{info.LastWriteTimeUtc.Ticks}";
+        if (File.Exists(marca) && File.ReadAllText(marca) == assinatura) return true;
+        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
+        using (var f = File.OpenRead(arquivo))
+        {
+            var buffer = new byte[4 << 20];
+            long lido = 0;
+            int n;
+            while ((n = f.Read(buffer)) > 0)
+            {
+                hash.AppendData(buffer, 0, n);
+                lido += n;
+                progresso?.Invoke(lido * 100.0 / Math.Max(info.Length, 1));
+            }
+        }
+        bool ok = Convert.ToHexString(hash.GetHashAndReset()).Equals(File.ReadAllText(esperado).Trim(), StringComparison.OrdinalIgnoreCase);
+        if (ok) File.WriteAllText(marca, assinatura);
+        return ok;
+    }
+
     public static List<Edicao> Ler(string arquivo)
     {
         using var f = File.OpenRead(arquivo);

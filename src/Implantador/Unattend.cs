@@ -83,7 +83,11 @@ public static class Unattend
     /// Script do primeiro login: move as pastas pessoais restauradas (ex.: "joao\Documents") para as pastas
     /// do usuário novo e apaga o unattend.xml, que guarda a senha em texto simples.
     /// </summary>
-    public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas, bool temProgramas = false)
+    /// <summary>Ponto de restauração "Windows recém-instalado": dá para voltar ao Windows limpo, com os programas, sem formatar.</summary>
+    public const string PontoDeRestauracao = "powershell -NoProfile -Command \"Enable-ComputerRestore -Drive $env:SystemDrive\\; " +
+        "Checkpoint-Computer -Description 'Windows recem-instalado (MontaWin)' -RestorePointType MODIFY_SETTINGS\" >nul 2>&1";
+
+    public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas, bool temProgramas = false, bool pontoRestauracao = false)
     {
         var s = new System.Text.StringBuilder("@echo off\r\nrem Gerado pelo MontaWin: roda uma vez, no primeiro login.\r\n");
         foreach (var rel in pastasRestauradas)
@@ -96,8 +100,12 @@ public static class Unattend
             s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\\{usuario}\" 2>nul\r\n");
         s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\" 2>nul\r\n");
         s.Append("del /f /q \"%WINDIR%\\Panther\\unattend.xml\"\r\n");
+        // Drivers que faltam: o Windows Update já começa a procurar agora, em vez de esperar o agendamento dele.
+        s.Append("UsoClient.exe StartScan >nul 2>&1\r\n");
         // Programas que faltaram em segundo plano, sem janela: a Área de Trabalho aparece sem esperar os downloads.
+        // O ponto de restauração vem depois deles (no script dos programas) ou agora, se não houver programas.
         if (temProgramas) s.Append($"start \"\" conhost.exe --headless cmd /c %SystemDrive%\\{ScriptProgramas} usuario\r\n");
+        else if (pontoRestauracao) s.Append($"start \"\" conhost.exe --headless cmd /c {PontoDeRestauracao}\r\n");
         return s.ToString();
     }
 
@@ -147,7 +155,7 @@ public static class Unattend
     /// no pendrive que falharem sem internet são tentados de novo online.
     /// </summary>
     public static string GerarScriptProgramas(IEnumerable<string> idsWinget, IEnumerable<(string Arquivo, string Parametros)>? instaladores = null,
-        IEnumerable<(string Id, string Comando, bool SoUsuario)>? offline = null)
+        IEnumerable<(string Id, string Comando, bool SoUsuario)>? offline = null, bool pontoRestauracao = false)
     {
         var s = new System.Text.StringBuilder("""
             @echo off
@@ -203,6 +211,9 @@ public static class Unattend
             set WINGET=%WINGETDIR%\winget.exe
             set ESCOPO=--scope machine
             :internet
+            rem Relógio certo antes de baixar: com a hora errada, as conexões seguras (certificados) falham
+            net start w32time >nul 2>&1
+            w32tm /resync /force >nul 2>&1
 
             """.ReplaceLineEndings("\r\n"));
         // Origem sempre explícita: sem ela o winget também consulta a Microsoft Store, que no primeiro login costuma
@@ -217,6 +228,7 @@ public static class Unattend
             if "%MODO%"=="usuario" rd /s /q "%~dp0Instaladores" 2>nul
 
             """.ReplaceLineEndings("\r\n"));
+        if (pontoRestauracao) s.Append($"if \"%MODO%\"==\"usuario\" {PontoDeRestauracao}\r\n"); // depois dos programas
         return s.ToString();
     }
 

@@ -151,8 +151,11 @@ public partial class MainWindow : Window
             ListaEdicoes.ItemsSource = iso.Edicoes.Select(x => new EdicaoItem(x.Indice, x.Nome)).ToList();
             TituloEdicoes.Visibility = Visibility.Visible;
             var versao = Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0);
+            var certificado = Pendrive.CertificadoDoBoot(iso.Letra);
             Ocupado(false, (iso.Edicoes.Count == 1 ? "1 edição encontrada" : $"{iso.Edicoes.Count} edições encontradas") +
-                (versao != null ? $" (versão {versao})." : "."));
+                (versao != null ? $" (versão {versao})." : ".") +
+                (certificado != null ? $" Boot com o certificado {certificado} do Secure Boot." : "") +
+                (certificado == "antigo (2011)" ? " Se algum PC recusar o boot do pendrive, use uma ISO mais nova da Microsoft." : ""));
         }
         catch (Exception ex)
         {

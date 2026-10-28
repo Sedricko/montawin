@@ -286,4 +286,34 @@ public class TelasTests
         Assert.Null(sem.SenhaWifi); // perguntada na hora
         Assert.True(sem.Licenca);
     }
+
+    [Fact]
+    public void ImagemCorrompidaNaoPassaNaConferencia()
+    {
+        var pasta = Directory.CreateTempSubdirectory().FullName;
+        var wim = Path.Combine(pasta, "win.wim");
+        File.WriteAllBytes(wim, Enumerable.Range(0, 100_000).Select(i => (byte)i).ToArray());
+        Assert.Null(Wim.Conferir(wim)); // sem a impressão digital do Montador: não dá para conferir
+        using (var f = File.OpenRead(wim))
+            File.WriteAllText(wim + ".sha256", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(f)));
+        Assert.True(Wim.Conferir(wim));
+        Assert.True(File.Exists(wim + ".conferido"));
+        using (var f = new FileStream(wim, FileMode.Open)) { f.Position = 5000; f.WriteByte(0xFF); } // um byte estragado
+        File.SetLastWriteTimeUtc(wim, DateTime.UtcNow.AddMinutes(1));
+        Assert.False(Wim.Conferir(wim));
+    }
+
+    [Fact]
+    public void PrimeiroLoginProcuraDriversERelogioCertoAntesDosProgramas()
+    {
+        var login = Unattend.GerarScriptPrimeiroLogin([], temProgramas: false, pontoRestauracao: true);
+        Assert.Contains("UsoClient.exe StartScan", login);
+        Assert.Contains("Checkpoint-Computer -Description 'Windows recem-instalado (MontaWin)'", login); // sem programas: já cria
+        Assert.DoesNotContain("Checkpoint", Unattend.GerarScriptPrimeiroLogin([], temProgramas: true, pontoRestauracao: true)); // espera os programas
+        var programas = Unattend.GerarScriptProgramas(["Google.Chrome"], pontoRestauracao: true);
+        Assert.True(programas.IndexOf("w32tm /resync /force") < programas.IndexOf("install --id Google.Chrome"));
+        Assert.True(programas.IndexOf("Checkpoint-Computer") > programas.IndexOf(":fim"));
+        Assert.DoesNotContain("Checkpoint", Unattend.GerarScriptProgramas(["Google.Chrome"]));
+        Assert.False(Perfil.Ler(new Perfil("X") { PontoRestauracao = false }.Texto())!.PontoRestauracao);
+    }
 }
