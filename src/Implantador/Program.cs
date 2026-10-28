@@ -40,8 +40,8 @@ if (infsExtras.Length > 0)
     }
 }
 
-string[] acoes = ["Escolher disco", "Backup de drivers", "Backup de arquivos", "Restaurar backup de arquivos", "Perfis", "Formatar e instalar",
-                  "Prompt de comando", "Reiniciar", "Desligar"];
+string[] acoes = ["Escolher disco", "Backup de drivers", "Backup de arquivos", "Restaurar backup de arquivos", "Perfis",
+                  "Capturar imagem de um Windows", "Formatar e instalar", "Prompt de comando", "Reiniciar", "Desligar"];
 int ultima = 0;
 while (true)
 {
@@ -64,10 +64,11 @@ while (true)
             case 2: BackupArquivos(); break;
             case 3: RestaurarManual(); break;
             case 4: MenuPerfis(); break;
-            case 5: Instalar(); break;
-            case 6: PromptDeComando(); break;
-            case 7: Comandos.Executar("wpeutil", "reboot"); break;
-            case 8: Comandos.Executar("wpeutil", "shutdown"); break;
+            case 5: CapturarImagem(); break;
+            case 6: Instalar(); break;
+            case 7: PromptDeComando(); break;
+            case 8: Comandos.Executar("wpeutil", "reboot"); break;
+            case 9: Comandos.Executar("wpeutil", "shutdown"); break;
         }
     }
     catch (Exception e)
@@ -333,6 +334,11 @@ void AdicionarPerfil()
     if (restaurar < 0) return;
     int drivers = Tui.Menu($"{nome}: backup de drivers", [], ["Fazer sozinho antes de formatar e reinstalar (recomendado)", "Não fazer"]);
     if (drivers < 0) return;
+    int otimizar = Tui.Menu($"{nome}: otimização", ["Remove apps inúteis e propaganda, desliga Widgets e telemetria extra.", "Segurança e atualizações do Windows não são alteradas."],
+        ["Otimizar o Windows (recomendado)", "Windows como a Microsoft entrega"]);
+    if (otimizar < 0) return;
+    var extrasPerfil = Tui.Selecao($"{nome}: ajustes opcionais", ["Espaço marca/desmarca, Enter confirma."],
+        ["Remover o OneDrive", "Modo de energia Alto desempenho (melhor em PC de mesa)"], [true, false]) ?? [true, false];
     int vincular = Tui.Menu($"{nome}: este PC", [$"PC atual: {Sistema.Resumo()}"],
         ["Vincular a este PC: o painel sugere este perfil sozinho aqui", "Não vincular (perfil para usar em qualquer PC)"]);
     if (vincular < 0) return;
@@ -348,6 +354,9 @@ void AdicionarPerfil()
         Programas = escolhidos.Select(x => x.Nome).ToArray(),
         Restaurar = restaurar == 0,
         BackupDrivers = drivers == 0,
+        Otimizar = otimizar == 0,
+        RemoverOneDrive = extrasPerfil[0],
+        AltoDesempenho = extrasPerfil[1],
     };
     Directory.CreateDirectory(Path.Combine(raiz!, "Perfis"));
     File.WriteAllText(ArquivoPerfil(perfil.Nome), perfil.Texto());
@@ -400,6 +409,7 @@ void Instalar()
             "Apagar o disco inteiro (automático)",
             "Apagar o disco e dividir: Windows + Dados",
             "Instalar numa partição existente (mantém as outras)",
+            "Vários Windows no mesmo disco (multi boot)",
         ])
         : perfil.Instalacao == "particao" ? 2 : perfil.Instalacao.StartsWith("dividir:") ? 1 : 0;
     if (modo < 0) return;
@@ -408,9 +418,38 @@ void Instalar()
     var aviso = new List<string>();
     if (perfil != null) aviso.Add($"Perfil: {perfil.Nome}");
     Particao? particao = null;
-    if (modo < 2)
+    int? windowsGb = null;
+    var extras = new List<Edicao>(); // multi boot: os outros Windows, na ordem escolhida
+    if (modo == 3)
     {
-        int? windowsGb = null;
+        int maximo = uefi ? 4 : 2; // MBR: no máximo 4 partições principais (inicialização + Windows)
+        var marcados = Tui.Selecao($"Multi boot: marque de 2 a {maximo} Windows", ["O primeiro marcado fica como padrão no menu de boot."],
+            edicoes.Select(x => $"{x.Nome}   ({Path.GetFileName(x.Arquivo)})").ToList(), edicoes.Select(x => x == edicao).ToArray());
+        if (marcados == null) return;
+        var escolhidas = edicoes.Where((_, k) => marcados[k]).ToList();
+        if (!Exigir(escolhidas.Count >= 2 && escolhidas.Count <= maximo, $"Marque de 2 a {maximo} Windows.")) return;
+        edicao = escolhidas[0];
+        extras = escolhidas.Skip(1).ToList();
+        long gbDisco = disco.Tamanho / (1L << 30);
+        var tamanhos = new List<int>();
+        for (int k = 0; k < escolhidas.Count - 1; k++)
+        {
+            var resposta = Tui.Perguntar($"Tamanho de {escolhidas[k].Nome}", [$"O disco tem {gbDisco} GB. Quantos GB para este Windows?",
+                $"O último ({escolhidas[^1].Nome}) fica com o resto."], "Digite o tamanho em GB e Enter, ou só Enter para cancelar");
+            if (resposta.Length == 0 || !Exigir(int.TryParse(resposta, out int gb) && gb >= 40, "Use pelo menos 40 GB.")) return;
+            tamanhos.Add(gb);
+        }
+        if (!Exigir(tamanhos.Sum() + 40 <= gbDisco, $"Não cabe: sobram menos de 40 GB para {escolhidas[^1].Nome}.")) return;
+        var letrasMulti = Comandos.LetrasLivres(escolhidas.Count + 1);
+        if (!Exigir(letrasMulti.Length == escolhidas.Count + 1, "Não há letras de unidade livres.")) return;
+        plano = Particionamento.ApagarDiscoMultiboot(disco.Numero, uefi, letrasMulti[0], letrasMulti[1..], tamanhos);
+        aviso.Add($"TODOS os dados de {disco.Descricao.Trim()} serão apagados.");
+        aviso.Add("Multi boot: " + string.Join(" + ", escolhidas.Select((x, k) => k < tamanhos.Count ? $"{x.Nome} ({tamanhos[k]} GB)" : $"{x.Nome} (resto)")));
+        var backupNoDisco = backupsFeitos.FirstOrDefault(b => Discos.DiscoDaLetra(b[0]) == disco.Numero);
+        if (!Exigir(backupNoDisco == null, $"O backup em {backupNoDisco} está nesse disco e seria apagado. Escolha outro disco.")) return;
+    }
+    else if (modo < 2)
+    {
         if (modo == 1)
         {
             long gbDisco = disco.Tamanho / (1L << 30);
@@ -465,9 +504,10 @@ void Instalar()
         if (configuracao == 0 && usuario == null) return;
     }
     string? unattend = null;
+    string senha = "";
     if (usuario != null)
     {
-        var senha = perfil?.Senha ?? PerguntarSenha(usuario);
+        senha = perfil?.Senha ?? PerguntarSenha(usuario);
         unattend = Unattend.Gerar(edicao.Idioma, usuario, senha);
         aviso.Add($"Conta local: {usuario}{(senha.Length > 0 ? " (com senha)" : " (sem senha)")} · telas iniciais puladas");
     }
@@ -475,6 +515,7 @@ void Instalar()
     // Programas no primeiro login: só com a configuração automática, que roda o script do primeiro login.
     var idsProgramas = new List<string>();
     var instaladores = new List<(string Caminho, string Parametros)>(); // instaladores do pendrive escolhidos
+    var nomesProgramas = new List<string>();
     if (unattend != null)
     {
         var escolhidos = perfil != null
@@ -482,8 +523,29 @@ void Instalar()
             : EscolherProgramas(LerProgramas(), x => x.Marcado) ?? [];
         idsProgramas = escolhidos.SelectMany(x => x.Ids).ToList();
         instaladores = escolhidos.Where(x => x.Instalador != null).Select(x => (AcharInstalador(x)!, Programas.Separar(x.Instalador!).Parametros)).ToList();
-        if (escolhidos.Count > 0) aviso.Add("Programas no primeiro login: " + string.Join(", ", escolhidos.Select(x => x.Nome)));
+        nomesProgramas = escolhidos.Select(x => x.Nome).ToList();
+        if (escolhidos.Count > 0) aviso.Add("Programas no primeiro login: " + string.Join(", ", nomesProgramas));
     }
+
+    int otimizacao = perfil != null ? (perfil.Otimizar ? 0 : 1) : Tui.Menu("Otimizar o Windows?", [
+        "Remove apps inúteis e propaganda (Notícias, Xbox, Paciência, Clipchamp...), bloqueia apps sugeridos,",
+        "desliga Widgets, pesquisa do Iniciar só no PC, telemetria no mínimo.",
+        "Defender, firewall, Windows Update e Microsoft Store continuam como a Microsoft entrega."],
+        ["Sim: otimizar (recomendado)", "Não: Windows como a Microsoft entrega"]);
+    if (otimizacao < 0) return;
+    bool otimizar = otimizacao == 0;
+    bool removerOneDrive = perfil?.RemoverOneDrive ?? true, altoDesempenho = perfil?.AltoDesempenho ?? false;
+    if (perfil == null)
+    {
+        var extrasMarcados = Tui.Selecao("Ajustes opcionais", ["Espaço marca/desmarca, Enter confirma."], [
+            "Remover o OneDrive",
+            "Modo de energia Alto desempenho (melhor em PC de mesa; em notebook gasta mais bateria e esquenta)",
+        ], [removerOneDrive, altoDesempenho]);
+        if (extrasMarcados != null) (removerOneDrive, altoDesempenho) = (extrasMarcados[0], extrasMarcados[1]);
+    }
+    if (removerOneDrive) aviso.Add("OneDrive removido");
+    if (altoDesempenho) aviso.Add("Modo de energia: Alto desempenho");
+    if (otimizar) aviso.Add("Otimização: sem apps inúteis, propaganda e Widgets" + (disco.Ssd ? " · inicialização sem atraso (SSD)" : ""));
 
     // Backup de drivers automático do perfil: só se o disco tem Windows e ainda não foi feito nesta vez.
     bool backupDriversAutomatico = perfil?.BackupDrivers == true && disco.LetraWindows != null && pastaDrivers == null;
@@ -511,68 +573,159 @@ void Instalar()
     if (!Tui.Confirmar("Formatar e instalar", aviso, "FORMATAR")) return;
     if (backupDriversAutomatico) BackupDrivers(disco, automatico: true);
 
-    Tui.Etapa("Instalando", "1/5 · Preparando as partições");
+    Tui.Etapa("Instalando", "Preparando as partições");
     var scriptDiskpart = Path.Combine(Path.GetTempPath(), "montawin-diskpart.txt");
     File.WriteAllText(scriptDiskpart, plano.Script);
     if (Comandos.Executar("diskpart", $"/s \"{scriptDiskpart}\"") != 0) throw new Exception(Falha("O diskpart não conseguiu preparar as partições."));
-    var w = plano.Windows;
 
-    Tui.Etapa("Instalando", $"2/5 · Aplicando {edicao.Nome}");
-    if (Comandos.Executar("dism", $"/Apply-Image /ImageFile:\"{edicao.Arquivo}\" /Index:{edicao.Indice} /ApplyDir:{w}:\\", Tui.Progresso) != 0)
-        throw new Exception(Falha("O DISM não conseguiu aplicar a imagem."));
-    if (unattend != null)
+    // Multi boot: cada bcdboot vira o padrão do menu, então o primeiro escolhido é instalado por último.
+    var instalacoes = new List<(Edicao Edicao, char Letra)> { (edicao, plano.Windows) };
+    instalacoes.AddRange(extras.Zip(plano.WindowsExtras));
+    bool multi = instalacoes.Count > 1;
+    var bcd = uefi ? $@"{plano.Sistema}:\EFI\Microsoft\Boot\BCD" : $@"{plano.Sistema}:\Boot\BCD";
+    foreach (var (ed, w) in Enumerable.Reverse(instalacoes))
     {
-        Directory.CreateDirectory($@"{w}:\Windows\Panther");
-        File.WriteAllText($@"{w}:\Windows\Panther\unattend.xml", unattend);
-    }
-
-    // Driver que falhar não impede a instalação: o Windows Update completa depois.
-    foreach (var (pasta, nome) in new[] { (pastaDrivers, "do backup"), (infsExtras.Length > 0 ? pastaDriversExtras : null, "extras") })
-    {
-        if (pasta == null) continue;
-        Tui.Etapa("Instalando", $"3/5 · Instalando os drivers {nome}");
-        Comandos.Executar("dism", $"/Image:{w}:\\ /Add-Driver /Driver:\"{pasta}\" /Recurse", Tui.Progresso);
-    }
-    if (restaurar) Restaurar(pastaArquivos!, w);
-    if (unattend != null)
-    {
-        // Pastas pessoais (joao\Documents...) voltam para o usuário novo; o resto fica em C:\Arquivos restaurados.
-        var pessoais = restaurar
-            ? Directory.GetDirectories(pastaArquivos!).SelectMany(u => Backup.PastasPessoais
-                .Where(p => Directory.Exists(Path.Combine(u, p))).Select(p => $@"{Path.GetFileName(u)}\{p}")).ToList()
-            : new List<string>();
-        var script = $@"{w}:\{Unattend.ScriptPrimeiroLogin}";
-        Directory.CreateDirectory(Path.GetDirectoryName(script)!);
-        bool temProgramas = idsProgramas.Count + instaladores.Count > 0;
-        File.WriteAllText(script, Unattend.GerarScriptPrimeiroLogin(pessoais, temProgramas));
-        if (temProgramas)
+        bool principal = w == plano.Windows;
+        Tui.Etapa("Instalando", $"Aplicando {ed.Nome}");
+        if (Comandos.Executar("dism", $"/Apply-Image /ImageFile:\"{ed.Arquivo}\" /Index:{ed.Indice} /ApplyDir:{w}:\\", Tui.Progresso) != 0)
+            throw new Exception(Falha($"O DISM não conseguiu aplicar {ed.Nome}."));
+        if (usuario != null)
         {
-            // Instaladores vão do pendrive para dentro do Windows novo: no primeiro login o pendrive já foi removido.
-            Directory.CreateDirectory($@"{w}:\{Unattend.PastaInstaladores}");
-            foreach (var (caminho, _) in instaladores)
-                File.Copy(caminho, Path.Combine($@"{w}:\{Unattend.PastaInstaladores}", Path.GetFileName(caminho)), overwrite: true);
-            File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(idsProgramas,
-                instaladores.Select(x => (Path.GetFileName(x.Caminho), x.Parametros))));
+            Directory.CreateDirectory($@"{w}:\Windows\Panther");
+            File.WriteAllText($@"{w}:\Windows\Panther\unattend.xml", Unattend.Gerar(ed.Idioma, usuario, senha));
         }
+        if (otimizar || removerOneDrive || altoDesempenho)
+        {
+            Tui.Etapa("Instalando", $"Otimizando {ed.Nome}");
+            Comandos.Registrar($"Otimização: {Otimizacao.Aplicar(w, disco.Ssd, otimizar, removerOneDrive, altoDesempenho, Tui.Progresso)} apps removidos de {ed.Nome}");
+        }
+
+        // Driver que falhar não impede a instalação: o Windows Update completa depois.
+        foreach (var (pasta, nome) in new[] { (pastaDrivers, "do backup"), (infsExtras.Length > 0 ? pastaDriversExtras : null, "extras") })
+        {
+            if (pasta == null) continue;
+            Tui.Etapa("Instalando", $"Instalando os drivers {nome} em {ed.Nome}");
+            Comandos.Executar("dism", $"/Image:{w}:\\ /Add-Driver /Driver:\"{pasta}\" /Recurse", Tui.Progresso);
+        }
+        if (principal && restaurar) Restaurar(pastaArquivos!, w);
+        if (usuario != null)
+        {
+            // Pastas pessoais (joao\Documents...) voltam para o usuário novo; o resto fica em C:\Arquivos restaurados.
+            var pessoais = principal && restaurar
+                ? Directory.GetDirectories(pastaArquivos!).SelectMany(u => Backup.PastasPessoais
+                    .Where(p => Directory.Exists(Path.Combine(u, p))).Select(p => $@"{Path.GetFileName(u)}\{p}")).ToList()
+                : new List<string>();
+            var script = $@"{w}:\{Unattend.ScriptPrimeiroLogin}";
+            Directory.CreateDirectory(Path.GetDirectoryName(script)!);
+            bool temProgramas = idsProgramas.Count + instaladores.Count > 0;
+            File.WriteAllText(script, Unattend.GerarScriptPrimeiroLogin(pessoais, temProgramas));
+            if (temProgramas)
+            {
+                // Instaladores vão do pendrive para dentro do Windows novo: no primeiro login o pendrive já foi removido.
+                Directory.CreateDirectory($@"{w}:\{Unattend.PastaInstaladores}");
+                foreach (var (caminho, _) in instaladores)
+                    File.Copy(caminho, Path.Combine($@"{w}:\{Unattend.PastaInstaladores}", Path.GetFileName(caminho)), overwrite: true);
+                File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(idsProgramas,
+                    instaladores.Select(x => (Path.GetFileName(x.Caminho), x.Parametros))));
+            }
+        }
+
+        Tui.Etapa("Instalando", $"Criando a inicialização de {ed.Nome}");
+        if (Comandos.Executar("bcdboot", $"{w}:\\Windows /s {plano.Sistema}: /f {(uefi ? "UEFI" : "BIOS")}") != 0)
+            throw new Exception(Falha("O bcdboot não conseguiu criar a inicialização."));
+        // No menu de boot, cada Windows com o nome da edição (o bcdboot põe só "Windows 11" ou "Windows 10")
+        if (multi) Comandos.Executar("bcdedit", $"/store \"{bcd}\" /set {{default}} description \"{ed.Nome}\"");
     }
+    if (multi) Comandos.Executar("bcdedit", $"/store \"{bcd}\" /timeout 10");
 
-    Tui.Etapa("Instalando", "4/5 · Criando a inicialização");
-    if (Comandos.Executar("bcdboot", $"{w}:\\Windows /s {plano.Sistema}: /f {(uefi ? "UEFI" : "BIOS")}") != 0)
-        throw new Exception(Falha("O bcdboot não conseguiu criar a inicialização."));
-
-    var avisos = new List<string> { $"{edicao.Nome} instalado.", "Remova o pendrive e reinicie." };
+    var avisos = new List<string> { string.Join(" + ", instalacoes.Select(x => x.Edicao.Nome)) + " instalado.", "Remova o pendrive e reinicie." };
+    if (multi) avisos.Add("Ao ligar, o menu de boot mostra os Windows por 10 segundos.");
     if (restaurar && unattend == null) avisos.Add($"Arquivos do backup em C:\\{Unattend.PastaRestaurados}.");
-    Comandos.Registrar($"Instalação concluída: {edicao.Nome} no disco {disco.Numero}");
     if (plano.Recuperacao is char r)
     {
-        Tui.Etapa("Instalando", "5/5 · Configurando a recuperação do Windows");
-        if (!ConfigurarRecuperacao(w, r)) avisos.Add("Aviso: a recuperação do Windows não foi configurada (o Windows funciona normalmente).");
+        Tui.Etapa("Instalando", "Configurando a recuperação do Windows");
+        if (!ConfigurarRecuperacao(plano.Windows, r)) avisos.Add("Aviso: a recuperação do Windows não foi configurada (o Windows funciona normalmente).");
     }
     Tui.Progresso(100);
-
+    Comandos.Registrar($"Instalação concluída: {string.Join(" + ", instalacoes.Select(x => x.Edicao.Nome))} no disco {disco.Numero}");
     alvo = null;
+
+    // Com perfil, reinicia sozinho; sem perfil, oferece salvar as escolhas como perfil.
+    if (perfil != null)
+    {
+        if (Tui.Contagem("Instalação concluída", avisos, "Reiniciando", 15)) Comandos.Executar("wpeutil", "reboot");
+        return;
+    }
+    if (!multi && Tui.Menu("Salvar estas escolhas como perfil?", ["Da próxima vez, a instalação só pede o disco e o FORMATAR."],
+            ["Não", "Sim, salvar como perfil"]) == 1)
+        SalvarComoPerfil(new Perfil("")
+        {
+            Edicao = edicao.Nome,
+            Instalacao = modo == 2 ? "particao" : windowsGb != null ? $"dividir:{windowsGb}" : "apagar",
+            Usuario = usuario,
+            Senha = senha,
+            Programas = nomesProgramas.ToArray(),
+            Restaurar = restaurar || pastaArquivos == null,
+            BackupDrivers = pastaDrivers != null,
+            Otimizar = otimizar,
+            RemoverOneDrive = removerOneDrive,
+            AltoDesempenho = altoDesempenho,
+        });
     if (Tui.Menu("Instalação concluída", avisos, ["Reiniciar agora", "Voltar ao menu"]) == 0)
         Comandos.Executar("wpeutil", "reboot");
+}
+
+void SalvarComoPerfil(Perfil escolhas)
+{
+    var nome = Tui.Perguntar("Salvar como perfil", ["Nome do perfil (ex.: PC Escritório)."], "Digite o nome e Enter, ou só Enter para cancelar");
+    if (nome.Length == 0 || Perfil.NomeSeguro(nome).Length == 0) return;
+    bool guardarSenha = escolhas.Usuario != null && Tui.Menu("Senha", [], ["Perguntar a senha na hora de instalar (mais seguro)",
+        "Guardar a senha no perfil (mais rápido; fica escrita no pendrive)"]) == 1;
+    bool vincular = Tui.Menu("Este PC", [$"PC atual: {Sistema.Resumo()}"],
+        ["Vincular a este PC: o painel sugere este perfil sozinho aqui", "Não vincular"]) == 0;
+    var perfil = escolhas with
+    {
+        Nome = nome.Trim(),
+        Senha = guardarSenha ? escolhas.Senha : null,
+        Pc = vincular ? idPc : null,
+        Modelo = vincular ? Sistema.Modelo() : null,
+    };
+    Directory.CreateDirectory(Path.Combine(raiz!, "Perfis"));
+    File.WriteAllText(ArquivoPerfil(perfil.Nome), perfil.Texto());
+    if (vincular) perfilDoPc = perfil;
+    Comandos.Registrar($"Perfil salvo: {perfil.Nome}");
+}
+
+// Salva um Windows instalado como imagem no pendrive (MontaWin\Imagens\Personalizadas.wim); aparece na lista de edições.
+void CapturarImagem()
+{
+    if (!Exigir(raiz != null, "Pendrive MontaWin não encontrado.")) return;
+    var windows = Discos.Listar().Where(d => !d.Usb).SelectMany(d => d.Particoes.Where(p => p.TemWindows && p.Letra != null).Select(p => (d, p))).ToList();
+    if (!Exigir(windows.Count > 0, "Nenhum Windows instalado encontrado nos discos internos.")) return;
+    int w = Tui.Menu("Capturar qual Windows?", [
+        "Salva o Windows com programas e configurações como imagem no pendrive.",
+        "Para instalar em OUTROS PCs, antes rode no Windows (como administrador):",
+        @"C:\Windows\System32\Sysprep\sysprep.exe /generalize /oobe /shutdown",
+        "Sem isso, a imagem serve para restaurar este mesmo PC."],
+        windows.Select(x => $"{x.p.Letra}:  {x.d.Descricao.Trim()}").ToList());
+    if (w < 0) return;
+    char letra = windows[w].p.Letra!.Value;
+    var nome = Tui.Perguntar("Nome da imagem", ["Ex.: Escritório 2026. É o nome que aparece na lista de edições."], "Digite o nome e Enter, ou só Enter para cancelar")
+        .Replace("\"", "");
+    if (nome.Length == 0) return;
+    var unidadeWindows = new DriveInfo(letra.ToString());
+    var usado = unidadeWindows.IsReady ? unidadeWindows.TotalSize - unidadeWindows.AvailableFreeSpace : 0;
+    var livre = new DriveInfo(Path.GetPathRoot(raiz)!).AvailableFreeSpace;
+    // A imagem comprimida costuma ficar com uns 50% do espaço usado.
+    if (!Exigir(usado / 2 < livre, $"Pouco espaço no pendrive: o Windows usa {Formatar.Tamanho(usado)} e o pendrive tem {Formatar.Tamanho(livre)} livres.")) return;
+
+    var arquivo = Path.Combine(raiz!, "Imagens", "Personalizadas.wim");
+    var acao = File.Exists(arquivo) ? "/Append-Image" : "/Capture-Image /Compress:max";
+    Tui.Etapa("Capturar imagem", $"Salvando {letra}: como \"{nome}\" em {arquivo}");
+    if (Comandos.Executar("dism", $"{acao} /ImageFile:\"{arquivo}\" /CaptureDir:{letra}:\\ /Name:\"{nome}\"", Tui.Progresso) != 0)
+        throw new Exception(Falha("O DISM não conseguiu capturar a imagem."));
+    Comandos.Registrar($"Imagem capturada: {nome} ({letra}:)");
+    Tui.Mensagem("Capturar imagem", [$"Imagem \"{nome}\" salva.", "Ela aparece em \"Formatar e instalar\", junto com as edições do Windows."]);
 }
 
 // Copia o WinRE da imagem aplicada para a partição de recuperação e registra no Windows novo.

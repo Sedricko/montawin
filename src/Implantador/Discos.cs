@@ -39,6 +39,8 @@ public record Particao(int Numero, long Inicio, long Tamanho, TipoParticao Tipo,
 public record Disco(int Numero, long Tamanho, string Modelo, bool Usb, bool Gpt, IReadOnlyList<Particao> Particoes)
 {
     public Saude Saude { get; init; } = Saude.Desconhecida;
+    /// <summary>SSD (NVMe ou sem "penalidade de busca"): alguns ajustes só valem para SSD.</summary>
+    public bool Ssd { get; init; }
     public char? LetraWindows => Particoes.FirstOrDefault(p => p.TemWindows)?.Letra;
     public string Descricao => $"Disco {Numero}  {Tui.Ajustar(Modelo, 26)} {Formatar.Tamanho(Tamanho),8}  {Tui.Ajustar(Saude.Curta, 8)}" +
                                (LetraWindows is char l ? $"  Windows ({l}:)" : "");
@@ -114,9 +116,19 @@ public static partial class Discos
             discos.Add(new Disco(n, BitConverter.ToInt64(tam), modelo.Length > 0 ? modelo : "Disco", usb, gpt, particoes)
             {
                 Saude = usb ? Saude.Desconhecida : LerSaude(h, barramento), // adaptadores USB quase nunca repassam o SMART
+                Ssd = barramento == BarramentoNvme || SemPenalidadeDeBusca(h),
             });
         }
         return discos;
+    }
+
+    // StorageDeviceSeekPenaltyProperty (7): DEVICE_SEEK_PENALTY_DESCRIPTOR.IncursSeekPenalty no byte 8; false = SSD.
+    static bool SemPenalidadeDeBusca(SafeFileHandle h)
+    {
+        var consulta = new byte[12];
+        BitConverter.GetBytes(7).CopyTo(consulta, 0);
+        var resposta = new byte[12];
+        return Ioctl(h, IoctlPropriedades, consulta, resposta) && resposta[8] == 0;
     }
 
     static Saude LerSaude(SafeFileHandle h, uint barramento)

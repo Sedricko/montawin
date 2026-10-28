@@ -20,6 +20,8 @@ public record Perfil(string Nome)
     public bool BackupDrivers { get; init; } = true;
     /// <summary>Remove apps inúteis e propaganda e ajusta o registro (ver <see cref="Otimizacao"/>).</summary>
     public bool Otimizar { get; init; } = true;
+    public bool RemoverOneDrive { get; init; } = true;
+    public bool AltoDesempenho { get; init; }
 
     public string Texto()
     {
@@ -38,6 +40,8 @@ public record Perfil(string Nome)
         linhas.Add($"Restaurar = {(Restaurar ? "sim" : "nao")}");
         linhas.Add($"BackupDrivers = {(BackupDrivers ? "sim" : "nao")}");
         linhas.Add($"Otimizar = {(Otimizar ? "sim" : "nao")}");
+        linhas.Add($"RemoverOneDrive = {(RemoverOneDrive ? "sim" : "nao")}");
+        linhas.Add($"AltoDesempenho = {(AltoDesempenho ? "sim" : "nao")}");
         return string.Join("\r\n", linhas) + "\r\n";
     }
 
@@ -63,6 +67,8 @@ public record Perfil(string Nome)
             Restaurar = !string.Equals(Campo("Restaurar"), "nao", StringComparison.OrdinalIgnoreCase),
             BackupDrivers = !string.Equals(Campo("BackupDrivers"), "nao", StringComparison.OrdinalIgnoreCase),
             Otimizar = !string.Equals(Campo("Otimizar"), "nao", StringComparison.OrdinalIgnoreCase),
+            RemoverOneDrive = !string.Equals(Campo("RemoverOneDrive"), "nao", StringComparison.OrdinalIgnoreCase),
+            AltoDesempenho = string.Equals(Campo("AltoDesempenho"), "sim", StringComparison.OrdinalIgnoreCase),
         };
     }
 

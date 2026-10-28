@@ -9,10 +9,11 @@ Kit de formatação e implantação do Windows para técnicos. São dois program
 
 ## Como usar
 
-1. Baixe o pacote em **Actions → build (o mais recente) → Artifacts → MontaWin**. Deixe `MontaWin.exe` e `Implantador.exe` **na mesma pasta**.
+1. Baixe `MontaWin.exe` e `Implantador.exe` na **[última Release](../../releases/latest)** e deixe os dois **na mesma pasta**. (Versões de teste de outros branches ficam em **Actions → build → Artifacts**.)
 2. Abra o `MontaWin.exe` (ele pede administrador).
 3. **Escolher ISO:** use uma ISO oficial do Windows 10/11 ([download da Microsoft](https://www.microsoft.com/software-download/windows11)) e marque as edições que vão para o pendrive.
 4. Escolha o **pendrive** (16 GB ou mais) e clique em **Criar pendrive**. Na primeira vez, tudo nele é apagado. Se o pendrive já foi gravado pelo MontaWin, a opção **Manter** só adiciona a nova ISO e atualiza o painel, sem apagar imagens e backups.
+   - **Atualizações do mês (opcional):** escolha uma pasta com os `.msu` do [Microsoft Update Catalog](https://www.catalog.update.microsoft.com), da mesma versão da ISO (ex.: 24H2). Elas são instaladas em cada edição, e o Windows já sai atualizado.
    - **Instalação mais rápida:** grava a imagem com compressão rápida (arquivo ~30% maior, instala mais depressa). Bom para pendrive USB 3.0 ou SSD externo.
 5. No PC do cliente, dê boot pelo pendrive: o **painel MontaWin abre sozinho**.
 
@@ -45,6 +46,11 @@ Menu em tela de texto, usado com as setas. Ao abrir, coloca o WinPE no plano de 
 - **Programas no primeiro login** (com a configuração automática): lista com caixas de marcar, lida de `MontaWin\Programas.txt` (editável). Instala pelo `winget` em segundo plano, na versão mais nova; precisa de internet. Padrão: Google Chrome, WinRAR, Visual C++ 2008–2022, Notepad++, Lightshot, pCloud, Spotify, Microsoft 365 (Word, Excel, Outlook) e Foxit PDF Editor Pro. Programas fora do `winget` (ex.: NVIDIA App) vão na pasta `MontaWin\Instaladores`, com uma linha `Nome = arquivo: instalador*.exe parâmetros-silenciosos` na lista; o instalador é copiado para o Windows novo e roda no primeiro login.
 - **Perfis:** cada perfil guarda as respostas da instalação de um PC (edição, como particionar, usuário, senha opcional, programas, restaurar arquivos e backup de drivers automático) em `MontaWin\Perfis\<nome>.txt`. Um perfil pode ser vinculado a um PC pela identidade da placa-mãe (UUID do SMBIOS): o painel o sugere sozinho nesse PC e avisa se for usado em outro. Com perfil, a instalação só pede o disco e o `FORMATAR`.
 - **Backups por PC:** ficam em `MontaWin\Backups\<perfil ou modelo do PC>\<data>`, com um `pc.txt` que identifica o PC. Os drivers só são reinstalados a partir do backup feito naquele mesmo uso do painel, no mesmo PC.
+- **Multi boot:** em "Formatar e instalar", a opção "Vários Windows no mesmo disco" instala de 2 a 4 Windows (2 em PCs BIOS), cada um na sua partição, com o nome da edição no menu de boot.
+- **Otimização** (pergunta na instalação e opção do perfil): remove apps inúteis e de propaganda (Notícias, Clima, Xbox, Paciência, Clipchamp, To Do, Mapas, Copilot...), bloqueia apps "sugeridos" (Candy Crush etc.), desliga Widgets, deixa a pesquisa do Iniciar só no PC, telemetria no mínimo e, só em SSD, tira o atraso dos programas da inicialização. **Não mexe** em Defender, firewall, UAC, SmartScreen, Windows Update nem Microsoft Store.
+- **Ajustes opcionais:** remover o OneDrive (marcado) e modo de energia Alto desempenho (desmarcado; melhor em PC de mesa).
+- **Capturar imagem de um Windows:** salva um Windows instalado em `MontaWin\Imagens\Personalizadas.wim`, que aparece na lista de edições. Para usar em outros PCs, rode antes `sysprep /generalize /oobe /shutdown` nele.
+- **Fim da instalação:** com perfil, reinicia sozinho em 15 s (qualquer tecla cancela); sem perfil, oferece salvar as escolhas como perfil.
 - **Prompt de comando, Reiniciar e Desligar.**
 
 ## Compilar

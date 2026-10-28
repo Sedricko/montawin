@@ -385,4 +385,60 @@ public class ImplantadorTests
         var generica = tabela.Take(8 + 4 + 0x14 + 6).Concat(tipo1).Concat(new byte[] { 0, 0 }).ToArray();
         Assert.Null(Sistema.UuidSmbios(generica));
     }
+
+    [Fact]
+    public void AchaOsAppsInuteisNaSaidaDoDism()
+    {
+        // Saída em português: os rótulos mudam com o idioma, os nomes dos pacotes não.
+        const string saida = """
+            Nome de Exibição : Microsoft.BingNews
+            Nome do Pacote : Microsoft.BingNews_4.55.62231.0_neutral_~_8wekyb3d8bbwe
+
+            Nome do Pacote : Microsoft.WindowsStore_22409.1401.5.0_neutral_~_8wekyb3d8bbwe
+            Nome do Pacote : Microsoft.XboxGamingOverlay_7.124.5142.0_neutral_~_8wekyb3d8bbwe
+            Nome do Pacote : Clipchamp.Clipchamp_3.1.13190.0_neutral_~_yxz26nhyzhsrt
+            Nome do Pacote : Microsoft.WindowsCalculator_11.2405.2.0_neutral_~_8wekyb3d8bbwe
+            """;
+        Assert.Equal(new[]
+        {
+            "Microsoft.BingNews_4.55.62231.0_neutral_~_8wekyb3d8bbwe",
+            "Microsoft.XboxGamingOverlay_7.124.5142.0_neutral_~_8wekyb3d8bbwe",
+            "Clipchamp.Clipchamp_3.1.13190.0_neutral_~_yxz26nhyzhsrt",
+        }, Otimizacao.PacotesParaRemover(saida));
+    }
+
+    [Fact]
+    public void OtimizacaoNaoMexeNaSeguranca()
+    {
+        var tudo = string.Join("\n", Otimizacao.Registro.Select(r => $"{r.Chave}\\{r.Valor}"))
+                   + string.Join("\n", Otimizacao.ComandosOpcionais(true, true));
+        foreach (var proibido in new[] { "Defender", "Firewall", "WindowsUpdate", "EnableLUA", "SmartScreen", "wuauserv", "Store" })
+            Assert.DoesNotContain(proibido, tudo, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("WindowsStore", string.Join(" ", Otimizacao.AppsRemovidos));
+    }
+
+    [Fact]
+    public void AtrasoDaInicializacaoSoSaiEmSsd()
+    {
+        Assert.Contains(Otimizacao.AjustesPara(ssd: true), r => r.Valor == "StartupDelayInMSec");
+        Assert.DoesNotContain(Otimizacao.AjustesPara(ssd: false), r => r.Valor == "StartupDelayInMSec");
+        Assert.Empty(Otimizacao.ComandosOpcionais(false, false));
+        Assert.Contains("OneDriveSetup", Assert.Single(Otimizacao.ComandosOpcionais(true, false)));
+        Assert.Contains("8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c", Assert.Single(Otimizacao.ComandosOpcionais(false, true)));
+    }
+
+    [Fact]
+    public void MultiBootCriaUmaParticaoPorWindows()
+    {
+        var p = Particionamento.ApagarDiscoMultiboot(1, uefi: true, 'S', ['W', 'V', 'U'], [150, 100]);
+        var linhas = p.Script.Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal("select disk 1", linhas[0]);
+        Assert.Contains("create partition primary size=153600", linhas);
+        Assert.Contains("create partition primary size=102400", linhas);
+        Assert.Contains("format quick fs=ntfs label=Windows3", linhas);
+        Assert.Equal(1, linhas.Count(l => l == "create partition primary")); // o último fica com o resto
+        Assert.Equal('W', p.Windows);
+        Assert.Equal(new[] { 'V', 'U' }, p.WindowsExtras);
+        Assert.Null(p.Recuperacao);
+    }
 }

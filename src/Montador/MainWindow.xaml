@@ -38,13 +38,19 @@
           </DockPanel>
           <TextBlock x:Name="TituloEdicoes" Text="Edições que vão para o pendrive (escolhidas no painel na hora de instalar)"
                      Style="{StaticResource Dica}" Margin="0,14,0,6" Visibility="Collapsed" />
-          <ItemsControl x:Name="ListaEdicoes">
+          <ItemsControl x:Name="ListaEdicoes" Margin="0,0,0,12">
             <ItemsControl.ItemTemplate>
               <DataTemplate>
                 <CheckBox Content="{Binding Nome}" IsChecked="{Binding Marcada}" Margin="0,2" />
               </DataTemplate>
             </ItemsControl.ItemTemplate>
           </ItemsControl>
+          <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,6"
+                     Text="Atualizações do mês (opcional): pasta com os arquivos .msu baixados do Microsoft Update Catalog, da mesma versão da ISO." />
+          <DockPanel>
+            <Button x:Name="BotaoAtualizacoes" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher pasta..." Click="EscolherAtualizacoes" />
+            <TextBox x:Name="PastaAtualizacoes" IsReadOnly="True" VerticalContentAlignment="Center" />
+          </DockPanel>
         </StackPanel>
       </Border>
 

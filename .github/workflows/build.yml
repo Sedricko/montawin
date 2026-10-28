@@ -8,6 +8,8 @@ on:
 jobs:
   montawin:
     runs-on: windows-latest
+    permissions:
+      contents: write   # para publicar a Release quando entra no main
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -29,5 +31,16 @@ jobs:
         with:
           name: MontaWin
           path: |
+            publicar/MontaWin.exe
+            publicar/Implantador.exe
+      # Link fixo: https://github.com/<dono>/montawin/releases/latest (só para o que entra no main)
+      - name: Publicar Release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.${{ github.run_number }}
+          name: MontaWin v1.${{ github.run_number }}
+          body: Baixe MontaWin.exe e Implantador.exe e deixe os dois na mesma pasta.
+          files: |
             publicar/MontaWin.exe
             publicar/Implantador.exe

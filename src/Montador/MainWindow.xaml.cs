@@ -33,7 +33,7 @@ public partial class MainWindow : Window
     void Ocupado(bool ocupado, string status)
     {
         BotaoIso.IsEnabled = BotaoAtualizar.IsEnabled = BotaoCriar.IsEnabled = ListaPendrives.IsEnabled = ListaEdicoes.IsEnabled =
-            Manter.IsEnabled = Rapida.IsEnabled = !ocupado;
+            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = !ocupado;
         Status.Text = status;
     }
 
@@ -57,6 +57,14 @@ public partial class MainWindow : Window
             Ocupado(false, "Escolha a ISO e o pendrive.");
             Erro(ex.Message);
         }
+    }
+
+    void EscolherAtualizacoes(object sender, RoutedEventArgs e)
+    {
+        var dialogo = new OpenFolderDialog { Title = "Pasta com as atualizações .msu" };
+        if (dialogo.ShowDialog(this) != true) return;
+        if (Directory.GetFiles(dialogo.FolderName, "*.msu").Length == 0) { Erro("Essa pasta não tem arquivos .msu."); return; }
+        PastaAtualizacoes.Text = dialogo.FolderName;
     }
 
     async void Atualizar(object sender, RoutedEventArgs e)
@@ -101,7 +109,8 @@ public partial class MainWindow : Window
         Ocupado(true, "Começando...");
         try
         {
-            var gravacao = new Gravacao(iso, indices, pendrive, Implantador, Rapida.IsChecked == true, manter);
+            var gravacao = new Gravacao(iso, indices, pendrive, Implantador, Rapida.IsChecked == true, manter,
+                PastaAtualizacoes.Text.Length > 0 ? PastaAtualizacoes.Text : null);
             await Task.Run(() => Pendrive.Gravar(gravacao, (etapa, pct) => Dispatcher.Invoke(() =>
             {
                 if (etapa != null) Status.Text = etapa;

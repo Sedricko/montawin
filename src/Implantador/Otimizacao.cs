@@ -71,11 +71,28 @@ public static partial class Otimizacao
         (ChaveUsuario, $@"{windows}:\Users\Default\NTUSER.DAT"),
     ];
 
-    /// <summary>Aplica tudo no Windows em <paramref name="windows"/>. Retorna quantos apps saíram.</summary>
-    public static int Aplicar(char windows, Action<double>? progresso = null)
+    /// <summary>Opcionais: OneDrive não se instala para contas novas; plano Alto desempenho ativo.</summary>
+    public static IEnumerable<string> ComandosOpcionais(bool removerOneDrive, bool altoDesempenho)
     {
-        Comandos.Executar("dism", $@"/Image:{windows}:\ /Get-ProvisionedAppxPackages");
-        var pacotes = PacotesParaRemover(Comandos.UltimaSaidaCompleta);
+        if (removerOneDrive)
+            yield return $@"delete ""{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\Run"" /v OneDriveSetup /f";
+        if (altoDesempenho)
+            yield return $@"add ""{ChaveSystem}\ControlSet001\Control\Power\User\PowerSchemes"" /v ActivePowerScheme /t REG_SZ /d 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c /f";
+    }
+
+    const string SoEmSsd = "StartupDelayInMSec"; // em HD, abrir tudo junto deixa o começo mais lento
+
+    public static IEnumerable<(string Chave, string Valor, int Dado)> AjustesPara(bool ssd) => Registro.Where(r => ssd || r.Valor != SoEmSsd);
+
+    /// <summary>Aplica tudo no Windows em <paramref name="windows"/>. Retorna quantos apps saíram.</summary>
+    public static int Aplicar(char windows, bool ssd, bool otimizar, bool removerOneDrive, bool altoDesempenho, Action<double>? progresso = null)
+    {
+        var pacotes = new List<string>();
+        if (otimizar)
+        {
+            Comandos.Executar("dism", $@"/Image:{windows}:\ /Get-ProvisionedAppxPackages");
+            pacotes = PacotesParaRemover(Comandos.UltimaSaidaCompleta);
+        }
         for (int i = 0; i < pacotes.Count; i++)
         {
             Comandos.Executar("dism", $@"/Image:{windows}:\ /Remove-ProvisionedAppxPackage /PackageName:{pacotes[i]}");
@@ -87,8 +104,10 @@ public static partial class Otimizacao
         {
             foreach (var (chave, arquivo) in Hives(windows))
                 if (File.Exists(arquivo) && Comandos.Executar("reg", $"load {chave} \"{arquivo}\"") == 0) carregadas.Add(chave);
-            foreach (var (chave, valor, dado) in Registro.Where(r => carregadas.Any(c => r.Chave.StartsWith(c + @"\"))))
+            foreach (var (chave, valor, dado) in (otimizar ? AjustesPara(ssd) : Enumerable.Empty<(string Chave, string Valor, int Dado)>()).Where(r => carregadas.Any(c => r.Chave.StartsWith(c + @"\"))))
                 Comandos.Executar("reg", $"add \"{chave}\" /v {valor} /t REG_DWORD /d {dado} /f");
+            foreach (var comando in ComandosOpcionais(removerOneDrive, altoDesempenho))
+                Comandos.Executar("reg", comando);
         }
         finally
         {

@@ -6,7 +6,9 @@ public record IsoAberta(string Iso, char Letra, string Install, List<Edicao> Edi
 
 /// <param name="Rapida">Compressão rápida: imagem ~30% maior, mas a instalação descomprime mais depressa.</param>
 /// <param name="Manter">Letras de um pendrive MontaWin existente: só adiciona a ISO e atualiza o painel, sem apagar.</param>
-public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador, bool Rapida, (char Boot, char Dados)? Manter);
+/// <param name="Atualizacoes">Pasta com as atualizações .msu do Microsoft Update Catalog, injetadas em cada edição (null = nenhuma).</param>
+public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador, bool Rapida, (char Boot, char Dados)? Manter,
+    string? Atualizacoes = null);
 
 /// <summary>
 /// Monta o pendrive: partição FAT32 de boot (UEFI e BIOS) com o WinPE da ISO abrindo o Implantador,
@@ -144,15 +146,37 @@ public static class Pendrive
         if (!File.Exists(listaProgramas)) File.WriteAllText(listaProgramas, Programas.Padrao); // não sobrescreve a lista editada pelo técnico
         var destino = Path.Combine(pastaImagens, Path.GetFileNameWithoutExtension(g.Iso.Iso) + ".wim");
         if (File.Exists(destino)) File.Delete(destino); // mesma ISO de novo: substitui em vez de duplicar as edições
-        double passo = 85.0 / g.Indices.Length;
+        // Com atualizações, a imagem é montada no disco do PC (bem mais rápido que no pendrive) e copiada no fim.
+        var imagem = g.Atualizacoes != null ? Path.Combine(trabalho, "imagem.wim") : destino;
+        double fatia = (g.Atualizacoes != null ? 45.0 : 85.0) / g.Indices.Length;
         for (int k = 0; k < g.Indices.Length; k++)
         {
-            double inicio = 15 + k * passo;
+            double inicio = 15 + k * fatia;
             var nome = g.Iso.Edicoes.First(e => e.Indice == g.Indices[k]).Nome;
             progresso($"Copiando {nome} ({k + 1} de {g.Indices.Length})", inicio);
             Exigir(Comandos.Executar("dism",
-                $"/Export-Image /SourceImageFile:\"{g.Iso.Install}\" /SourceIndex:{g.Indices[k]} /DestinationImageFile:\"{destino}\" /Compress:{(g.Rapida ? "fast" : "max")}",
-                p => progresso(null, inicio + p * passo / 100)), $"O DISM não conseguiu copiar {nome}.");
+                $"/Export-Image /SourceImageFile:\"{g.Iso.Install}\" /SourceIndex:{g.Indices[k]} /DestinationImageFile:\"{imagem}\" /Compress:{(g.Rapida ? "fast" : "max")}",
+                p => progresso(null, inicio + p * fatia / 100)), $"O DISM não conseguiu copiar {nome}.");
+        }
+        if (g.Atualizacoes != null)
+        {
+            for (int k = 0; k < g.Indices.Length; k++)
+            {
+                double inicio = 60 + k * 30.0 / g.Indices.Length;
+                var nome = g.Iso.Edicoes.First(e => e.Indice == g.Indices[k]).Nome;
+                progresso($"Atualizando {nome} ({k + 1} de {g.Indices.Length})", inicio);
+                Exigir(Comandos.Executar("dism", $"/Mount-Image /ImageFile:\"{imagem}\" /Index:{k + 1} /MountDir:\"{mount}\""), $"O DISM não conseguiu abrir {nome}.");
+                int codigo = Comandos.Executar("dism", $"/Image:\"{mount}\" /Add-Package /PackagePath:\"{g.Atualizacoes}\"",
+                    p => progresso(null, inicio + p * 30.0 / g.Indices.Length / 100));
+                if (codigo != 0)
+                {
+                    Comandos.Executar("dism", $"/Unmount-Image /MountDir:\"{mount}\" /Discard");
+                    Exigir(codigo, $"O DISM não conseguiu instalar as atualizações em {nome}. Confira se são da mesma versão do Windows da ISO (ex.: 24H2).");
+                }
+                Exigir(Comandos.Executar("dism", $"/Unmount-Image /MountDir:\"{mount}\" /Commit"), $"O DISM não conseguiu salvar {nome}.");
+            }
+            progresso("Copiando a imagem atualizada para o pendrive", 90);
+            File.Copy(imagem, destino, overwrite: true);
         }
 
         Directory.Delete(trabalho, recursive: true);
