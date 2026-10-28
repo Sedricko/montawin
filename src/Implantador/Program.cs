@@ -384,13 +384,9 @@ bool EstePc(Perfil p) => Sistema.MesmoPc(p.Pc, p.Serie, uuidPc, seriePc);
 }
 
 // Sugestão de nome do computador a partir do usuário: "João" vira "JOAO-PC".
-static string SugestaoNomePc(string? usuario)
-{
-    if (usuario == null) return "";
-    var semAcento = string.Concat(usuario.ToUpperInvariant().Select(c => "ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ".IndexOf(c) is int i and >= 0 ? "AAAAAEEEEIIIIOOOOOUUUUCN"[i] : c));
-    var letras = new string(semAcento.Where(char.IsAsciiLetterOrDigit).Take(12).ToArray());
-    return letras.Length == 0 ? "" : letras + "-PC";
-}
+// Nome aleatório no estilo do Windows (PC-7K2P9QX), sem o nome do usuário; sem letras que se confundem (O/0, I/1)
+static string SugestaoNomePc() =>
+    "PC-" + string.Concat(Enumerable.Range(0, 7).Select(_ => "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"[Random.Shared.Next(32)]));
 
 // Último backup de drivers deste mesmo PC (pelas identidades de fábrica): serve quando o disco não tem Windows.
 (string Pasta, string Data)? UltimoBackupDeDrivers()
@@ -898,7 +894,7 @@ void Instalar(Perfil? inicial = null)
         {
             if (usuario == null) { nomePc = null; return Passo.Pular; }
             if (perfil != null) { nomePc = perfil.NomePc; return Passo.Pular; }
-            var n = PerguntarNomePc("Nome do computador", nomePc ?? SugestaoNomePc(usuario));
+            var n = PerguntarNomePc("Nome do computador", nomePc ?? SugestaoNomePc());
             if (n == null) return Passo.Voltar;
             nomePc = n.Length == 0 ? null : n;
             return Passo.Avancar;
