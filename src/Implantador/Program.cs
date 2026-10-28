@@ -91,7 +91,7 @@ while (true)
             case 3: alvo = EscolherDisco("Disco do Windows atual (para os backups)", alvo) ?? alvo; break;
             case 4: MenuPerfis(); break;
             case 5: CapturarImagem(); break;
-            case 6: Tui.Pausar(PromptDeComando); break;
+            case 6: if (Tui.Grafica) Tui.Terminal(); else Tui.Pausar(PromptDeComando); break;
             case 7: Comandos.Executar("wpeutil", "reboot"); break;
             case 8: Comandos.Executar("wpeutil", "shutdown"); break;
         }

@@ -32,7 +32,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
     nint janela, memDc, memBmp, fundo, desfocado;
     int largura, altura;
     float s; // escala: o layout foi pensado em 1280x720
-    nint fonteTitulo, fonteNormal, fontePequena, fonteForte, fonteGrande;
+    nint fonteTitulo, fonteNormal, fontePequena, fonteForte, fonteGrande, fonteMono;
     nint linha, linhaCentro, linhaDireita, paragrafo;
     Tela? tela;
     Tela? pintada;          // a tela cujos alvos estão em "alvos"
@@ -107,6 +107,10 @@ public sealed unsafe partial class TelaGrafica : ISaida
         fonteGrande = Fonte(forte, 46, semibold ? 0 : 1);
         fonteNormal = Fonte(familia, 16, 0);
         fontePequena = Fonte(familia, 13, 0);
+        nint mono = 0;
+        if (GdipCreateFontFamilyFromName("Consolas", 0, &mono) != 0 && GdipCreateFontFamilyFromName("Courier New", 0, &mono) != 0)
+            mono = familia;
+        fonteMono = Fonte(mono, 14, 0);
         linha = Formato(0x1000, 0, 1);
         linhaCentro = Formato(0x1000, 1, 1);
         linhaDireita = Formato(0x1000, 2, 1);
@@ -270,8 +274,9 @@ public sealed unsafe partial class TelaGrafica : ISaida
                     foreach (var a in t.alvos)
                         if (x >= a.X && x <= a.X + a.W && y >= a.Y && y <= a.Y + a.H) { t.fila.Add(new Evento(0, '\0', a.Item)); break; }
                     return 0;
-                case 0x020A when t != null: // WM_MOUSEWHEEL
-                    t.fila.Add(new Evento((short)((wParam >> 16) & 0xFFFF) > 0 ? ConsoleKey.UpArrow : ConsoleKey.DownArrow));
+                case 0x020A when t != null: // WM_MOUSEWHEEL (no prompt rola a saída; as setas são do histórico)
+                    bool cima = (short)((wParam >> 16) & 0xFFFF) > 0;
+                    t.fila.Add(new Evento(t.tela?.Tipo == TipoTela.Terminal ? (cima ? ConsoleKey.PageUp : ConsoleKey.PageDown) : cima ? ConsoleKey.UpArrow : ConsoleKey.DownArrow));
                     return 0;
                 case 0x0010: return 0; // WM_CLOSE: Alt+F4 não fecha o painel
             }
@@ -405,6 +410,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
         if (t != null)
         {
             if (t.Tipo == TipoTela.Progresso) Progresso(t);
+            else if (t.Tipo == TipoTela.Terminal) Terminal(t);
             else Painel(t);
         }
         GdipDeleteGraphics(g);
@@ -605,6 +611,44 @@ public sealed unsafe partial class TelaGrafica : ISaida
             ly += 22 * s;
         }
         Texto(t.Rodape, fontePequena, c.Suave, x + pad, y + hp - pad - 20 * s, wp - 2 * pad, 24 * s, linhaCentro);
+    }
+
+    void Terminal(Tela t)
+    {
+        float pad = 28 * s, linhaItem = 40 * s;
+        var (x, y, w, h) = Vidro(1100 * s, altura - 130 * s);
+        float dentro = w - 2 * pad;
+        Texto(t.Titulo, fonteTitulo, c.Texto, x + pad, y + pad - 4 * s, dentro, 40 * s);
+
+        // Botões no topo: Voltar à direita do título, Parar ao lado
+        float bx = x + w - pad;
+        for (int i = t.Itens.Count - 1; i >= 0; i--)
+        {
+            var item = t.Itens[i];
+            float bw = Largura(item.Texto, fonteForte) + 36 * s;
+            bx -= bw;
+            Caixa(bx, y + pad - 4 * s, bw, linhaItem, 10 * s, c.Cartao, c.Borda);
+            Texto(item.Texto, fonteForte, item.Tipo == TipoItem.Voltar ? c.CorDestaque : c.Texto, bx, y + pad - 4 * s, bw, linhaItem, linhaCentro);
+            alvos.Add((bx, y + pad - 4 * s, bw, linhaItem, i));
+            bx -= 10 * s;
+        }
+
+        // Saída do cmd, a mais nova embaixo; a última linha é o prompt (X:\>) com o que está sendo digitado
+        float oy = y + pad + 50 * s, oh = y + h - pad - 30 * s - oy, lh = 20 * s;
+        Caixa(x + pad, oy, dentro, oh, 12 * s, 0xE6141026, c.Borda);
+        int cabem = Math.Max(1, (int)((oh - 24 * s) / lh));
+        var linhas = t.Registro.Count > 0 ? t.Registro.ToList() : [""];
+        linhas[^1] += t.Campo;
+        int fim = Math.Max(Math.Min(linhas.Count, cabem), linhas.Count - t.Selecionado);
+        float ly = oy + 12 * s;
+        foreach (var l in linhas.Skip(Math.Max(0, fim - cabem)).Take(cabem))
+        {
+            Texto(l, fonteMono, 0xFFE8E6F5, x + pad + 14 * s, ly, dentro - 28 * s, lh);
+            ly += lh;
+        }
+        if (t.Selecionado == 0) // cursor
+            GdipFillRectangle(g, Pincel(0xFFE8E6F5), x + pad + 16 * s + Largura(linhas[^1], fonteMono), ly - lh + 3 * s, 2 * s, lh - 6 * s);
+        Texto(t.Rodape, fontePequena, c.Suave, x + pad, y + h - pad - 20 * s, dentro, 24 * s, linhaCentro);
     }
 
     // ---------- Win32 e GDI+ ----------

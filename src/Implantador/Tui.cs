@@ -3,7 +3,7 @@ using System.Text;
 
 namespace MontaWin.Implantador;
 
-public enum TipoTela { Lista, Mensagem, Pergunta, Progresso, Contagem }
+public enum TipoTela { Lista, Mensagem, Pergunta, Progresso, Contagem, Terminal }
 public enum Alerta { Nenhum, Atencao, Perigo }
 public enum TipoItem { Opcao, Caixa, MarcarTodos, Continuar, Voltar }
 
@@ -34,6 +34,7 @@ public sealed record Tela
     public IReadOnlyList<string> Registro { get; init; } = [];
     public DateTime Inicio { get; init; }
     public TimeSpan? Restante { get; init; }
+    // Terminal: Registro = saída do cmd, Campo = comando sendo digitado, Selecionado = linhas roladas para cima
 }
 
 public interface ISaida
@@ -73,6 +74,112 @@ public static class Tui
     static void Mostrar(Tela tela) => saida.Mostrar(tela);
     static Evento Ler() => saida.Ler() ?? default;
     public static void Pausar(Action acao) => saida.Pausar(acao);
+    public static bool Grafica => saida is TelaGrafica;
+
+    /// <summary>
+    /// Prompt de comando dentro do painel: o cmd roda escondido e a saída aparece num cartão.
+    /// Não tem janela própria, então nada fecha o painel por engano. Volta com Esc, "← Voltar" ou exit.
+    /// </summary>
+    public static void Terminal()
+    {
+        var linhas = new List<string> { "" };
+        var historico = new List<string>();
+        var texto = new StringBuilder();
+        int rolagem = 0, posHistorico = 0;
+        Process? cmd = null;
+        (int, string, string, int) ultimo = default;
+
+        void Escrever(string pedaco)
+        {
+            lock (linhas)
+                foreach (char ch in pedaco)
+                {
+                    if (ch == '\n') linhas.Add("");
+                    else if (ch == '\r') continue;
+                    else if (ch == '\f') { linhas.Clear(); linhas.Add(""); } // cls
+                    else linhas[^1] += ch == '\t' ? "    " : ch.ToString();
+                    if (linhas.Count > 2000) linhas.RemoveRange(0, 500);
+                }
+        }
+
+        void Abrir()
+        {
+            // chcp 65001: os acentos chegam certos pela saída redirecionada
+            cmd = Process.Start(new ProcessStartInfo("cmd.exe", "/K chcp 65001 >nul")
+            {
+                UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Environment.SystemDirectory,
+                RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8,
+            })!;
+            cmd.StandardInput.AutoFlush = true;
+            foreach (var leitor in new[] { cmd.StandardOutput, cmd.StandardError })
+                new Thread(() =>
+                {
+                    var buf = new char[4096];
+                    int n;
+                    try { while ((n = leitor.Read(buf, 0, buf.Length)) > 0) Escrever(new string(buf, 0, n)); } catch { }
+                }) { IsBackground = true }.Start();
+        }
+
+        Escrever("Prompt de comando do MontaWin. Digite exit ou aperte Esc para voltar ao painel.\n\n");
+        Abrir();
+        try
+        {
+            while (true)
+            {
+                List<string> copia;
+                lock (linhas) copia = [.. linhas];
+                // Só redesenha quando algo mudou: redesenhar à toa atrasaria os cliques
+                var estado = (copia.Count, copia[^1], texto.ToString(), rolagem);
+                if (estado != ultimo) Mostrar(new Tela
+                {
+                    Tipo = TipoTela.Terminal, Titulo = "Prompt de comando", Registro = copia, Campo = texto.ToString(), Selecionado = rolagem,
+                    Itens = [new Item("← Voltar ao painel", TipoItem.Voltar), new Item("Parar comando", TipoItem.Continuar)],
+                    Rodape = "Enter: executar    ↑↓: comandos anteriores    PgUp/PgDn: rolar    Esc: voltar ao painel",
+                });
+                ultimo = estado;
+                if (cmd!.HasExited) return; // exit
+                var lido = saida.Ler(150);
+                if (lido is not Evento e) continue;
+                if (e.Item == 0 || e.Tecla == ConsoleKey.Escape) return;
+                if (e.Item == 1)
+                {
+                    // Sem Ctrl+C num cmd escondido: encerra o que estiver rodando e abre um cmd novo
+                    try { cmd.Kill(entireProcessTree: true); } catch { }
+                    Escrever("\n(comando interrompido)\n\n");
+                    Abrir();
+                    continue;
+                }
+                switch (e.Tecla)
+                {
+                    case ConsoleKey.Enter:
+                        var comando = texto.ToString();
+                        if (comando.Trim().Length > 0 && (historico.Count == 0 || historico[^1] != comando)) historico.Add(comando);
+                        posHistorico = historico.Count;
+                        if (comando.Trim().Equals("cls", StringComparison.OrdinalIgnoreCase)) Escrever("\f");
+                        try { cmd.StandardInput.WriteLine(comando); } catch { }
+                        texto.Clear();
+                        rolagem = 0;
+                        break;
+                    case ConsoleKey.Backspace: if (texto.Length > 0) texto.Length--; break;
+                    case ConsoleKey.UpArrow when historico.Count > 0:
+                        posHistorico = Math.Max(0, posHistorico - 1);
+                        texto.Clear().Append(historico[posHistorico]);
+                        break;
+                    case ConsoleKey.DownArrow:
+                        posHistorico = Math.Min(historico.Count, posHistorico + 1);
+                        texto.Clear().Append(posHistorico < historico.Count ? historico[posHistorico] : "");
+                        break;
+                    case ConsoleKey.PageUp: rolagem += 10; break;
+                    case ConsoleKey.PageDown: rolagem = Math.Max(0, rolagem - 10); break;
+                    default:
+                        if (e.Caractere >= ' ' && texto.Length < 400) texto.Append(e.Caractere);
+                        break;
+                }
+            }
+        }
+        finally { try { if (!cmd!.HasExited) cmd.Kill(entireProcessTree: true); } catch { } }
+    }
 
     static bool Mover(ref int sel, ConsoleKey tecla, int total)
     {

@@ -87,6 +87,20 @@ public class TelasTests
             Info = ["SMART: o disco avisa que pode falhar em breve (setores realocados).", "O disco funciona, mas vale avisar o cliente e fazer o backup."],
             Itens = [new Item("Continuar", TipoItem.Continuar)],
         });
+        yield return ("9-prompt", new Tela
+        {
+            Tipo = TipoTela.Terminal, Titulo = "Prompt de comando", Campo = "list volume",
+            Itens = [new Item("← Voltar ao painel", TipoItem.Voltar), new Item("Parar comando", TipoItem.Continuar)],
+            Rodape = "Enter: executar    ↑↓: comandos anteriores    PgUp/PgDn: rolar    Esc: voltar ao painel",
+            Registro = ["Prompt de comando do MontaWin. Digite exit ou aperte Esc para voltar ao painel.", "",
+                "X:\\Windows\\System32>diskpart", "", "Microsoft DiskPart versão 10.0.26100.1", "", "No computador: MINWINPC", "",
+                "DISKPART> list disk", "",
+                "  Disco ###  Status         Tam.     Livre    Din  GPT",
+                "  ---------  -------------  -------  -------  ---  ---",
+                "  Disco 0    Online          476 GB      0 B        *",
+                "  Disco 1    Online          238 GB  1024 KB        *", "",
+                "DISKPART> "],
+        });
     }
 
     [Fact]
