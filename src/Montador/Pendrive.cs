@@ -25,6 +25,20 @@ public static class Pendrive
 {
     public const int BootMb = 2048;
 
+    /// <summary>
+    /// O painel do pendrive vem dentro deste exe (um arquivo só): extrai para a pasta temporária e devolve o caminho.
+    /// null quando não está embutido (compilação local), aí o Implantador.exe precisa estar ao lado.
+    /// </summary>
+    public static string? Painel()
+    {
+        using var embutido = typeof(Pendrive).Assembly.GetManifestResourceStream("Implantador.exe");
+        if (embutido == null) return null;
+        var destino = Path.Combine(Path.GetTempPath(), "AuroraWin", "Implantador.exe");
+        Directory.CreateDirectory(Path.GetDirectoryName(destino)!);
+        using (var arquivo = File.Create(destino)) embutido.CopyTo(arquivo);
+        return destino;
+    }
+
     public static string ScriptParticionar(int disco, char boot, char dados) => $"""
         select disk {disco}
         clean
@@ -192,6 +206,10 @@ public static class Pendrive
         foreach (var fonte in new[] { "segoeui.ttf", "seguisb.ttf", "consola.ttf" })
             if (Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), fonte) is var origem && File.Exists(origem))
                 File.Copy(origem, $@"{dados}:\MontaWin\Fontes\{fonte}", overwrite: true);
+        // Ícone do Aurora Win no canto do painel
+        using (var icone = typeof(Pendrive).Assembly.GetManifestResourceStream("icone.png"))
+        using (var arquivo = icone == null ? null : File.Create($@"{dados}:\MontaWin\icone.png"))
+            if (icone != null) icone.CopyTo(arquivo!);
         var licenca = $@"{dados}:\MontaWin\licenca.txt";
         if (g.Licenca != null) File.WriteAllText(licenca, g.Licenca);
         else File.Delete(licenca);

@@ -8,7 +8,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>MontaWin.Montador</RootNamespace>
-    <AssemblyName>MontaWin</AssemblyName>
+    <AssemblyName>AuroraWin</AssemblyName>
+    <Product>Aurora Win</Product>
     <!-- Ícone claro: o app do PC do técnico (a janela usa o mesmo ícone do exe) -->
     <ApplicationIcon>MontaWin.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
@@ -19,6 +20,15 @@
   <!-- O WPF tira System.IO dos usings implícitos (conflito de Path com Shapes); aqui não usamos Shapes. -->
   <ItemGroup>
     <Using Include="System.IO" />
+  </ItemGroup>
+
+  <!-- Um exe só: o painel do pendrive (publicado antes, em Native AOT) vai embutido. Sem ele, procura ao lado do exe. -->
+  <PropertyGroup>
+    <PainelExe Condition="'$(PainelExe)' == ''">$(MSBuildThisFileDirectory)..\..\publicar\Implantador.exe</PainelExe>
+  </PropertyGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="$(PainelExe)" LogicalName="Implantador.exe" Condition="Exists('$(PainelExe)')" />
+    <EmbeddedResource Include="icone-painel.png" LogicalName="icone.png" />
   </ItemGroup>
 
   <!-- Mesma leitura de discos, .wim e execução de comandos do Implantador -->

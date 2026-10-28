@@ -21,9 +21,9 @@ jobs:
         run: dotnet test tests/Implantador.Tests
       - name: Compilar o Implantador (Native AOT)
         run: dotnet publish src/Implantador -c Release -r win-x64 -p:DebugType=none -o publicar
-      - name: Compilar o Montador (exe único)
+      - name: Compilar o Aurora Win (exe único, com o painel dentro)
         run: >
-          dotnet publish src/Montador -c Release -r win-x64 --self-contained
+          dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PainelExe=${{ github.workspace }}\publicar\Implantador.exe
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publicar
       # Imagens de exemplo: a janela do Montador e as telas do painel (com os fundos que o Montador desenha), nos 3 temas.
@@ -32,12 +32,12 @@ jobs:
         timeout-minutes: 5
         shell: pwsh
         run: |
-          $p = Start-Process publicar/MontaWin.exe -ArgumentList '--captura', "$PWD\previa" -PassThru
-          if (-not $p.WaitForExit(120000)) { $p.Kill(); 'MontaWin.exe não terminou em 2 minutos' }
-          "MontaWin.exe saiu com código $($p.ExitCode)"
+          $p = Start-Process publicar/AuroraWin.exe -ArgumentList '--captura', "$PWD\previa" -PassThru
+          if (-not $p.WaitForExit(120000)) { $p.Kill(); 'AuroraWin.exe não terminou em 2 minutos' }
+          "AuroraWin.exe saiu com código $($p.ExitCode)"
           Get-ChildItem previa -ErrorAction SilentlyContinue
           if (Test-Path previa\erro.txt) { Get-Content previa\erro.txt }
-          foreach ($t in 'ondas', 'bloom', 'pastel') {
+          foreach ($t in 'ondas', 'bloom', 'pastel', 'cristal') {
             New-Item -ItemType Directory -Force "fundos\$t" | Out-Null
             if (Test-Path "previa\fundo-$t.png") {
               Copy-Item "previa\fundo-$t.png" "fundos\$t\fundo.png"
@@ -54,21 +54,17 @@ jobs:
             previa/*.png
             previa/erro.txt
           if-no-files-found: ignore
-      # Os dois exe vão juntos: o MontaWin.exe coloca o Implantador.exe no pendrive.
+      # Um arquivo só: o AuroraWin.exe leva o painel do pendrive dentro.
       - uses: actions/upload-artifact@v4
         with:
-          name: MontaWin
-          path: |
-            publicar/MontaWin.exe
-            publicar/Implantador.exe
+          name: AuroraWin
+          path: publicar/AuroraWin.exe
       # Link fixo: https://github.com/<dono>/montawin/releases/latest (só para o que entra no main)
       - name: Publicar Release
         if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.${{ github.run_number }}
-          name: MontaWin v1.${{ github.run_number }}
-          body: Baixe MontaWin.exe e Implantador.exe e deixe os dois na mesma pasta.
-          files: |
-            publicar/MontaWin.exe
-            publicar/Implantador.exe
+          name: Aurora Win v1.${{ github.run_number }}
+          body: Baixe o AuroraWin.exe e abra (ele pede administrador). O painel do pendrive já vai dentro.
+          files: publicar/AuroraWin.exe

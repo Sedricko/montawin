@@ -19,8 +19,8 @@ public class EdicaoItem(int indice, string nome)
 
 public partial class MainWindow : Window
 {
-    // O Implantador.exe vai junto do MontaWin.exe e é colocado dentro do boot.wim do pendrive.
-    static readonly string Implantador = Path.Combine(AppContext.BaseDirectory, "Implantador.exe");
+    // O painel do pendrive (Implantador.exe) vem dentro do AuroraWin.exe; em testes locais, pode estar ao lado.
+    static readonly string Implantador = Pendrive.Painel() ?? Path.Combine(AppContext.BaseDirectory, "Implantador.exe");
     IsoAberta? iso;
     string tema = "ondas";
 
@@ -48,7 +48,7 @@ public partial class MainWindow : Window
                 Close();
                 return;
             }
-            if (!File.Exists(Implantador)) Erro($"Não encontrei o Implantador.exe ao lado do MontaWin.exe:\n{Implantador}");
+            if (!File.Exists(Implantador)) Erro($"Não encontrei o painel do pendrive (Implantador.exe):\n{Implantador}");
             CarregarProgramas();
             Atualizar(this, new RoutedEventArgs());
         };
