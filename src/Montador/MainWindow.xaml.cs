@@ -363,7 +363,14 @@ public partial class MainWindow : Window
     {
         Ocupado(true, "Procurando pendrives...");
         int? antes = (ListaPendrives.SelectedItem as Disco)?.Numero;
-        var pendrives = await Task.Run(() => Discos.Listar().Where(d => d.Usb).ToList());
+        var pendrives = await Task.Run(() =>
+        {
+            // Pendrive que ficou offline (ex.: usado numa VM) não tem letra e parecia "novo": põe online antes de olhar (só discos USB)
+            var usb = Discos.Listar().Where(d => d.Usb).ToList();
+            if (usb.Count > 0 && Discos.Diskpart(string.Concat(usb.Select(d => $"select disk {d.Numero}\nonline disk noerr\n")) + "exit\n"))
+                Thread.Sleep(1500); // o Windows leva um instante para dar as letras
+            return Discos.Listar().Where(d => d.Usb).ToList();
+        });
         ListaPendrives.ItemsSource = pendrives;
         ListaPendrives.SelectedIndex = pendrives.Count == 0 ? -1 : Math.Max(0, pendrives.FindIndex(d => d.Numero == antes));
         Ocupado(false, pendrives.Count > 0 ? "Escolha a ISO e o pendrive." : "Nenhum pendrive encontrado. Conecte um e clique em Atualizar.");
