@@ -32,7 +32,8 @@ public partial class MainWindow : Window
 
     void Ocupado(bool ocupado, string status)
     {
-        BotaoIso.IsEnabled = BotaoAtualizar.IsEnabled = BotaoCriar.IsEnabled = ListaPendrives.IsEnabled = ListaEdicoes.IsEnabled = !ocupado;
+        BotaoIso.IsEnabled = BotaoAtualizar.IsEnabled = BotaoCriar.IsEnabled = ListaPendrives.IsEnabled = ListaEdicoes.IsEnabled =
+            Manter.IsEnabled = Rapida.IsEnabled = !ocupado;
         Status.Text = status;
     }
 
@@ -67,6 +68,14 @@ public partial class MainWindow : Window
         Ocupado(false, pendrives.Count > 0 ? "Escolha a ISO e o pendrive." : "Nenhum pendrive encontrado. Conecte um e clique em Atualizar.");
     }
 
+    // Pendrive já gravado pelo MontaWin: oferece adicionar a ISO sem apagar imagens e backups.
+    void PendriveEscolhido(object sender, RoutedEventArgs e)
+    {
+        bool existente = ListaPendrives.SelectedItem is Disco d && Pendrive.Existente(d) != null;
+        Manter.Visibility = existente ? Visibility.Visible : Visibility.Collapsed;
+        Manter.IsChecked = existente;
+    }
+
     async void Criar(object sender, RoutedEventArgs e)
     {
         var indices = (ListaEdicoes.ItemsSource as IEnumerable<EdicaoItem>)?.Where(x => x.Marcada).Select(x => x.Indice).ToArray() ?? [];
@@ -74,19 +83,25 @@ public partial class MainWindow : Window
         if (indices.Length == 0) { Erro("Marque pelo menos uma edição."); return; }
         if (ListaPendrives.SelectedItem is not Disco pendrive) { Erro("Escolha o pendrive."); return; }
         if (!File.Exists(Implantador)) { Erro($"Não encontrei o Implantador.exe:\n{Implantador}"); return; }
-        long necessario = ((long)Pendrive.BootMb << 20) + new FileInfo(iso.Install).Length + (1L << 30);
-        if (pendrive.Tamanho < necessario)
+        var manter = Manter.IsChecked == true ? Pendrive.Existente(pendrive) : null;
+        long imagem = new FileInfo(iso.Install).Length;
+        long necessario = manter != null ? imagem : ((long)Pendrive.BootMb << 20) + imagem + (1L << 30);
+        long disponivel = manter is (_, char livre) ? new DriveInfo(livre.ToString()).AvailableFreeSpace : pendrive.Tamanho;
+        if (disponivel < necessario)
         {
-            Erro($"O pendrive é pequeno: precisa de pelo menos {Formatar.Tamanho(necessario)}.");
+            Erro($"Não cabe: precisa de {Formatar.Tamanho(necessario)} e o pendrive tem {Formatar.Tamanho(disponivel)}" +
+                 (manter != null ? " livres. Desmarque \"Manter\" para apagar e recriar o pendrive." : "."));
             return;
         }
-        if (MessageBox.Show(this, $"TUDO o que estiver no pendrive será apagado:\n\n{pendrive.Descricao.Trim()}\n\nContinuar?",
-                "MontaWin", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        var pergunta = manter != null
+            ? $"A ISO será adicionada ao pendrive e o painel será atualizado. Imagens e backups que já estão nele ficam.\n\n{pendrive.Descricao.Trim()}\n\nContinuar?"
+            : $"TUDO o que estiver no pendrive será apagado:\n\n{pendrive.Descricao.Trim()}\n\nContinuar?";
+        if (MessageBox.Show(this, pergunta, "MontaWin", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
         Ocupado(true, "Começando...");
         try
         {
-            var gravacao = new Gravacao(iso, indices, pendrive, Implantador);
+            var gravacao = new Gravacao(iso, indices, pendrive, Implantador, Rapida.IsChecked == true, manter);
             await Task.Run(() => Pendrive.Gravar(gravacao, (etapa, pct) => Dispatcher.Invoke(() =>
             {
                 if (etapa != null) Status.Text = etapa;

@@ -4,7 +4,9 @@ namespace MontaWin.Montador;
 
 public record IsoAberta(string Iso, char Letra, string Install, List<Edicao> Edicoes);
 
-public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador);
+/// <param name="Rapida">Compressão rápida: imagem ~30% maior, mas a instalação descomprime mais depressa.</param>
+/// <param name="Manter">Letras de um pendrive MontaWin existente: só adiciona a ISO e atualiza o painel, sem apagar.</param>
+public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador, bool Rapida, (char Boot, char Dados)? Manter);
 
 /// <summary>
 /// Monta o pendrive: partição FAT32 de boot (UEFI e BIOS) com o WinPE da ISO abrindo o Implantador,
@@ -36,6 +38,21 @@ public static class Pendrive
         %SYSTEMDRIVE%\MontaWin\Implantador.exe
         """;
 
+    const string LeiaMeDrivers = """
+        Coloque aqui drivers extras (pastas com arquivos .inf), por exemplo Intel RST/RAID ou VMD,
+        quando o disco do PC não aparece no painel. O painel carrega estes drivers ao abrir e
+        também os instala no Windows novo.
+        """;
+
+    /// <summary>Letras da partição de boot e de dados se o pendrive já foi gravado pelo MontaWin.</summary>
+    public static (char Boot, char Dados)? Existente(Disco pendrive)
+    {
+        var letras = pendrive.Particoes.Where(p => p.Letra != null).Select(p => p.Letra!.Value).ToList();
+        char boot = letras.FirstOrDefault(l => File.Exists($@"{l}:\sources\boot.wim"));
+        char dados = letras.FirstOrDefault(l => Directory.Exists($@"{l}:\MontaWin\Imagens"));
+        return boot != '\0' && dados != '\0' ? (boot, dados) : null;
+    }
+
     static void Exigir(int codigo, string mensagem)
     {
         if (codigo != 0) lock (Comandos.Saida) throw new Exception(mensagem + "\n" + string.Join("\n", Comandos.Saida));
@@ -62,9 +79,14 @@ public static class Pendrive
     /// <summary>Grava tudo. <paramref name="progresso"/> recebe a etapa (null = mesma etapa) e o percentual geral.</summary>
     public static void Gravar(Gravacao g, Action<string?, double> progresso)
     {
-        var letras = Comandos.LetrasLivres(2);
-        if (letras.Length < 2) throw new Exception("Não há letras de unidade livres.");
-        var (boot, dados) = (letras[0], letras[1]);
+        char boot, dados;
+        if (g.Manter is (char b, char d)) (boot, dados) = (b, d);
+        else
+        {
+            var letras = Comandos.LetrasLivres(2);
+            if (letras.Length < 2) throw new Exception("Não há letras de unidade livres.");
+            (boot, dados) = (letras[0], letras[1]);
+        }
         char iso = g.Iso.Letra;
         var trabalho = Path.Combine(Path.GetTempPath(), "MontaWin");
         var mount = Path.Combine(trabalho, "mount");
@@ -75,11 +97,14 @@ public static class Pendrive
         }
         Directory.CreateDirectory(mount);
 
-        progresso("Apagando e particionando o pendrive", 0);
-        var script = Path.Combine(trabalho, "diskpart.txt");
-        File.WriteAllText(script, ScriptParticionar(g.Pendrive.Numero, boot, dados));
-        Exigir(Comandos.Executar("diskpart", $"/s \"{script}\""), "O diskpart não conseguiu preparar o pendrive.");
-        Exigir(Comandos.Executar($@"{iso}:\boot\bootsect.exe", $"/nt60 {boot}: /mbr /force"), "O bootsect não conseguiu tornar o pendrive bootável.");
+        if (g.Manter == null)
+        {
+            progresso("Apagando e particionando o pendrive", 0);
+            var script = Path.Combine(trabalho, "diskpart.txt");
+            File.WriteAllText(script, ScriptParticionar(g.Pendrive.Numero, boot, dados));
+            Exigir(Comandos.Executar("diskpart", $"/s \"{script}\""), "O diskpart não conseguiu preparar o pendrive.");
+            Exigir(Comandos.Executar($@"{iso}:\boot\bootsect.exe", $"/nt60 {boot}: /mbr /force"), "O bootsect não conseguiu tornar o pendrive bootável.");
+        }
 
         progresso("Copiando os arquivos de inicialização", 3);
         if (Comandos.Executar("robocopy", $@"{iso}:\ {boot}:\ /E /XD {iso}:\sources {iso}:\support /R:1 /W:1 /NP /NFL /NDL /NJH /NJS") >= 8)
@@ -111,7 +136,11 @@ public static class Pendrive
 
         var pastaImagens = $@"{dados}:\MontaWin\Imagens";
         Directory.CreateDirectory(pastaImagens);
+        var leiaMe = $@"{dados}:\MontaWin\Drivers\LEIA-ME.txt";
+        Directory.CreateDirectory(Path.GetDirectoryName(leiaMe)!);
+        if (!File.Exists(leiaMe)) File.WriteAllText(leiaMe, LeiaMeDrivers);
         var destino = Path.Combine(pastaImagens, Path.GetFileNameWithoutExtension(g.Iso.Iso) + ".wim");
+        if (File.Exists(destino)) File.Delete(destino); // mesma ISO de novo: substitui em vez de duplicar as edições
         double passo = 85.0 / g.Indices.Length;
         for (int k = 0; k < g.Indices.Length; k++)
         {
@@ -119,7 +148,7 @@ public static class Pendrive
             var nome = g.Iso.Edicoes.First(e => e.Indice == g.Indices[k]).Nome;
             progresso($"Copiando {nome} ({k + 1} de {g.Indices.Length})", inicio);
             Exigir(Comandos.Executar("dism",
-                $"/Export-Image /SourceImageFile:\"{g.Iso.Install}\" /SourceIndex:{g.Indices[k]} /DestinationImageFile:\"{destino}\" /Compress:max",
+                $"/Export-Image /SourceImageFile:\"{g.Iso.Install}\" /SourceIndex:{g.Indices[k]} /DestinationImageFile:\"{destino}\" /Compress:{(g.Rapida ? "fast" : "max")}",
                 p => progresso(null, inicio + p * passo / 100)), $"O DISM não conseguiu copiar {nome}.");
         }
 

@@ -3,6 +3,9 @@ namespace MontaWin.Implantador;
 /// <summary>Um driver exportado pelo DISM (uma pasta com o .inf).</summary>
 public record Driver(string Pasta, string Classe, string Fabricante, string Inf)
 {
+    /// <summary>Vem marcado no backup: o que faz o PC funcionar. Impressora, firmware e tipos desconhecidos ficam desmarcados.</summary>
+    public bool Basico => Drivers.EhBasico(Classe);
+
     public string Descricao => $"{Tui.Ajustar(Classe, 14)} {Tui.Ajustar(Fabricante, 26)} {Inf}";
 }
 
@@ -16,6 +19,10 @@ public static class Drivers
         ["SCSIAdapter"] = "Armazenamento", ["HDC"] = "Armazenamento", ["USB"] = "USB", ["Biometric"] = "Biometria",
         ["Extension"] = "Extensão", ["SoftwareComponent"] = "Componente", ["Firmware"] = "Firmware",
     };
+
+    static readonly string[] NaoBasicos = ["Impressora", "Firmware"];
+
+    public static bool EhBasico(string classe) => Classes.ContainsValue(classe) && !NaoBasicos.Contains(classe);
 
     public static List<Driver> Listar(string pastaExportada) =>
         Directory.GetDirectories(pastaExportada)

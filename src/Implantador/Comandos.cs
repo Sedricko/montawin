@@ -9,6 +9,16 @@ public static partial class Comandos
     /// <summary>Últimas linhas de saída do último comando, para mostrar em caso de erro.</summary>
     public static readonly List<string> Saida = [];
 
+    /// <summary>Arquivo de registro no pendrive (null = não registra). Ajuda a descobrir o que falhou num PC.</summary>
+    public static string? Log;
+
+    public static void Registrar(string texto)
+    {
+        if (Log == null) return;
+        try { File.AppendAllText(Log, $"[{DateTime.Now:HH:mm:ss}] {texto}{Environment.NewLine}"); }
+        catch (IOException) { } // pendrive removido: o registro não pode derrubar a instalação
+    }
+
     /// <summary>Roda um programa e repassa o percentual que ele imprimir (DISM, robocopy).</summary>
     public static int Executar(string exe, string argumentos, Action<double>? progresso = null)
     {
@@ -37,6 +47,7 @@ public static partial class Comandos
         }
         if (linha.Length > 0) Guardar(linha.ToString());
         p.WaitForExit();
+        lock (Saida) Registrar($"{exe} {argumentos} -> código {p.ExitCode}" + (p.ExitCode == 0 ? "" : "\n    " + string.Join("\n    ", Saida)));
         return p.ExitCode;
     }
 

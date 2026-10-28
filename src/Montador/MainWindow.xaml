@@ -53,16 +53,20 @@
           <TextBlock Style="{StaticResource Titulo}" Text="2 · Pendrive" />
           <DockPanel>
             <Button x:Name="BotaoAtualizar" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Atualizar" Click="Atualizar" />
-            <ComboBox x:Name="ListaPendrives" DisplayMemberPath="Descricao" />
+            <ComboBox x:Name="ListaPendrives" DisplayMemberPath="Descricao" SelectionChanged="PendriveEscolhido" />
           </DockPanel>
+          <CheckBox x:Name="Manter" Margin="0,10,0,0" Visibility="Collapsed" IsChecked="True"
+                    Content="Manter o que já está no pendrive: só adiciona esta ISO e atualiza o painel (imagens e backups ficam)" />
           <TextBlock Style="{StaticResource Dica}" Margin="0,8,0,0"
-                     Text="Use um pendrive de 16 GB ou mais. Tudo o que estiver nele será apagado. Só aparecem discos USB." />
+                     Text="Use um pendrive de 16 GB ou mais. Na primeira vez, tudo o que estiver nele é apagado. Só aparecem discos USB." />
         </StackPanel>
       </Border>
 
       <Border Style="{StaticResource Cartao}">
         <StackPanel>
           <TextBlock Style="{StaticResource Titulo}" Text="3 · Criar" />
+          <CheckBox x:Name="Rapida" Margin="0,0,0,12"
+                    Content="Instalação mais rápida (imagem ~30% maior; ideal para pendrive USB 3.0 ou SSD externo)" />
           <Button x:Name="BotaoCriar" Content="Criar pendrive" Padding="24,10" HorizontalAlignment="Left" FontWeight="SemiBold" Click="Criar" />
           <ProgressBar x:Name="Barra" Height="6" Margin="0,16,0,6" Maximum="100" />
           <TextBlock x:Name="Status" Style="{StaticResource Dica}" Text="Escolha a ISO e o pendrive." />

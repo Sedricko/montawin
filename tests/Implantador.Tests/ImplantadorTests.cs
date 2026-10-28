@@ -223,4 +223,45 @@ public class ImplantadorTests
         var linhas = MontaWin.Montador.Pendrive.WinpeshlIni.Replace("\r", "").Split('\n');
         Assert.Equal(new[] { "[LaunchApps]", @"%SYSTEMROOT%\System32\wpeinit.exe", @"%SYSTEMDRIVE%\MontaWin\Implantador.exe" }, linhas);
     }
+
+    [Theory]
+    [InlineData("Rede", true)]
+    [InlineData("Vídeo", true)]
+    [InlineData("Áudio", true)]
+    [InlineData("Chipset", true)]
+    [InlineData("Impressora", false)]
+    [InlineData("Firmware", false)]
+    [InlineData("Sensor", false)]
+    public void MarcaDriversBasicosPorPadrao(string classe, bool basico) => Assert.Equal(basico, Drivers.EhBasico(classe));
+
+    [Fact]
+    public void AvisaPendriveLentoComEstimativa()
+    {
+        Assert.Null(Sistema.AvisoPendriveLento(120, 5_000_000_000));
+        var aviso = Sistema.AvisoPendriveLento(25, 5_000_000_000)!; // 5 GB a 25 MB/s = 200 s
+        Assert.Contains("25 MB/s", aviso);
+        Assert.Contains("USB 3.0", aviso);
+        Assert.Contains("~4 min", aviso);
+    }
+
+    [Fact]
+    public void UnattendRodaOScriptDoPrimeiroLogin()
+    {
+        var xml = System.Xml.Linq.XDocument.Parse(Unattend.Gerar("pt-BR", "Maria", ""));
+        var ns = (System.Xml.Linq.XNamespace)"urn:schemas-microsoft-com:unattend";
+        Assert.Equal(@"cmd /c ""%SystemDrive%\Windows\Setup\Scripts\MontaWin-primeiro-login.cmd""",
+            xml.Descendants(ns + "CommandLine").Single().Value);
+    }
+
+    [Fact]
+    public void ScriptDoPrimeiroLoginDevolvePastasEApagaASenha()
+    {
+        var script = Unattend.GerarScriptPrimeiroLogin([@"joao\Documents", @"joao\Desktop", @"maria\Pictures"]);
+        var linhas = script.Split("\r\n", StringSplitOptions.RemoveEmptyEntries);
+        Assert.Contains(@"robocopy ""%SystemDrive%\Arquivos restaurados\joao\Documents"" ""%USERPROFILE%\Documents"" /E /MOVE /MT:16 /R:1 /W:1 >nul", linhas);
+        Assert.Contains(@"robocopy ""%SystemDrive%\Arquivos restaurados\maria\Pictures"" ""%USERPROFILE%\Pictures"" /E /MOVE /MT:16 /R:1 /W:1 >nul", linhas);
+        Assert.Contains(@"rd ""%SystemDrive%\Arquivos restaurados\joao"" 2>nul", linhas);
+        Assert.Equal(@"del /f /q ""%WINDIR%\Panther\unattend.xml""", linhas[^1]);
+        Assert.Equal(2, Unattend.GerarScriptPrimeiroLogin([]).Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Count(l => !l.StartsWith('@') && !l.StartsWith("rem")));
+    }
 }

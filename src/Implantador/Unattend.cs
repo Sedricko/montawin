@@ -8,6 +8,10 @@ namespace MontaWin.Implantador;
 /// </summary>
 public static class Unattend
 {
+    /// <summary>Caminho (no Windows instalado) do script que roda uma vez no primeiro login.</summary>
+    public const string ScriptPrimeiroLogin = @"Windows\Setup\Scripts\MontaWin-primeiro-login.cmd";
+    public const string PastaRestaurados = "Arquivos restaurados";
+
     const string Componente = "processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\"";
 
     public static string Gerar(string idioma, string usuario, string senha)
@@ -29,6 +33,13 @@ public static class Unattend
                   <UserLocale>{idioma}</UserLocale>
                 </component>
                 <component name="Microsoft-Windows-Shell-Setup" {Componente}>
+                  <FirstLogonCommands>
+                    <SynchronousCommand wcm:action="add">
+                      <Order>1</Order>
+                      <CommandLine>cmd /c "%SystemDrive%\{ScriptPrimeiroLogin}"</CommandLine>
+                      <Description>MontaWin</Description>
+                    </SynchronousCommand>
+                  </FirstLogonCommands>
                   <OOBE>
                     <HideEULAPage>true</HideEULAPage>
                     <HideOEMRegistrationScreen>true</HideOEMRegistrationScreen>
@@ -50,5 +61,25 @@ public static class Unattend
               </settings>
             </unattend>
             """;
+    }
+
+    /// <summary>
+    /// Script do primeiro login: move as pastas pessoais restauradas (ex.: "joao\Documents") para as pastas
+    /// do usuário novo e apaga o unattend.xml, que guarda a senha em texto simples.
+    /// </summary>
+    public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas)
+    {
+        var s = new System.Text.StringBuilder("@echo off\r\nrem Gerado pelo MontaWin: roda uma vez, no primeiro login.\r\n");
+        foreach (var rel in pastasRestauradas)
+        {
+            var origem = $@"%SystemDrive%\{PastaRestaurados}\{rel}";
+            s.Append($"robocopy \"{origem}\" \"%USERPROFILE%\\{Path.GetFileName(rel)}\" /E /MOVE /MT:16 /R:1 /W:1 >nul\r\n");
+        }
+        // Remove as pastas que ficaram vazias (rd sem /s não apaga pasta com arquivos)
+        foreach (var usuario in pastasRestauradas.Select(r => r.Split('\\')[0]).Distinct())
+            s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\\{usuario}\" 2>nul\r\n");
+        s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\" 2>nul\r\n");
+        s.Append("del /f /q \"%WINDIR%\\Panther\\unattend.xml\"\r\n");
+        return s.ToString();
     }
 }

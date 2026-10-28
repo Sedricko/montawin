@@ -3,19 +3,42 @@ using MontaWin.Implantador;
 
 Tui.Iniciar();
 Tui.InfoSistema = Sistema.Resumo() + " ";
-// Plano Alto desempenho: o WinPE inicia em Equilibrado e a Microsoft recomenda trocar para acelerar a implantação.
-Comandos.Executar("powercfg", "/s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c");
 
-// Pasta MontaWin no pendrive (partição NTFS): imagens e backups ficam lá.
+// Pasta MontaWin no pendrive (partição NTFS): imagens, backups, drivers extras e registros ficam lá.
 string? raiz = DriveInfo.GetDrives()
     .Select(d => Path.Combine(d.Name, "MontaWin"))
     .FirstOrDefault(p => Directory.Exists(Path.Combine(p, "Imagens")));
 Disco? alvo = null;
 string? pastaDrivers = null;
+string? pastaArquivos = null;
 var backupsFeitos = new List<string>(); // pastas de backup: nunca podem ficar no disco que vai ser formatado
 string sessao = DateTime.Now.ToString("yyyy-MM-dd_HHmm");
+if (raiz != null)
+{
+    Directory.CreateDirectory(Path.Combine(raiz, "Logs"));
+    Comandos.Log = Path.Combine(raiz, "Logs", $"{sessao}.txt");
+    Comandos.Registrar($"MontaWin iniciado: {Sistema.Resumo()}");
+}
 
-string[] acoes = ["Escolher disco", "Backup de drivers", "Backup de arquivos", "Formatar e instalar", "Prompt de comando", "Reiniciar", "Desligar"];
+// Plano Alto desempenho: o WinPE inicia em Equilibrado e a Microsoft recomenda trocar para acelerar a implantação.
+Comandos.Executar("powercfg", "/s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c");
+
+// Drivers extras (ex.: Intel RST/RAID): carregados agora para o disco aparecer e instalados também no Windows novo.
+string? pastaDriversExtras = raiz == null ? null : Path.Combine(raiz, "Drivers");
+var infsExtras = pastaDriversExtras != null && Directory.Exists(pastaDriversExtras)
+    ? Directory.GetFiles(pastaDriversExtras, "*.inf", SearchOption.AllDirectories) : Array.Empty<string>();
+if (infsExtras.Length > 0)
+{
+    Tui.Etapa("Iniciando", $"Carregando {infsExtras.Length} drivers extras da pasta MontaWin\\Drivers");
+    for (int i = 0; i < infsExtras.Length; i++)
+    {
+        Comandos.Executar("drvload", $"\"{infsExtras[i]}\"");
+        Tui.Progresso((i + 1) * 100.0 / infsExtras.Length);
+    }
+}
+
+string[] acoes = ["Escolher disco", "Backup de drivers", "Backup de arquivos", "Restaurar backup de arquivos", "Formatar e instalar",
+                  "Prompt de comando", "Reiniciar", "Desligar"];
 int ultima = 0;
 while (true)
 {
@@ -23,7 +46,9 @@ while (true)
     {
         alvo?.Descricao ?? "Nenhum disco escolhido",
         pastaDrivers != null ? "Backup de drivers feito: será reinstalado após a instalação" : "Backup de drivers: não feito",
-        raiz != null ? $"Pendrive: {raiz}" : "Pasta MontaWin\\Imagens não encontrada em nenhuma unidade",
+        pastaArquivos != null ? "Backup de arquivos feito: pode ser restaurado no Windows novo" : "Backup de arquivos: não feito",
+        raiz != null ? $"Pendrive: {raiz}" + (infsExtras.Length > 0 ? $"   ·   {infsExtras.Length} drivers extras" : "")
+                     : "Pasta MontaWin\\Imagens não encontrada em nenhuma unidade",
     };
     ultima = Math.Max(0, Tui.Menu("Ações", info, acoes, ultima));
     try
@@ -33,14 +58,16 @@ while (true)
             case 0: alvo = EscolherDisco("Escolher disco (Windows atual, para os backups)", alvo) ?? alvo; break;
             case 1: BackupDrivers(); break;
             case 2: BackupArquivos(); break;
-            case 3: Instalar(); break;
-            case 4: PromptDeComando(); break;
-            case 5: Comandos.Executar("wpeutil", "reboot"); break;
-            case 6: Comandos.Executar("wpeutil", "shutdown"); break;
+            case 3: RestaurarManual(); break;
+            case 4: Instalar(); break;
+            case 5: PromptDeComando(); break;
+            case 6: Comandos.Executar("wpeutil", "reboot"); break;
+            case 7: Comandos.Executar("wpeutil", "shutdown"); break;
         }
     }
     catch (Exception e)
     {
+        Comandos.Registrar($"ERRO: {e.Message}");
         Tui.Mensagem("Erro", e.Message.Split('\n'), erro: true);
     }
 }
@@ -75,8 +102,8 @@ void BackupDrivers()
 
     // Exporta tudo e depois deixa desmarcar o que não deve voltar (ex.: um driver de vídeo problemático).
     var drivers = Drivers.Listar(destino);
-    var marcados = Tui.Selecao("Drivers que serão reinstalados (Esc mantém todos)", [],
-        drivers.Select(d => d.Descricao).ToList(), Enumerable.Repeat(true, drivers.Count).ToArray());
+    var marcados = Tui.Selecao("Drivers que serão reinstalados (básicos já vêm marcados; Esc mantém todos)", [],
+        drivers.Select(d => d.Descricao).ToList(), drivers.Select(d => d.Basico).ToArray());
     int removidos = 0;
     for (int i = 0; marcados != null && i < drivers.Count; i++)
         if (!marcados[i]) { Directory.Delete(drivers[i].Pasta, recursive: true); removidos++; }
@@ -133,12 +160,42 @@ void BackupArquivos()
         Tui.Etapa("Backup de arquivos", $"{item.Usuario} · {item.Nome}  ({Formatar.Tamanho(item.Tamanho)})");
         Tui.Progresso(total == 0 ? 100 : copiado * 100.0 / total);
         var temp = Path.Combine(item.Perfil, "AppData", "Local", "Temp");
-        if (Comandos.Executar("robocopy", $"\"{item.Origem}\" \"{item.Destino(pasta)}\" /E /R:1 /W:1 /XJ /XD \"{temp}\" /NP /NFL /NDL /NJH /NJS") >= 8)
+        if (Comandos.Executar("robocopy", $"\"{item.Origem}\" \"{item.Destino(pasta)}\" /E /MT:16 /R:1 /W:1 /XJ /XD \"{temp}\" /NP /NFL /NDL /NJH /NJS") >= 8)
             throw new Exception(Falha($"Falha ao copiar {item.Origem}."));
         copiado += item.Tamanho;
     }
     backupsFeitos.Add(pasta);
+    pastaArquivos = pasta;
     Tui.Mensagem("Backup de arquivos", [$"{itens.Count} pastas copiadas ({Formatar.Tamanho(total)})", $"Salvo em {pasta}"]);
+}
+
+// Copia um backup de arquivos para a pasta "Arquivos restaurados" na raiz do Windows (C:\Arquivos restaurados).
+void Restaurar(string backup, char windows)
+{
+    Tui.Etapa("Restaurando arquivos", $"{backup} -> {windows}:\\{Unattend.PastaRestaurados}");
+    if (Comandos.Executar("robocopy", $"\"{backup}\" \"{windows}:\\{Unattend.PastaRestaurados}\" /E /MT:16 /R:1 /W:1 /NP /NFL /NDL /NJH /NJS") >= 8)
+        throw new Exception(Falha("Falha ao restaurar os arquivos."));
+}
+
+void RestaurarManual()
+{
+    var backups = DriveInfo.GetDrives().Where(d => d.IsReady && d.Name[0] != 'X')
+        .SelectMany(d => Directory.Exists(Path.Combine(d.Name, "MontaWin", "Backups"))
+            ? Directory.GetDirectories(Path.Combine(d.Name, "MontaWin", "Backups")) : Array.Empty<string>())
+        .Select(sessaoBackup => Path.Combine(sessaoBackup, "Arquivos"))
+        .Where(Directory.Exists)
+        .OrderByDescending(x => x)
+        .ToList();
+    if (!Exigir(backups.Count > 0, "Nenhum backup de arquivos encontrado (pasta MontaWin\\Backups).")) return;
+    int b = Tui.Menu("Qual backup restaurar?", [], backups);
+    if (b < 0) return;
+    var windows = Discos.Listar().Where(d => !d.Usb).SelectMany(d => d.Particoes.Where(p => p.TemWindows && p.Letra != null).Select(p => (d, p))).ToList();
+    if (!Exigir(windows.Count > 0, "Nenhum Windows instalado encontrado nos discos internos.")) return;
+    int w = Tui.Menu("Restaurar em qual Windows?", [], windows.Select(x => $"{x.p.Letra}:  {x.d.Descricao.Trim()}").ToList());
+    if (w < 0) return;
+    char letra = windows[w].p.Letra!.Value;
+    Restaurar(backups[b], letra);
+    Tui.Mensagem("Restaurar backup de arquivos", [$"Arquivos copiados para a pasta \"{Unattend.PastaRestaurados}\" na raiz do Windows ({letra}: aqui no painel; C: no Windows)."]);
 }
 
 void Instalar()
@@ -225,14 +282,29 @@ void Instalar()
         unattend = Unattend.Gerar(edicao.Idioma, usuario, senha);
         aviso.Add($"Conta local: {usuario}{(senha.Length > 0 ? " (com senha)" : " (sem senha)")} · telas iniciais puladas");
     }
+    bool restaurar = false;
+    if (pastaArquivos != null)
+    {
+        int opcao = Tui.Menu("Restaurar o backup de arquivos no Windows novo?", [$"Backup: {pastaArquivos}"], [
+            "Sim: copiar os arquivos para o Windows novo (recomendado)",
+            "Não: deixar só no backup (dá para restaurar depois pelo menu)",
+        ]);
+        if (opcao < 0) return;
+        restaurar = opcao == 0;
+        if (restaurar) aviso.Add(unattend != null ? "Backup de arquivos: volta para as pastas do usuário novo no primeiro login"
+                                                  : $"Backup de arquivos: copiado para C:\\{Unattend.PastaRestaurados}");
+    }
     aviso.Add($"Instalar: {edicao.Nome}   ·   Modo: {(uefi ? "UEFI (GPT)" : "BIOS (MBR)")}");
+    Tui.Etapa("Formatar e instalar", "Verificando a velocidade do pendrive...");
+    if (Sistema.AvisoPendriveLento(Sistema.VelocidadeLeitura(edicao.Arquivo), new FileInfo(edicao.Arquivo).Length) is string lento) aviso.Add(lento);
+    if (Sistema.NaBateria) aviso.Add("Notebook na bateria: ligue o carregador (a instalação fica mais rápida e não corre risco de desligar).");
     if (disco.LetraWindows != null && pastaDrivers == null) aviso.Add("Atenção: o backup de drivers ainda não foi feito.");
     if (!Tui.Confirmar("Formatar e instalar", aviso, "FORMATAR")) return;
 
     Tui.Etapa("Instalando", "1/5 · Preparando as partições");
-    var script = Path.Combine(Path.GetTempPath(), "montawin-diskpart.txt");
-    File.WriteAllText(script, plano.Script);
-    if (Comandos.Executar("diskpart", $"/s \"{script}\"") != 0) throw new Exception(Falha("O diskpart não conseguiu preparar as partições."));
+    var scriptDiskpart = Path.Combine(Path.GetTempPath(), "montawin-diskpart.txt");
+    File.WriteAllText(scriptDiskpart, plano.Script);
+    if (Comandos.Executar("diskpart", $"/s \"{scriptDiskpart}\"") != 0) throw new Exception(Falha("O diskpart não conseguiu preparar as partições."));
     var w = plano.Windows;
 
     Tui.Etapa("Instalando", $"2/5 · Aplicando {edicao.Nome}");
@@ -244,11 +316,24 @@ void Instalar()
         File.WriteAllText($@"{w}:\Windows\Panther\unattend.xml", unattend);
     }
 
-    if (pastaDrivers != null)
+    // Driver que falhar não impede a instalação: o Windows Update completa depois.
+    foreach (var (pasta, nome) in new[] { (pastaDrivers, "do backup"), (infsExtras.Length > 0 ? pastaDriversExtras : null, "extras") })
     {
-        Tui.Etapa("Instalando", "3/5 · Reinstalando os drivers do backup");
-        // Driver que falhar não impede a instalação: o Windows Update completa depois.
-        Comandos.Executar("dism", $"/Image:{w}:\\ /Add-Driver /Driver:\"{pastaDrivers}\" /Recurse", Tui.Progresso);
+        if (pasta == null) continue;
+        Tui.Etapa("Instalando", $"3/5 · Instalando os drivers {nome}");
+        Comandos.Executar("dism", $"/Image:{w}:\\ /Add-Driver /Driver:\"{pasta}\" /Recurse", Tui.Progresso);
+    }
+    if (restaurar) Restaurar(pastaArquivos!, w);
+    if (unattend != null)
+    {
+        // Pastas pessoais (joao\Documents...) voltam para o usuário novo; o resto fica em C:\Arquivos restaurados.
+        var pessoais = restaurar
+            ? Directory.GetDirectories(pastaArquivos!).SelectMany(u => Backup.PastasPessoais
+                .Where(p => Directory.Exists(Path.Combine(u, p))).Select(p => $@"{Path.GetFileName(u)}\{p}")).ToList()
+            : new List<string>();
+        var script = $@"{w}:\{Unattend.ScriptPrimeiroLogin}";
+        Directory.CreateDirectory(Path.GetDirectoryName(script)!);
+        File.WriteAllText(script, Unattend.GerarScriptPrimeiroLogin(pessoais));
     }
 
     Tui.Etapa("Instalando", "4/5 · Criando a inicialização");
@@ -256,6 +341,8 @@ void Instalar()
         throw new Exception(Falha("O bcdboot não conseguiu criar a inicialização."));
 
     var avisos = new List<string> { $"{edicao.Nome} instalado.", "Remova o pendrive e reinicie." };
+    if (restaurar && unattend == null) avisos.Add($"Arquivos do backup em C:\\{Unattend.PastaRestaurados}.");
+    Comandos.Registrar($"Instalação concluída: {edicao.Nome} no disco {disco.Numero}");
     if (plano.Recuperacao is char r)
     {
         Tui.Etapa("Instalando", "5/5 · Configurando a recuperação do Windows");
