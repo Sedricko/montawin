@@ -249,7 +249,7 @@ public class ImplantadorTests
     {
         var xml = System.Xml.Linq.XDocument.Parse(Unattend.Gerar("pt-BR", "Maria", ""));
         var ns = (System.Xml.Linq.XNamespace)"urn:schemas-microsoft-com:unattend";
-        Assert.Equal(@"cmd /c ""%SystemDrive%\Windows\Setup\Scripts\MontaWin-primeiro-login.cmd""",
+        Assert.Equal(@"conhost.exe --headless cmd /c %SystemDrive%\Windows\Setup\Scripts\MontaWin-primeiro-login.cmd", // sem janela preta
             xml.Descendants(ns + "CommandLine").Single().Value);
     }
 
@@ -279,17 +279,23 @@ public class ImplantadorTests
     [Fact]
     public void ScriptDeProgramasEsperaOWingetEInstalaCadaUm()
     {
-        var script = Unattend.GerarScriptProgramas(["Google.Chrome", "RARLab.WinRAR"]);
-        Assert.Contains("where winget >nul 2>nul && goto instalar\r\n", script);
-        Assert.Contains("winget install --id Google.Chrome -e --source winget --silent --accept-package-agreements --accept-source-agreements\r\n", script);
-        Assert.Contains("winget install --id RARLab.WinRAR -e", script);
-        Assert.Contains("winget install --id 9NCBCSZSJRSB -e --source msstore", Unattend.GerarScriptProgramas(["9NCBCSZSJRSB"]));
+        var script = Unattend.GerarScriptProgramas(["Google.Chrome", "RARLab.WinRAR", "9NCBCSZSJRSB"]);
+        Assert.Contains("where winget >nul 2>nul && goto usuario\r\n", script);
+        Assert.Contains("if not exist \"%FEITOS%\\Google.Chrome\" \"%WINGET%\" install --id Google.Chrome -e --source winget %ESCOPO% --silent --accept-package-agreements --accept-source-agreements && type nul>\"%FEITOS%\\Google.Chrome\"\r\n", script);
+        Assert.Contains("install --id RARLab.WinRAR -e --source winget", script);
+        // Loja só no primeiro login (precisa do usuário), com a origem certa
+        Assert.Contains("if \"%MODO%\"==\"usuario\" if not exist \"%FEITOS%\\9NCBCSZSJRSB\" \"%WINGET%\" install --id 9NCBCSZSJRSB -e --source msstore", script);
         Assert.False(Programas.DaLoja("Google.Chrome"));
-        Assert.EndsWith(":fim\r\n", script);
-        Assert.Contains(@"start ""MontaWin - instalando programas"" /min cmd /c ""%SystemDrive%\Windows\Setup\Scripts\MontaWin-programas.cmd""",
+        // Antes do login: winget do Windows, só com internet e só para todos os usuários
+        Assert.Contains("curl.exe -s -m 15 -o nul https://cdn.winget.microsoft.com/cache/source.msix || goto fim", script);
+        Assert.Contains("set ESCOPO=--scope machine", script);
+        Assert.Contains(@"if not ""%2""==""log"" (call ""%~f0"" %1 log >>""%~dp0MontaWin-programas.log"" 2>&1 & exit /b)", script);
+        Assert.Contains(@"start """" conhost.exe --headless cmd /c %SystemDrive%\Windows\Setup\Scripts\MontaWin-programas.cmd usuario",
             Unattend.GerarScriptPrimeiroLogin([], temProgramas: true));
         Assert.DoesNotContain("start", Unattend.GerarScriptPrimeiroLogin([]));
+        Assert.Equal("call %SystemDrive%\\Windows\\Setup\\Scripts\\MontaWin-programas.cmd sistema\r\n", Unattend.ChamadaSetupComplete);
     }
+
 
     static byte[] LogNvme(byte critico = 0, byte reserva = 100, byte desgaste = 3, long errosMidia = 0)
     {
@@ -346,11 +352,11 @@ public class ImplantadorTests
     public void ScriptRodaInstaladoresAntesDoWinget()
     {
         var script = Unattend.GerarScriptProgramas(["Google.Chrome"], [("NVIDIA_app_v11.exe", "-s"), ("setup.exe", "")]);
-        int nvidia = script.IndexOf(@"start """" /wait ""%SystemDrive%\Windows\Setup\Scripts\Instaladores\NVIDIA_app_v11.exe"" -s" + "\r\n");
+        int nvidia = script.IndexOf("if not exist \"%FEITOS%\\NVIDIA_app_v11.exe\" \"%SystemDrive%\\Windows\\Setup\\Scripts\\Instaladores\\NVIDIA_app_v11.exe\" -s && type nul>\"%FEITOS%\\NVIDIA_app_v11.exe\"\r\n");
         Assert.True(nvidia > 0);
-        Assert.Contains(@"\Instaladores\setup.exe""" + "\r\n", script);
-        Assert.True(script.IndexOf("rd /s /q") > nvidia);
-        Assert.True(script.IndexOf("winget install --id Google.Chrome") > script.IndexOf("rd /s /q"));
+        Assert.Contains("\\Instaladores\\setup.exe\" && type nul>", script);
+        Assert.True(script.IndexOf("install --id Google.Chrome") > nvidia);
+        Assert.True(script.IndexOf("rd /s /q") > script.IndexOf("install --id Google.Chrome")); // apaga no fim, no primeiro login
     }
 
     [Fact]

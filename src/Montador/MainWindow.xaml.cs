@@ -40,8 +40,16 @@ public partial class MainWindow : Window
         {
             var args = Environment.GetCommandLineArgs();
             int captura = Array.IndexOf(args, "--captura");
-            if (captura > 0 && captura + 1 < args.Length) { Capturar(args[captura + 1]); return; }
+            if (captura > 0 && captura + 1 < args.Length)
+            {
+                Directory.CreateDirectory(args[captura + 1]);
+                try { Capturar(args[captura + 1]); }
+                catch (Exception ex) { File.WriteAllText(Path.Combine(args[captura + 1], "erro.txt"), ex.ToString()); }
+                Close();
+                return;
+            }
             if (!File.Exists(Implantador)) Erro($"Não encontrei o Implantador.exe ao lado do MontaWin.exe:\n{Implantador}");
+            CarregarProgramas();
             Atualizar(this, new RoutedEventArgs());
         };
     }
@@ -92,7 +100,6 @@ public partial class MainWindow : Window
     /// <summary>Imagens de exemplo (MontaWin.exe --captura pasta): esta janela e os fundos do painel, nos 3 temas.</summary>
     void Capturar(string pasta)
     {
-        Directory.CreateDirectory(pasta);
         CaminhoIso.Text = @"D:\ISOs\Win11_25H2_BrazilianPortuguese_x64.iso";
         ListaEdicoes.ItemsSource = new[] { new EdicaoItem(1, "Windows 11 Home"), new EdicaoItem(6, "Windows 11 Pro") };
         TituloEdicoes.Visibility = Visibility.Visible;
@@ -109,7 +116,6 @@ public partial class MainWindow : Window
             SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-{tema}.png"), desfocado: false);
             SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-desfocado-{tema}.png"), desfocado: true);
         }
-        Close();
     }
 
     void Erro(string mensagem) => MessageBox.Show(this, mensagem, "MontaWin", MessageBoxButton.OK, MessageBoxImage.Error);
@@ -117,7 +123,8 @@ public partial class MainWindow : Window
     void Ocupado(bool ocupado, string status)
     {
         BotaoIso.IsEnabled = BotaoAtualizar.IsEnabled = BotaoCriar.IsEnabled = ListaPendrives.IsEnabled = ListaEdicoes.IsEnabled =
-            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = Temas.IsEnabled = AtualizarAuto.IsEnabled = BaixarProgramas.IsEnabled = !ocupado;
+            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = Temas.IsEnabled = AtualizarAuto.IsEnabled = BaixarProgramas.IsEnabled =
+            BotaoProcurar.IsEnabled = BotaoAdicionar.IsEnabled = BotaoRemover.IsEnabled = BotaoArquivo.IsEnabled = BotaoSalvarProgramas.IsEnabled = !ocupado;
         Status.Text = status;
     }
 
@@ -166,9 +173,114 @@ public partial class MainWindow : Window
     // Pendrive já gravado pelo MontaWin: oferece adicionar a ISO sem apagar imagens e backups.
     void PendriveEscolhido(object sender, RoutedEventArgs e)
     {
-        bool existente = ListaPendrives.SelectedItem is Disco d && Pendrive.Existente(d) != null;
-        Manter.Visibility = existente ? Visibility.Visible : Visibility.Collapsed;
-        Manter.IsChecked = existente;
+        var existente = ListaPendrives.SelectedItem is Disco d ? Pendrive.Existente(d) : null;
+        Manter.Visibility = existente != null ? Visibility.Visible : Visibility.Collapsed;
+        Manter.IsChecked = existente != null;
+        BotaoSalvarProgramas.Visibility = existente != null ? Visibility.Visible : Visibility.Collapsed;
+        // Primeira vez neste PC: a lista que o técnico já editou no pendrive vira a lista do MontaWin.
+        if (existente is (_, char dados) && !File.Exists(ListaProgramas.Arquivo) && File.Exists($@"{dados}:\MontaWin\Programas.txt"))
+        {
+            ListaProgramas.Salvar(File.ReadAllText($@"{dados}:\MontaWin\Programas.txt"));
+            CarregarProgramas();
+        }
+    }
+
+    // ---------- Programas ----------
+
+    void CarregarProgramas() =>
+        ListaProgramasUi.ItemsSource = Programas.Ler(ListaProgramas.Ler()).Select(p => new ItemLista(p)).ToList();
+
+    void RemoverPrograma(object sender, RoutedEventArgs e)
+    {
+        if (ListaProgramasUi.SelectedItem is not ItemLista item) { Erro("Escolha na lista o programa que vai sair."); return; }
+        ListaProgramas.Salvar(ListaProgramas.Remover(ListaProgramas.Ler(), item.Programa.Nome));
+        CarregarProgramas();
+    }
+
+    void BuscaTecla(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Enter) ProcurarPrograma(sender, e);
+    }
+
+    async void ProcurarPrograma(object sender, RoutedEventArgs e)
+    {
+        var busca = BuscaPrograma.Text.Trim().Replace("\"", "");
+        if (busca.Length < 2) { Erro("Digite o nome do programa (ex.: anydesk)."); return; }
+        Ocupado(true, $"Procurando \"{busca}\" no winget...");
+        var resultados = await Task.Run(() =>
+        {
+            Comandos.Executar("winget", $"search \"{busca}\" --source winget --accept-source-agreements --disable-interactivity");
+            return ListaProgramas.LerBusca(Comandos.UltimaSaidaCompleta);
+        });
+        ResultadosBusca.ItemsSource = resultados;
+        ResultadosBusca.SelectedIndex = resultados.Count > 0 ? 0 : -1;
+        if (resultados.Count > 0) ResultadosBusca.IsDropDownOpen = true;
+        Ocupado(false, resultados.Count > 0 ? $"{resultados.Count} encontrados: escolha um e clique em Adicionar à lista."
+                                            : "Nada encontrado no winget. Tente outro nome ou use um instalador que você já tem.");
+    }
+
+    void ResultadoEscolhido(object sender, RoutedEventArgs e)
+    {
+        if (ResultadosBusca.SelectedItem is not ResultadoBusca r) return;
+        (ArquivoInstalador.Text, ParametrosInstalador.Text, NomePrograma.Text) = ("", "", r.Nome.TrimEnd('…'));
+    }
+
+    void EscolherInstalador(object sender, RoutedEventArgs e)
+    {
+        var dialogo = new OpenFileDialog { Filter = "Instalador (*.exe;*.msi)|*.exe;*.msi" };
+        if (dialogo.ShowDialog(this) != true) return;
+        ResultadosBusca.SelectedIndex = -1;
+        ArquivoInstalador.Text = dialogo.FileName;
+        NomePrograma.Text = Path.GetFileNameWithoutExtension(dialogo.FileName);
+        ParametrosInstalador.Text = ListaProgramas.ParametrosSugeridos(dialogo.FileName);
+    }
+
+    void AdicionarPrograma(object sender, RoutedEventArgs e)
+    {
+        var nome = NomePrograma.Text.Trim();
+        if (nome.Length == 0) { Erro("Digite o nome que vai aparecer no painel."); return; }
+        string valor;
+        if (ArquivoInstalador.Text.Length > 0)
+        {
+            // Sem espaços no nome do arquivo: a linha da lista separa o arquivo dos parâmetros pelo espaço.
+            var arquivo = Path.GetFileName(ArquivoInstalador.Text).Replace(' ', '_');
+            Directory.CreateDirectory(ListaProgramas.PastaInstaladores);
+            File.Copy(ArquivoInstalador.Text, Path.Combine(ListaProgramas.PastaInstaladores, arquivo), overwrite: true);
+            valor = $"arquivo: {arquivo} {ParametrosInstalador.Text.Trim()}".TrimEnd();
+        }
+        else if (ResultadosBusca.SelectedItem is ResultadoBusca r) valor = r.Id;
+        else { Erro("Procure um programa no winget ou escolha um arquivo instalador."); return; }
+        ListaProgramas.Salvar(ListaProgramas.Adicionar(ListaProgramas.Ler(), nome, valor));
+        CarregarProgramas();
+        (BuscaPrograma.Text, ArquivoInstalador.Text, NomePrograma.Text, ParametrosInstalador.Text) = ("", "", "", "");
+        ResultadosBusca.ItemsSource = null;
+        Status.Text = $"{nome} adicionado. Ele vai para o pendrive ao criar (ou em \"Salvar programas no pendrive\").";
+    }
+
+    async void SalvarProgramasNoPendrive(object sender, RoutedEventArgs e)
+    {
+        if (ListaPendrives.SelectedItem is not Disco d || Pendrive.Existente(d) is not (_, char dados)) { Erro("Escolha um pendrive já gravado pelo MontaWin."); return; }
+        bool baixar = BaixarProgramas.IsChecked == true;
+        Ocupado(true, "Salvando os programas no pendrive...");
+        try
+        {
+            var falhas = await Task.Run(() =>
+            {
+                Pendrive.SalvarProgramas(dados, ListaProgramas.Ler(), ListaProgramas.PastaInstaladores);
+                return baixar ? Pendrive.BaixarProgramas(dados, (etapa, pct) => Dispatcher.Invoke(() =>
+                {
+                    if (etapa != null) Status.Text = etapa;
+                    Barra.Value = pct;
+                })) : [];
+            });
+            Barra.Value = 100;
+            Ocupado(false, "Programas salvos no pendrive." + (falhas.Count > 0 ? $" Não deu para baixar: {string.Join(", ", falhas)} (instalam pela internet)." : ""));
+        }
+        catch (Exception ex)
+        {
+            Ocupado(false, "Falhou ao salvar os programas.");
+            Erro(ex.Message);
+        }
     }
 
     async void Criar(object sender, RoutedEventArgs e)
@@ -229,7 +341,7 @@ public partial class MainWindow : Window
             SalvarFundo(FundoDoTema, fundo, desfocado: false);
             SalvarFundo(FundoDoTema, desfocado, desfocado: true);
             var gravacao = new Gravacao(iso, indices, pendrive, Implantador, Rapida.IsChecked == true, manter, atualizacoes, tema,
-                (fundo, desfocado), BaixarProgramas.IsChecked == true);
+                (fundo, desfocado), BaixarProgramas.IsChecked == true, (ListaProgramas.Ler(), ListaProgramas.PastaInstaladores));
             var falhas = await Task.Run(() => Pendrive.Gravar(gravacao, Progresso));
             Ocupado(false, "Pendrive pronto! Dê boot por ele no PC do cliente.");
             MessageBox.Show(this, "Pendrive pronto!\n\nDê boot por ele no PC do cliente: o painel MontaWin abre sozinho." +

@@ -65,14 +65,17 @@ public static class Programas
     /// <summary>
     /// Programa baixado pelo Montador com "winget download" (instalador + manifesto .yaml numa pasta por id).
     /// Retorna a linha que instala sem internet, com os parâmetros silenciosos do manifesto, ou null se não der.
+    /// SoUsuario: o instalador é só para o usuário (Scope: user), então não roda como sistema antes do login.
     /// </summary>
-    public static string? Offline(string pasta, string pastaNoWindows)
+    public static (string Comando, bool SoUsuario)? Offline(string pasta, string pastaNoWindows)
     {
         var arquivos = Directory.GetFiles(pasta);
         var manifesto = arquivos.FirstOrDefault(f => f.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase));
         var instalador = arquivos.FirstOrDefault(f => !f.EndsWith(".yaml", StringComparison.OrdinalIgnoreCase));
-        return manifesto == null || instalador == null ? null
-            : ComandoSilencioso(File.ReadAllText(manifesto), $@"{pastaNoWindows}\{Path.GetFileName(instalador)}");
+        if (manifesto == null || instalador == null) return null;
+        var texto = File.ReadAllText(manifesto);
+        return ComandoSilencioso(texto, $@"{pastaNoWindows}\{Path.GetFileName(instalador)}") is string comando
+            ? (comando, Regex.IsMatch(texto, @"^\s*-?\s*Scope:\s*user\s*$", RegexOptions.Multiline | RegexOptions.IgnoreCase)) : null;
     }
 
     /// <summary>Comando silencioso pelo tipo de instalador do manifesto do winget (null para zip, portátil ou msix: ficam para o winget).</summary>

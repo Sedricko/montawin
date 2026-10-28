@@ -42,8 +42,8 @@ if (infsExtras.Length > 0)
     }
 }
 
-string[] acoes = ["Formatar e instalar o Windows", "Escolher disco (para os backups)", "Backup de drivers", "Backup de arquivos",
-                  "Restaurar backup de arquivos", "Perfis", "Capturar imagem de um Windows", "Prompt de comando", "Reiniciar", "Desligar"];
+string[] acoes = ["Formatar e instalar o Windows", "Backup (drivers e arquivos)", "Restaurar backup de arquivos", "Escolher disco (para os backups)",
+                  "Perfis", "Capturar imagem de um Windows", "Prompt de comando", "Reiniciar", "Desligar"];
 int ultima = 0;
 while (true)
 {
@@ -62,15 +62,14 @@ while (true)
         switch (ultima)
         {
             case 0: Instalar(); break;
-            case 1: alvo = EscolherDisco("Disco do Windows atual (para os backups)", alvo) ?? alvo; break;
-            case 2: BackupDrivers(); break;
-            case 3: BackupArquivos(); break;
-            case 4: RestaurarManual(); break;
-            case 5: MenuPerfis(); break;
-            case 6: CapturarImagem(); break;
-            case 7: Tui.Pausar(PromptDeComando); break;
-            case 8: Comandos.Executar("wpeutil", "reboot"); break;
-            case 9: Comandos.Executar("wpeutil", "shutdown"); break;
+            case 1: BackupCompleto(); break;
+            case 2: RestaurarManual(); break;
+            case 3: alvo = EscolherDisco("Disco do Windows atual (para os backups)", alvo) ?? alvo; break;
+            case 4: MenuPerfis(); break;
+            case 5: CapturarImagem(); break;
+            case 6: Tui.Pausar(PromptDeComando); break;
+            case 7: Comandos.Executar("wpeutil", "reboot"); break;
+            case 8: Comandos.Executar("wpeutil", "shutdown"); break;
         }
     }
     catch (Exception e)
@@ -162,6 +161,23 @@ void BackupDrivers(Disco? origem = null, bool automatico = false)
     backupsFeitos.Add(destino);
     Tui.Registro($"{drivers.Count - removidos} drivers guardados para voltar no Windows novo");
     if (!automatico) Tui.Mensagem("Backup de drivers", [$"{drivers.Count - removidos} drivers salvos em {destino}", "Eles voltam sozinhos em \"Formatar e instalar\"."]);
+}
+
+// Backup de um Windows: marca o que salvar (drivers e/ou arquivos). Retorna false se voltou sem fazer nada.
+bool BackupCompleto(Disco? disco = null)
+{
+    disco ??= alvo?.LetraWindows != null ? alvo : EscolherDisco("De qual disco fazer o backup?", alvo);
+    if (disco == null) return false;
+    if (!Exigir(disco.LetraWindows != null, "Esse disco não tem Windows instalado: não há o que salvar.")) return false;
+    alvo = disco;
+    var m = Tui.Selecao("O que salvar?", [$"Windows encontrado em {disco.LetraWindows}: ({Compacto(disco.Descricao)})"], [
+        "Drivers deste PC (os básicos voltam sozinhos no Windows novo)",
+        "Arquivos dos usuários (pastas pessoais, perfil completo ou escolher pastas)",
+    ], [pastaDrivers == null, pastaArquivos == null]);
+    if (m == null) return false;
+    if (m[0]) BackupDrivers();
+    if (m[1]) BackupArquivos();
+    return true;
 }
 
 void BackupArquivos()
@@ -526,6 +542,18 @@ void Instalar()
             disco = d;
             return Passo.Avancar;
         },
+        // Disco com Windows e sem backup: oferece antes de formatar (depois não tem volta)
+        _ =>
+        {
+            if (disco.LetraWindows == null || (pastaArquivos != null && (pastaDrivers != null || perfil?.BackupDrivers == true))) return Passo.Pular;
+            int r = Tui.Menu("Fazer backup antes de formatar?", [$"O disco tem um Windows em {disco.LetraWindows}:. Depois de formatar, os arquivos não voltam.",
+                pastaDrivers != null ? "Drivers: backup feito." : "Drivers: backup não feito.", pastaArquivos != null ? "Arquivos: backup feito." : "Arquivos: backup não feito."],
+                ["Sim: escolher o que salvar (recomendado)", "Não precisa"]);
+            if (r < 0) return Passo.Voltar;
+            if (r == 0 && !BackupCompleto(disco)) return Passo.Voltar;
+            restaurar = pastaArquivos != null && (perfil?.Restaurar ?? true);
+            return Passo.Avancar;
+        },
         sentido =>
         {
             if (perfil != null)
@@ -740,6 +768,7 @@ void Instalar()
 void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, int modo, PlanoParticoes plano, Particao? particao, bool uefi,
     string? usuario, string senha, List<Programa> escolhidos, bool otimizar, bool removerOneDrive, bool altoDesempenho, bool restaurar, int? windowsGb)
 {
+    Tui.Etapa("Instalando o Windows", "Preparando..."); // a tela de confirmação não fica parada enquanto calcula
     bool backupDriversAutomatico = perfil?.BackupDrivers == true && disco.LetraWindows != null && pastaDrivers == null;
     var instalacoes = new List<(Edicao Edicao, char Letra)> { (edicao, plano.Windows) };
     instalacoes.AddRange(extras.Zip(plano.WindowsExtras));
@@ -749,14 +778,13 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
     // Programas: instaladores baixados no pendrive (arquivo: ou winget offline) vão junto; o resto vem da internet.
     var instaladores = escolhidos.Where(x => x.Instalador != null).Select(x => (AcharInstalador(x)!, Programas.Separar(x.Instalador!).Parametros)).ToList();
     var pastaWinget = Path.Combine(raiz!, "Instaladores", "winget");
-    var offline = new List<(string Id, string Pasta, string Comando)>();
-    var online = new List<string>();
-    foreach (var id in escolhidos.SelectMany(x => x.Ids))
+    var offline = new List<(string Id, string Pasta, string Comando, bool SoUsuario)>();
+    var ids = escolhidos.SelectMany(x => x.Ids).ToList(); // todos: o que falhar sem internet é tentado online
+    foreach (var id in ids)
     {
         var pasta = Path.Combine(pastaWinget, id);
-        var comando = Directory.Exists(pasta) ? Programas.Offline(pasta, $@"%SystemDrive%\{Unattend.PastaInstaladores}\{id}") : null;
-        if (comando != null) offline.Add((id, pasta, comando));
-        else online.Add(id);
+        if (Directory.Exists(pasta) && Programas.Offline(pasta, $@"%SystemDrive%\{Unattend.PastaInstaladores}\{id}") is (string comando, bool soUsuario))
+            offline.Add((id, pasta, comando, soUsuario));
     }
     bool temProgramas = escolhidos.Count > 0;
 
@@ -831,14 +859,16 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
                     Directory.CreateDirectory(destino);
                     foreach (var (caminho, _) in instaladores)
                         File.Copy(caminho, Path.Combine(destino, Path.GetFileName(caminho)), overwrite: true);
-                    foreach (var (id, pasta, _) in offline)
+                    foreach (var (id, pasta, _, _) in offline)
                     {
                         Directory.CreateDirectory(Path.Combine(destino, id));
                         foreach (var arquivo in Directory.GetFiles(pasta))
                             File.Copy(arquivo, Path.Combine(destino, id, Path.GetFileName(arquivo)), overwrite: true);
                     }
-                    File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(online,
-                        instaladores.Select(x => (Path.GetFileName(x.Item1), x.Parametros)), offline.Select(x => (x.Id, x.Comando))));
+                    File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(ids,
+                        instaladores.Select(x => (Path.GetFileName(x.Item1), x.Parametros)), offline.Select(x => (x.Id, x.Comando, x.SoUsuario))));
+                    // Antes da tela de login, como sistema e sem janela; se a imagem já tem um SetupComplete, só acrescenta.
+                    File.AppendAllText($@"{w}:\{Unattend.ScriptSetupComplete}", Unattend.ChamadaSetupComplete);
                     Tui.Registro($"{escolhidos.Count} programas no primeiro login: {string.Join(", ", escolhidos.Select(x => x.Nome))}" +
                         (offline.Count + instaladores.Count > 0 ? $" ({offline.Count + instaladores.Count} sem precisar de internet)" : ""));
                 }
@@ -871,6 +901,8 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
     alvo = null;
     if (multi) avisos.Add("Ao ligar, o menu de boot mostra os Windows por 10 segundos.");
     if (restaurar && usuario == null) avisos.Add($"Arquivos do backup em C:\\{Unattend.PastaRestaurados}.");
+    if (temProgramas && usuario != null)
+        avisos.Add("Programas: instalam antes do primeiro login (os do pendrive sempre; os da internet se houver cabo de rede) e o resto logo depois, sem janelas.");
 
     // Com perfil, reinicia sozinho; sem perfil, oferece salvar as escolhas como perfil.
     if (perfil != null)

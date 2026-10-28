@@ -33,10 +33,13 @@ jobs:
         shell: pwsh
         run: |
           Start-Process publicar/MontaWin.exe -ArgumentList '--captura', "$PWD\previa" -Wait
+          if (Test-Path previa\erro.txt) { Get-Content previa\erro.txt }
           foreach ($t in 'ondas', 'bloom', 'pastel') {
             New-Item -ItemType Directory -Force "fundos\$t" | Out-Null
-            Copy-Item "previa\fundo-$t.png" "fundos\$t\fundo.png"
-            Copy-Item "previa\fundo-desfocado-$t.png" "fundos\$t\fundo-desfocado.png"
+            if (Test-Path "previa\fundo-$t.png") {
+              Copy-Item "previa\fundo-$t.png" "fundos\$t\fundo.png"
+              Copy-Item "previa\fundo-desfocado-$t.png" "fundos\$t\fundo-desfocado.png"
+            }
           }
           $env:MONTAWIN_FUNDOS = "$PWD\fundos"
           $env:MONTAWIN_PREVIA = "$PWD\previa"
@@ -44,7 +47,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: Previa
-          path: previa/*.png
+          path: |
+            previa/*.png
+            previa/erro.txt
           if-no-files-found: ignore
       # Os dois exe vão juntos: o MontaWin.exe coloca o Implantador.exe no pendrive.
       - uses: actions/upload-artifact@v4

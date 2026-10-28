@@ -13,6 +13,9 @@ public static class Unattend
     public const string PastaRestaurados = "Arquivos restaurados";
     public const string ScriptProgramas = @"Windows\Setup\Scripts\MontaWin-programas.cmd";
     public const string PastaInstaladores = @"Windows\Setup\Scripts\Instaladores";
+    /// <summary>O Windows roda este script como sistema no fim da instalação, antes da tela de login e sem janela.</summary>
+    public const string ScriptSetupComplete = @"Windows\Setup\Scripts\SetupComplete.cmd";
+    public const string ChamadaSetupComplete = $"call %SystemDrive%\\{ScriptProgramas} sistema\r\n";
 
     const string Componente = "processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\"";
 
@@ -38,7 +41,7 @@ public static class Unattend
                   <FirstLogonCommands>
                     <SynchronousCommand wcm:action="add">
                       <Order>1</Order>
-                      <CommandLine>cmd /c "%SystemDrive%\{ScriptPrimeiroLogin}"</CommandLine>
+                      <CommandLine>conhost.exe --headless cmd /c %SystemDrive%\{ScriptPrimeiroLogin}</CommandLine>
                       <Description>MontaWin</Description>
                     </SynchronousCommand>
                   </FirstLogonCommands>
@@ -82,50 +85,79 @@ public static class Unattend
             s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\\{usuario}\" 2>nul\r\n");
         s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\" 2>nul\r\n");
         s.Append("del /f /q \"%WINDIR%\\Panther\\unattend.xml\"\r\n");
-        // Programas em outra janela (minimizada): a Área de Trabalho aparece sem esperar os downloads.
-        if (temProgramas) s.Append($"start \"MontaWin - instalando programas\" /min cmd /c \"%SystemDrive%\\{ScriptProgramas}\"\r\n");
+        // Programas que faltaram em segundo plano, sem janela: a Área de Trabalho aparece sem esperar os downloads.
+        if (temProgramas) s.Append($"start \"\" conhost.exe --headless cmd /c %SystemDrive%\\{ScriptProgramas} usuario\r\n");
         return s.ToString();
     }
 
     /// <summary>
-    /// Roda os instaladores copiados do pendrive (arquivo + parâmetros silenciosos e os baixados do winget, que não
-    /// precisam de internet) e depois os do winget online, esperando o winget ficar disponível (ele é registrado logo
-    /// depois do 1º login). Baixado que falhar é tentado de novo pelo winget online.
+    /// Script dos programas, rodado duas vezes e sem janela (o resultado vai para MontaWin-programas.log):
+    /// "sistema" pelo SetupComplete.cmd, antes da tela de login: instaladores do pendrive e, com internet, o winget
+    /// (só pacotes para todos os usuários); "usuario" no primeiro login: o que faltou, pelo winget do usuário.
+    /// O que já instalou fica marcado e não repete. Todos os ids vão em <paramref name="idsWinget"/>: os baixados
+    /// no pendrive que falharem sem internet são tentados de novo online.
     /// </summary>
     public static string GerarScriptProgramas(IEnumerable<string> idsWinget, IEnumerable<(string Arquivo, string Parametros)>? instaladores = null,
-        IEnumerable<(string Id, string Comando)>? offline = null)
+        IEnumerable<(string Id, string Comando, bool SoUsuario)>? offline = null)
     {
         var s = new System.Text.StringBuilder("""
             @echo off
             rem Gerado pelo MontaWin: instala os programas escolhidos no painel.
-            echo Instalando programas (MontaWin). Pode usar o computador enquanto isso.
-            set falhou=
+            if not "%2"=="log" (call "%~f0" %1 log >>"%~dp0MontaWin-programas.log" 2>&1 & exit /b)
+            setlocal
+            set MODO=%1
+            set FEITOS=%~dp0MontaWin-feitos
+            md "%FEITOS%" 2>nul
+            echo [%date% %time%] Instalando programas (%MODO%)
 
             """.ReplaceLineEndings("\r\n"));
-        var locais = instaladores?.ToList() ?? [];
-        var baixados = offline?.ToList() ?? [];
-        foreach (var (arquivo, parametros) in locais)
-            s.Append($"start \"\" /wait \"%SystemDrive%\\{PastaInstaladores}\\{arquivo}\" {parametros}\r\n".Replace(" \r\n", "\r\n"));
-        foreach (var (id, comando) in baixados)
-            s.Append($"echo {id}\r\n{comando} || set falhou=%falhou% {id}\r\n");
-        if (locais.Count + baixados.Count > 0) s.Append($"rd /s /q \"%SystemDrive%\\{PastaInstaladores}\"\r\n");
+        static string Feito(string nome) => $"\"%FEITOS%\\{nome}\"";
+        foreach (var (arquivo, parametros) in instaladores ?? [])
+        {
+            var caminho = $"\"%SystemDrive%\\{PastaInstaladores}\\{arquivo}\"";
+            if (arquivo.EndsWith(".msi", StringComparison.OrdinalIgnoreCase)) caminho = "msiexec /i " + caminho; // .msi não roda sozinho com parâmetros
+            s.Append($"if not exist {Feito(arquivo)} {caminho} {parametros} && type nul>{Feito(arquivo)}\r\n".Replace("  &&", " &&"));
+        }
+        foreach (var (id, comando, soUsuario) in offline ?? [])
+            s.Append($"{(soUsuario ? "if \"%MODO%\"==\"usuario\" " : "")}if not exist {Feito(id)} {comando} && type nul>{Feito(id)}\r\n");
         s.Append("""
+            if "%MODO%"=="sistema" goto sistema
+            rem No primeiro login: espera o winget do usuário ser registrado
             set tentativas=0
             :esperar
-            where winget >nul 2>nul && goto instalar
+            where winget >nul 2>nul && goto usuario
             set /a tentativas+=1
             if %tentativas% geq 60 goto fim
-            timeout /t 5 /nobreak >nul
+            ping -n 6 127.0.0.1 >nul
             goto esperar
-            :instalar
+            :usuario
+            set WINGET=winget
+            set ESCOPO=
+            goto internet
+            :sistema
+            rem Antes do login o winget não está no PATH: usa o que vem com o Windows, só se houver internet
+            set WINGETDIR=
+            for /d %%d in ("%ProgramFiles%\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe") do if exist "%%d\winget.exe" set WINGETDIR=%%d
+            if not defined WINGETDIR goto fim
+            curl.exe -s -m 15 -o nul https://cdn.winget.microsoft.com/cache/source.msix || goto fim
+            cd /d "%WINGETDIR%"
+            set WINGET=%WINGETDIR%\winget.exe
+            set ESCOPO=--scope machine
+            :internet
 
             """.ReplaceLineEndings("\r\n"));
         // Origem sempre explícita: sem ela o winget também consulta a Microsoft Store, que no primeiro login costuma
         // falhar ("certificate did not match") e aí o winget para pedindo --source, sem instalar nada.
-        foreach (var id in idsWinget)
-            s.Append($"winget install --id {id} -e --source {(Programas.DaLoja(id) ? "msstore" : "winget")} {Silencioso}\r\n");
-        if (baixados.Count > 0) s.Append($"for %%i in (%falhou%) do winget install --id %%i -e --source winget {Silencioso}\r\n");
-        s.Append(":fim\r\n");
+        foreach (var id in idsWinget.Distinct())
+            s.Append(Programas.DaLoja(id)
+                ? $"if \"%MODO%\"==\"usuario\" if not exist {Feito(id)} \"%WINGET%\" install --id {id} -e --source msstore {Silencioso} && type nul>{Feito(id)}\r\n"
+                : $"if not exist {Feito(id)} \"%WINGET%\" install --id {id} -e --source winget %ESCOPO% {Silencioso} && type nul>{Feito(id)}\r\n");
+        s.Append("""
+            :fim
+            echo [%date% %time%] Fim (%MODO%)
+            if "%MODO%"=="usuario" rd /s /q "%~dp0Instaladores" 2>nul
+
+            """.ReplaceLineEndings("\r\n"));
         return s.ToString();
     }
 

@@ -9,9 +9,11 @@ public record IsoAberta(string Iso, char Letra, string Install, List<Edicao> Edi
 /// <param name="Tema">Visual do painel no boot: ondas, bloom ou pastel (gravado em MontaWin\tema.txt).</param>
 /// <param name="Fundos">Imagens do fundo do tema (normal e desfocada) já desenhadas pelo Montador, para o painel gráfico.</param>
 /// <param name="BaixarProgramas">Baixa os programas da lista para o pendrive: no primeiro login instalam sem internet.</param>
+/// <param name="Programas">Lista de programas do técnico (texto do Programas.txt) e a pasta com os instaladores adicionados por arquivo.</param>
 /// <param name="Atualizacoes">Pasta com as atualizações .msu do Microsoft Update Catalog, injetadas em cada edição (null = nenhuma).</param>
 public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador, bool Rapida, (char Boot, char Dados)? Manter,
-    string? Atualizacoes = null, string Tema = "ondas", (string Fundo, string Desfocado)? Fundos = null, bool BaixarProgramas = false);
+    string? Atualizacoes = null, string Tema = "ondas", (string Fundo, string Desfocado)? Fundos = null, bool BaixarProgramas = false,
+    (string Lista, string PastaInstaladores)? Programas = null);
 
 /// <summary>
 /// Monta o pendrive: partição FAT32 de boot (UEFI e BIOS) com o WinPE da ISO abrindo o Implantador,
@@ -147,15 +149,15 @@ public static class Pendrive
         var leiaMe = $@"{dados}:\MontaWin\Drivers\LEIA-ME.txt";
         Directory.CreateDirectory(Path.GetDirectoryName(leiaMe)!);
         if (!File.Exists(leiaMe)) File.WriteAllText(leiaMe, LeiaMeDrivers);
-        Directory.CreateDirectory($@"{dados}:\MontaWin\Instaladores");
+
         File.WriteAllText($@"{dados}:\MontaWin\tema.txt", g.Tema);
         if (g.Fundos is (string fundo, string desfocado))
         {
             File.Copy(fundo, $@"{dados}:\MontaWin\fundo.png", overwrite: true);
             File.Copy(desfocado, $@"{dados}:\MontaWin\fundo-desfocado.png", overwrite: true);
         }
-        var listaProgramas = $@"{dados}:\MontaWin\Programas.txt";
-        if (!File.Exists(listaProgramas)) File.WriteAllText(listaProgramas, Programas.Padrao); // não sobrescreve a lista editada pelo técnico
+        if (g.Programas is (string lista, string instaladores)) SalvarProgramas(dados, lista, instaladores);
+        else if (!File.Exists($@"{dados}:\MontaWin\Programas.txt")) SalvarProgramas(dados, Programas.Padrao, null);
         var destino = Path.Combine(pastaImagens, Path.GetFileNameWithoutExtension(g.Iso.Iso) + ".wim");
         if (File.Exists(destino)) File.Delete(destino); // mesma ISO de novo: substitui em vez de duplicar as edições
         // Com atualizações, a imagem é montada no disco do PC (bem mais rápido que no pendrive) e copiada no fim.
@@ -195,6 +197,20 @@ public static class Pendrive
         var falhas = g.BaixarProgramas ? BaixarProgramas(dados, progresso) : [];
         progresso("Pendrive pronto", 100);
         return falhas;
+    }
+
+    /// <summary>Grava a lista no pendrive e copia os instaladores adicionados por arquivo (só os que mudaram).</summary>
+    public static void SalvarProgramas(char dados, string lista, string? pastaInstaladores)
+    {
+        var destino = $@"{dados}:\MontaWin\Instaladores";
+        Directory.CreateDirectory(destino);
+        File.WriteAllText($@"{dados}:\MontaWin\Programas.txt", lista);
+        if (pastaInstaladores == null || !Directory.Exists(pastaInstaladores)) return;
+        foreach (var arquivo in Directory.GetFiles(pastaInstaladores))
+        {
+            var copia = Path.Combine(destino, Path.GetFileName(arquivo));
+            if (!File.Exists(copia) || new FileInfo(copia).Length != new FileInfo(arquivo).Length) File.Copy(arquivo, copia, overwrite: true);
+        }
     }
 
     /// <summary>

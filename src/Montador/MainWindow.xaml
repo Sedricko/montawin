@@ -171,7 +171,54 @@
 
           <Border Style="{StaticResource Cartao}">
             <StackPanel>
-              <TextBlock Style="{StaticResource Titulo}" Text="3 · Visual do painel" />
+              <TextBlock Style="{StaticResource Titulo}" Text="3 · Programas" />
+              <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,8"
+                         Text="Lista oferecida no painel para instalar no Windows novo. No painel nenhum vem marcado: você escolhe em cada PC." />
+              <ListBox x:Name="ListaProgramasUi" Height="160" DisplayMemberPath="Texto" />
+              <Button x:Name="BotaoRemover" Content="Remover da lista" HorizontalAlignment="Right" Margin="0,8,0,0" Padding="14,6" Click="RemoverPrograma" />
+
+              <TextBlock FontWeight="SemiBold" Margin="0,12,0,6" Text="Adicionar pela internet (winget)" />
+              <DockPanel>
+                <Button x:Name="BotaoProcurar" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Procurar" Click="ProcurarPrograma" />
+                <TextBox x:Name="BuscaPrograma" VerticalContentAlignment="Center" ToolTip="Nome do programa, ex.: anydesk" KeyDown="BuscaTecla" />
+              </DockPanel>
+              <ComboBox x:Name="ResultadosBusca" Margin="0,8,0,0" DisplayMemberPath="Texto" SelectionChanged="ResultadoEscolhido" />
+
+              <TextBlock FontWeight="SemiBold" Margin="0,12,0,6" Text="Ou um instalador que você já tem (instala sem internet)" />
+              <DockPanel>
+                <Button x:Name="BotaoArquivo" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher arquivo..." Click="EscolherInstalador" />
+                <TextBox x:Name="ArquivoInstalador" IsReadOnly="True" VerticalContentAlignment="Center" />
+              </DockPanel>
+              <Grid Margin="0,8,0,0">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="12" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                  <TextBlock Style="{StaticResource Dica}" Text="Nome no painel" Margin="0,0,0,4" />
+                  <TextBox x:Name="NomePrograma" VerticalContentAlignment="Center" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                  <TextBlock Style="{StaticResource Dica}" Text="Parâmetros silenciosos (só para arquivo)" Margin="0,0,0,4" />
+                  <TextBox x:Name="ParametrosInstalador" VerticalContentAlignment="Center" />
+                </StackPanel>
+              </Grid>
+              <TextBlock Style="{StaticResource Dica}" Margin="0,6,0,0"
+                         Text="Para .exe, veja no site do programa o parâmetro silencioso (os mais comuns: /S, /silent, /quiet, /VERYSILENT). Para .msi já vem certo." />
+              <Button x:Name="BotaoAdicionar" Content="Adicionar à lista" HorizontalAlignment="Left" Margin="0,10,0,0" Padding="14,6" Click="AdicionarPrograma" />
+
+              <CheckBox x:Name="BaixarProgramas" IsChecked="True" Margin="0,14,0,0">
+                <TextBlock TextWrapping="Wrap" Text="Baixar os programas do winget para o pendrive (no PC eles instalam sem precisar de internet)" />
+              </CheckBox>
+              <Button x:Name="BotaoSalvarProgramas" Content="Salvar programas no pendrive" HorizontalAlignment="Left" Margin="0,10,0,0" Padding="14,6"
+                      Click="SalvarProgramasNoPendrive" ToolTip="Atualiza só a lista e os instaladores de um pendrive MontaWin já pronto, sem gravar tudo de novo" />
+            </StackPanel>
+          </Border>
+
+          <Border Style="{StaticResource Cartao}">
+            <StackPanel>
+              <TextBlock Style="{StaticResource Titulo}" Text="4 · Visual do painel" />
               <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,10" Text="O tema que você escolher aqui é o que aparece no PC quando ele der boot pelo pendrive." />
               <UniformGrid x:Name="Temas" Columns="3">
                 <RadioButton GroupName="Tema" Tag="ondas" IsChecked="True" Checked="TemaEscolhido" Margin="0,0,8,0">
@@ -204,13 +251,11 @@
 
           <Border Style="{StaticResource Cartao}">
             <StackPanel>
-              <TextBlock Style="{StaticResource Titulo}" Text="4 · Criar" />
-              <CheckBox x:Name="Rapida" Margin="0,0,0,8">
+              <TextBlock Style="{StaticResource Titulo}" Text="5 · Criar" />
+              <CheckBox x:Name="Rapida" Margin="0,0,0,14">
                 <TextBlock TextWrapping="Wrap" Text="Instalação mais rápida (imagem ~30% maior; ideal para pendrive USB 3.0 ou SSD externo)" />
               </CheckBox>
-              <CheckBox x:Name="BaixarProgramas" IsChecked="True" Margin="0,0,0,14">
-                <TextBlock TextWrapping="Wrap" Text="Baixar os programas da lista para o pendrive (no PC eles instalam sem precisar de internet)" />
-              </CheckBox>
+
               <Button x:Name="BotaoCriar" Style="{StaticResource Principal}" Content="Criar pendrive" HorizontalAlignment="Left" Click="Criar" />
               <ProgressBar x:Name="Barra" Height="6" Margin="0,16,0,6" Maximum="100" Foreground="{DynamicResource Destaque}" />
               <TextBlock x:Name="Status" Style="{StaticResource Dica}" Text="Escolha a ISO e o pendrive." />

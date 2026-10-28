@@ -127,10 +127,13 @@ public class TelasTests
     [Fact]
     public void ScriptDeProgramasTentaPeloWingetOQueFalharOffline()
     {
-        var script = Unattend.GerarScriptProgramas(["Google.Chrome"], null, [("Notepad++.Notepad++", @"""C:\x\npp.exe"" /S")]);
-        Assert.Contains(@"""C:\x\npp.exe"" /S || set falhou=%falhou% Notepad++.Notepad++", script);
-        Assert.True(script.IndexOf("npp.exe") < script.IndexOf(":esperar")); // sem internet não espera o winget para instalar
-        Assert.Contains("for %%i in (%falhou%) do winget install --id %%i -e --source winget", script);
+        var script = Unattend.GerarScriptProgramas(["Notepad++.Notepad++"], null,
+            [("Notepad++.Notepad++", @"""C:\x\npp.exe"" /S", false), ("Spotify.Spotify", @"""C:\x\spotify.exe"" /silent", true)]);
+        int offline = script.IndexOf("if not exist \"%FEITOS%\\Notepad++.Notepad++\" \"C:\\x\\npp.exe\" /S && type nul>\"%FEITOS%\\Notepad++.Notepad++\"");
+        Assert.True(offline > 0);
+        Assert.True(offline < script.IndexOf(":esperar")); // sem internet não espera o winget para instalar
+        Assert.True(script.IndexOf("install --id Notepad++.Notepad++") > offline); // marcado como feito, o winget pula
+        Assert.Contains("if \"%MODO%\"==\"usuario\" if not exist \"%FEITOS%\\Spotify.Spotify\" \"C:\\x\\spotify.exe\" /silent", script); // instalador só do usuário
     }
 
     [Fact]
@@ -190,5 +193,44 @@ public class TelasTests
     {
         var xml = "<WIM><IMAGE INDEX=\"1\"><NAME>Windows 11 Pro</NAME><WINDOWS><VERSION><BUILD>26200</BUILD></VERSION></WINDOWS></IMAGE></WIM>";
         Assert.Equal(26200, Wim.Edicoes("x.wim", xml).Single().Build);
+    }
+
+    [Fact]
+    public void ListaDeProgramasAdicionaERemove()
+    {
+        var texto = ListaProgramas.Adicionar(Programas.Padrao, "AnyDesk", "AnyDesk.AnyDesk");
+        texto = ListaProgramas.Adicionar(texto, "Meu ERP", "arquivo: setup_erp.exe /S");
+        var lista = Programas.Ler(texto);
+        Assert.Contains(lista, p => p.Nome == "AnyDesk" && p.Ids.Single() == "AnyDesk.AnyDesk");
+        Assert.Contains(lista, p => p.Nome == "Meu ERP" && p.Instalador == "setup_erp.exe /S");
+        texto = ListaProgramas.Adicionar(texto, "AnyDesk", "AnyDeskSoftwareGmbH.AnyDesk"); // mesmo nome: substitui
+        Assert.Single(Programas.Ler(texto), p => p.Nome == "AnyDesk");
+        texto = ListaProgramas.Remover(texto, "anydesk");
+        Assert.DoesNotContain(Programas.Ler(texto), p => p.Nome == "AnyDesk");
+        Assert.Contains("# MontaWin", texto); // comentários ficam
+        Assert.Equal("/qn /norestart", ListaProgramas.ParametrosSugeridos(@"C:\x\app.MSI"));
+    }
+
+    [Fact]
+    public void BuscaDoWingetEmPortugues()
+    {
+        var saida = "\r   - \r   \\ \r" + """
+            Nome                       ID                          Versão        Correspondência    Origem
+            -----------------------------------------------------------------------------------------------
+            AnyDesk                    AnyDesk.AnyDesk             9.0.4                            winget
+            AnyDesk MSI                AnyDeskSoftwareGmbH.AnyDes… 9.0.4         Tag: anydesk       winget
+            """.ReplaceLineEndings("\r\n");
+        var r = ListaProgramas.LerBusca(saida);
+        Assert.Equal(2, r.Count);
+        Assert.Equal(new ResultadoBusca("AnyDesk", "AnyDesk.AnyDesk"), r[0]);
+        Assert.Equal("AnyDesk MSI", r[1].Nome);
+        Assert.Empty(ListaProgramas.LerBusca("Nenhum pacote encontrado correspondente aos critérios de entrada."));
+    }
+
+    [Fact]
+    public void InstaladorMsiDaListaRodaPeloMsiexec()
+    {
+        var script = Unattend.GerarScriptProgramas([], [("erp.msi", "/qn /norestart")]);
+        Assert.Contains(@"msiexec /i ""%SystemDrive%\Windows\Setup\Scripts\Instaladores\erp.msi"" /qn /norestart && type nul>", script);
     }
 }
