@@ -113,13 +113,21 @@ public sealed class JanelaProgresso : Window
         Activate();
     }
 
+    /// <summary>Texto da lista do que já foi feito, sem a frase repetida: "Baixando programas para o pendrive: Notepad++ (5 de 31)" vira "Notepad++ baixado".</summary>
+    public static string Curto(string etapa)
+    {
+        etapa = System.Text.RegularExpressions.Regex.Replace(etapa, @"\s*\(\d+ de \d+\)$", "");
+        const string baixando = "Baixando programas para o pendrive: ";
+        return etapa.StartsWith(baixando) ? etapa[baixando.Length..] + " baixado" : etapa;
+    }
+
     void Feita(string texto)
     {
         if (feitas.Children.Count >= 6) feitas.Children.RemoveAt(0); // só as últimas, para a janela não crescer
         var linha = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 2, 0, 2) };
         linha.Children.Add(new TextBlock { Text = "", FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"), Foreground = arco.Stroke,
             VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 10, 0) });
-        linha.Children.Add(new TextBlock { Text = texto, Opacity = 0.75, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 320 });
+        linha.Children.Add(new TextBlock { Text = Curto(texto), Opacity = 0.75, TextWrapping = TextWrapping.Wrap, MaxWidth = 320 });
         feitas.Children.Add(linha);
     }
 
