@@ -736,7 +736,11 @@ void Instalar(Perfil? inicial = null)
                 if (e < 0) return Passo.Voltar;
                 var p = e < perfis.Count ? perfis[e] : null;
                 if (p != null && (p.Pc != null || p.Serie != null) && !EstePc(p)
-                    && !Tui.Confirmar("Perfil de outro PC", [$"O perfil {p.Nome} é do PC {p.Modelo}. Este é {Sistema.Modelo()}.", "Os drivers do backup podem não servir. Usar mesmo assim?"]))
+                    && !Tui.Confirmar("Perfil de outro PC", [p.Modelo == Sistema.Modelo()
+                        // Mesmo modelo, outra máquina (ex.: dois PCs iguais da loja, ou uma VM recriada): o nome não ajuda a diferenciar
+                        ? $"O perfil {p.Nome} foi feito em outro {p.Modelo} (série {p.Serie ?? "?"}). Este tem a série {seriePc ?? "não informada"}."
+                        : $"O perfil {p.Nome} é do PC {p.Modelo}. Este é {Sistema.Modelo()}.",
+                        "Os drivers do backup podem não servir. Usar mesmo assim?"]))
                     continue;
                 perfil = p;
                 if (perfil != null) Aplicar(perfil);
