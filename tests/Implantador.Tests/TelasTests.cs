@@ -359,6 +359,9 @@ public class TelasTests
         Assert.Equal(new ResultadoBusca("AnyDesk", "AnyDesk.AnyDesk"), r[0]);
         Assert.Equal("AnyDesk MSI", r[1].Nome);
         Assert.Empty(ListaProgramas.LerBusca("Nenhum pacote encontrado correspondente aos critérios de entrada."));
+        // Como chega de verdade, redirecionado: códigos de cursor e o "girando" grudados no cabeçalho
+        var real = "\x1B[0G   - \r   \\ \r\x1B[2K\x1B[0GNome   ID            Versão Origem\r\n----------------------------------------\r\nWinRAR RARLab.WinRAR 7.13   winget\r\n";
+        Assert.Equal(new ResultadoBusca("WinRAR", "RARLab.WinRAR"), ListaProgramas.LerBusca(real).Single());
     }
 
     [Fact]

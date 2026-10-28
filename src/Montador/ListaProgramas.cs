@@ -133,7 +133,10 @@ public static class ListaProgramas
     /// </summary>
     public static List<ResultadoBusca> LerBusca(string saida)
     {
-        var linhas = saida.Split('\n').Select(l => l.TrimEnd('\r')).Select(l => l[(l.LastIndexOf('\r') + 1)..]).ToList();
+        // Sem os códigos de cor/cursor e o "girando" que o winget escreve antes da tabela: eles deslocam as colunas do cabeçalho
+        saida = System.Text.RegularExpressions.Regex.Replace(saida, @"\x1B\[[0-9;?]*[A-Za-z]|\x1B\][^\x07]*\x07", "");
+        var linhas = saida.Split('\n').Select(l => l.TrimEnd('\r')).Select(l => l[(l.LastIndexOf('\r') + 1)..])
+            .Select(l => l.TrimStart('-', '\\', '|', '/', ' ').Length == 0 ? l : System.Text.RegularExpressions.Regex.Replace(l, @"^\s*[-\\|/]\s+(?=\S)", "")).ToList();
         int tracos = linhas.FindIndex(l => l.Length >= 10 && l.Trim().All(c => c == '-'));
         if (tracos < 1) return [];
         var cabecalho = linhas[tracos - 1];

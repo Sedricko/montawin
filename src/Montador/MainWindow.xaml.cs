@@ -118,6 +118,14 @@ public partial class MainWindow : Window
         Resources["CorCartao"] = new SolidColorBrush(Cor(c.Cartao));
         Resources["CorBorda"] = new SolidColorBrush(Cor(c.Borda));
         Resources["CorDestaque"] = new LinearGradientBrush(Cor(c.De), Cor(c.Ate), 0);
+        // Campos de texto e listas no vidro do tema: o padrão do Windows deixava o campo preto ao digitar
+        var campo = new SolidColorBrush(Cor(c.Cartao));
+        var campoAtivo = new SolidColorBrush(Cor(c.Claro ? "#E6FFFFFF" : "#33FFFFFF"));
+        foreach (var chave in new[] { "TextControlBackground", "TextControlBackgroundPointerOver", "TextControlBackgroundDisabled",
+                     "ComboBoxBackground", "ComboBoxBackgroundPointerOver", "ComboBoxBackgroundDisabled", "ListBoxBackground" })
+            Resources[chave] = campo;
+        foreach (var chave in new[] { "TextControlBackgroundFocused", "ComboBoxBackgroundPressed", "ComboBoxBackgroundFocused" })
+            Resources[chave] = campoAtivo;
         FundoOndas.Visibility = tema == "ondas" ? Visibility.Visible : Visibility.Collapsed;
         FundoBloom.Visibility = tema == "bloom" ? Visibility.Visible : Visibility.Collapsed;
         FundoPastel.Visibility = tema == "pastel" ? Visibility.Visible : Visibility.Collapsed;
@@ -447,13 +455,16 @@ public partial class MainWindow : Window
         var resultados = await Task.Run(() =>
         {
             Comandos.Executar("winget", $"search \"{busca}\" --source winget --accept-source-agreements --disable-interactivity");
-            return ListaProgramas.LerBusca(Comandos.UltimaSaidaCompleta);
+            var achados = ListaProgramas.LerBusca(Comandos.UltimaSaidaCompleta);
+            // Nada achado: guarda o que o winget respondeu, para descobrir o motivo
+            if (achados.Count == 0) File.WriteAllText(Path.Combine(ListaProgramas.Pasta, "winget-busca.txt"), Comandos.UltimaSaidaCompleta);
+            return achados;
         });
         ResultadosBusca.ItemsSource = resultados;
         ResultadosBusca.SelectedIndex = resultados.Count > 0 ? 0 : -1;
         if (resultados.Count > 0) ResultadosBusca.IsDropDownOpen = true;
         Ocupado(false, resultados.Count > 0 ? $"{resultados.Count} encontrados: escolha um e clique em Adicionar."
-                                            : "Nada encontrado no winget. Tente outro nome ou use um instalador que você já tem.");
+                                            : $"Nada encontrado no winget. A resposta dele ficou em {Path.Combine(ListaProgramas.Pasta, "winget-busca.txt")}.");
     }
 
     void AdicionarBusca(object sender, RoutedEventArgs e)
