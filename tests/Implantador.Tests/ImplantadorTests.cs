@@ -264,4 +264,69 @@ public class ImplantadorTests
         Assert.Equal(@"del /f /q ""%WINDIR%\Panther\unattend.xml""", linhas[^1]);
         Assert.Equal(2, Unattend.GerarScriptPrimeiroLogin([]).Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Count(l => !l.StartsWith('@') && !l.StartsWith("rem")));
     }
+
+    [Fact]
+    public void LeAListaDeProgramas()
+    {
+        var lista = Programas.Ler("# comentário\r\nGoogle Chrome = Google.Chrome\r\n- Visual C++ = Microsoft.VCRedist.2015+.x86 Microsoft.VCRedist.2015+.x64\r\nsem igual\r\n= sem nome\r\n");
+        Assert.Equal(2, lista.Count);
+        Assert.Equal(("Google Chrome", true), (lista[0].Nome, lista[0].Marcado));
+        Assert.Equal(("Visual C++", false), (lista[1].Nome, lista[1].Marcado));
+        Assert.Equal(new[] { "Microsoft.VCRedist.2015+.x86", "Microsoft.VCRedist.2015+.x64" }, lista[1].Ids);
+        Assert.Contains(Programas.Ler(Programas.Padrao), p => p.Nome == "Lightshot" && p.Ids.Single() == "Skillbrains.Lightshot" && p.Marcado);
+    }
+
+    [Fact]
+    public void ScriptDeProgramasEsperaOWingetEInstalaCadaUm()
+    {
+        var script = Unattend.GerarScriptProgramas(["Google.Chrome", "RARLab.WinRAR"]);
+        Assert.Contains("where winget >nul 2>nul && goto instalar\r\n", script);
+        Assert.Contains("winget install --id Google.Chrome -e --silent --accept-package-agreements --accept-source-agreements\r\n", script);
+        Assert.Contains("winget install --id RARLab.WinRAR -e", script);
+        Assert.EndsWith(":fim\r\n", script);
+        Assert.Contains(@"start ""MontaWin - instalando programas"" /min cmd /c ""%SystemDrive%\Windows\Setup\Scripts\MontaWin-programas.cmd""",
+            Unattend.GerarScriptPrimeiroLogin([], temProgramas: true));
+        Assert.DoesNotContain("start", Unattend.GerarScriptPrimeiroLogin([]));
+    }
+
+    static byte[] LogNvme(byte critico = 0, byte reserva = 100, byte desgaste = 3, long errosMidia = 0)
+    {
+        var log = new byte[512];
+        log[0] = critico;
+        BitConverter.GetBytes((ushort)(273 + 40)).CopyTo(log, 1);
+        log[3] = reserva;
+        log[4] = 10;
+        log[5] = desgaste;
+        BitConverter.GetBytes(1234L).CopyTo(log, 128);
+        BitConverter.GetBytes(errosMidia).CopyTo(log, 160);
+        return log;
+    }
+
+    [Fact]
+    public void AvaliaSaudeDoNvme()
+    {
+        var boa = Saude.Nvme(LogNvme());
+        Assert.Equal(NivelSaude.Boa, boa.Nivel);
+        Assert.Contains("3% de desgaste · 1234 h ligado · 40 °C", boa.Texto);
+        Assert.Equal(NivelSaude.Falhando, Saude.Nvme(LogNvme(critico: 0x04)).Nivel);
+        Assert.Equal(NivelSaude.Falhando, Saude.Nvme(LogNvme(reserva: 5)).Nivel);
+        Assert.Equal(NivelSaude.Atencao, Saude.Nvme(LogNvme(desgaste: 95)).Nivel);
+        Assert.Equal(NivelSaude.Atencao, Saude.Nvme(LogNvme(errosMidia: 2)).Nivel);
+    }
+
+    [Fact]
+    public void AvaliaSaudeDoSata()
+    {
+        var smart = new byte[512];
+        void Atributo(int pos, byte id, uint bruto) { smart[2 + pos * 12] = id; BitConverter.GetBytes(bruto).CopyTo(smart, 2 + pos * 12 + 5); }
+        Assert.Equal(NivelSaude.Desconhecida, Saude.Ata(false, smart).Nivel); // controladora não devolveu atributos
+        Atributo(0, 9, 5000);   // horas ligado
+        Atributo(1, 5, 0);      // realocados
+        Assert.Equal(NivelSaude.Boa, Saude.Ata(false, smart).Nivel);
+        Atributo(2, 197, 8);    // pendentes
+        var atencao = Saude.Ata(false, smart);
+        Assert.Equal(NivelSaude.Atencao, atencao.Nivel);
+        Assert.Contains("8 pendentes", atencao.Texto);
+        Assert.Equal(NivelSaude.Falhando, Saude.Ata(true, smart).Nivel);
+    }
 }

@@ -21,7 +21,7 @@
 
   <!-- Mesma leitura de discos, .wim e execução de comandos do Implantador -->
   <ItemGroup>
-    <Compile Include="..\Implantador\Comandos.cs;..\Implantador\Discos.cs;..\Implantador\Tui.cs;..\Implantador\Wim.cs" LinkBase="Compartilhado" />
+    <Compile Include="..\Implantador\Comandos.cs;..\Implantador\Discos.cs;..\Implantador\Programas.cs;..\Implantador\Saude.cs;..\Implantador\Tui.cs;..\Implantador\Wim.cs" LinkBase="Compartilhado" />
   </ItemGroup>
 
 </Project>

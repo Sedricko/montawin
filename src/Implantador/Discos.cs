@@ -38,9 +38,10 @@ public record Particao(int Numero, long Inicio, long Tamanho, TipoParticao Tipo,
 
 public record Disco(int Numero, long Tamanho, string Modelo, bool Usb, bool Gpt, IReadOnlyList<Particao> Particoes)
 {
+    public Saude Saude { get; init; } = Saude.Desconhecida;
     public char? LetraWindows => Particoes.FirstOrDefault(p => p.TemWindows)?.Letra;
-    public string Descricao => $"Disco {Numero}  {Tui.Ajustar(Modelo, 30)} {Formatar.Tamanho(Tamanho),9}" +
-                               (LetraWindows is char l ? $"   Windows detectado ({l}:)" : "");
+    public string Descricao => $"Disco {Numero}  {Tui.Ajustar(Modelo, 26)} {Formatar.Tamanho(Tamanho),8}  {Tui.Ajustar(Saude.Curta, 8)}" +
+                               (LetraWindows is char l ? $"  Windows ({l}:)" : "");
 }
 
 // Lê os discos direto pelo Windows (DeviceIoControl): não depende de WMI nem do idioma do diskpart.
@@ -51,6 +52,8 @@ public static partial class Discos
     const uint IoctlLayout = 0x00070050;           // IOCTL_DISK_GET_DRIVE_LAYOUT_EX
     const uint IoctlPropriedades = 0x002D1400;     // IOCTL_STORAGE_QUERY_PROPERTY
     const uint IoctlExtentesVolume = 0x00560000;   // IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS
+    const uint IoctlPrevisaoFalha = 0x002D1100;    // IOCTL_STORAGE_PREDICT_FAILURE (SMART de discos SATA)
+    const uint BarramentoNvme = 17;
     static readonly uint[] BarramentosUsb = [7, 0xC, 0xD]; // USB, SD, MMC
 
     static readonly Guid GuidEfi = new("c12a7328-f81f-11d2-ba4b-00a0c93ec93b");
@@ -98,7 +101,8 @@ public static partial class Discos
             var desc = new byte[1024];
             Ioctl(h, IoctlPropriedades, new byte[12], desc); // StorageDeviceProperty + PropertyStandardQuery = zeros
             string modelo = $"{Texto(desc, 12)} {Texto(desc, 16)}".Trim();
-            bool usb = BarramentosUsb.Contains(BitConverter.ToUInt32(desc, 28));
+            uint barramento = BitConverter.ToUInt32(desc, 28);
+            bool usb = BarramentosUsb.Contains(barramento);
             var layout = new byte[48 + 128 * 144];
             var (gpt, particoes) = Ioctl(h, IoctlLayout, [], layout) ? LerLayout(layout) : (false, new List<Particao>());
             particoes = particoes.Select(p => letras.TryGetValue((n, p.Inicio), out var l) ? p with
@@ -107,9 +111,33 @@ public static partial class Discos
                 Rotulo = Rotulo(l),
                 TemWindows = File.Exists($@"{l}:\Windows\System32\config\SYSTEM"),
             } : p).ToList();
-            discos.Add(new Disco(n, BitConverter.ToInt64(tam), modelo.Length > 0 ? modelo : "Disco", usb, gpt, particoes));
+            discos.Add(new Disco(n, BitConverter.ToInt64(tam), modelo.Length > 0 ? modelo : "Disco", usb, gpt, particoes)
+            {
+                Saude = usb ? Saude.Desconhecida : LerSaude(h, barramento), // adaptadores USB quase nunca repassam o SMART
+            });
         }
         return discos;
+    }
+
+    static Saude LerSaude(SafeFileHandle h, uint barramento)
+    {
+        if (barramento == BarramentoNvme)
+        {
+            // STORAGE_PROPERTY_QUERY (8 bytes) + STORAGE_PROTOCOL_SPECIFIC_DATA (40) + página de saúde do NVMe (512)
+            var consulta = new byte[8 + 40 + 512];
+            BitConverter.GetBytes(50).CopyTo(consulta, 0);   // StorageDeviceProtocolSpecificProperty
+            BitConverter.GetBytes(3).CopyTo(consulta, 8);    // ProtocolTypeNvme
+            BitConverter.GetBytes(2).CopyTo(consulta, 12);   // NVMeDataTypeLogPage
+            BitConverter.GetBytes(2).CopyTo(consulta, 16);   // página 02h: SMART / Health Information
+            BitConverter.GetBytes(40).CopyTo(consulta, 24);  // os dados vêm logo depois desta estrutura
+            BitConverter.GetBytes(512).CopyTo(consulta, 28);
+            var resposta = new byte[consulta.Length];
+            return Ioctl(h, IoctlPropriedades, consulta, resposta) ? Saude.Nvme(resposta[48..]) : Saude.Desconhecida;
+        }
+        var previsao = new byte[4 + 512]; // STORAGE_PREDICT_FAILURE: PredictFailure + dados do SMART
+        return Ioctl(h, IoctlPrevisaoFalha, [], previsao)
+            ? Saude.Ata(BitConverter.ToUInt32(previsao, 0) != 0, previsao[4..])
+            : Saude.Desconhecida;
     }
 
     static string Rotulo(char letra)

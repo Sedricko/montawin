@@ -139,6 +139,8 @@ public static class Pendrive
         var leiaMe = $@"{dados}:\MontaWin\Drivers\LEIA-ME.txt";
         Directory.CreateDirectory(Path.GetDirectoryName(leiaMe)!);
         if (!File.Exists(leiaMe)) File.WriteAllText(leiaMe, LeiaMeDrivers);
+        var listaProgramas = $@"{dados}:\MontaWin\Programas.txt";
+        if (!File.Exists(listaProgramas)) File.WriteAllText(listaProgramas, Programas.Padrao); // não sobrescreve a lista editada pelo técnico
         var destino = Path.Combine(pastaImagens, Path.GetFileNameWithoutExtension(g.Iso.Iso) + ".wim");
         if (File.Exists(destino)) File.Delete(destino); // mesma ISO de novo: substitui em vez de duplicar as edições
         double passo = 85.0 / g.Indices.Length;

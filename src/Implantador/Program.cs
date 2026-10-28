@@ -81,7 +81,14 @@ Disco? EscolherDisco(string titulo, Disco? sugerido)
         return null;
     }
     int i = Tui.Menu(titulo, [], discos.Select(d => d.Descricao).ToList(), Math.Max(0, discos.FindIndex(d => d.Numero == sugerido?.Numero)));
-    return i < 0 ? null : discos[i];
+    if (i < 0) return null;
+    var disco = discos[i];
+    Comandos.Registrar($"Disco {disco.Numero} ({disco.Modelo}): {disco.Saude.Texto}");
+    if (disco.Saude.Nivel >= NivelSaude.Atencao)
+        Tui.Mensagem($"Saúde do disco {disco.Numero}: {disco.Saude.Curta}", [disco.Saude.Texto,
+            disco.Saude.Nivel == NivelSaude.Falhando ? "Faça o backup agora e recomende a troca do disco ao cliente."
+                                                     : "O disco funciona, mas vale avisar o cliente e fazer o backup."], erro: true);
+    return disco;
 }
 
 bool Exigir(bool condicao, string mensagem)
@@ -282,6 +289,19 @@ void Instalar()
         unattend = Unattend.Gerar(edicao.Idioma, usuario, senha);
         aviso.Add($"Conta local: {usuario}{(senha.Length > 0 ? " (com senha)" : " (sem senha)")} · telas iniciais puladas");
     }
+
+    // Programas pelo winget no primeiro login: só com a configuração automática, que roda o script do primeiro login.
+    var idsProgramas = new List<string>();
+    if (unattend != null)
+    {
+        var arquivo = Path.Combine(raiz!, "Programas.txt");
+        var programas = Programas.Ler(File.Exists(arquivo) ? File.ReadAllText(arquivo) : Programas.Padrao);
+        var marcados = Tui.Selecao("Programas instalados no primeiro login (precisa de internet; Esc = nenhum)",
+            ["Lista editável no pendrive: MontaWin\\Programas.txt"], programas.Select(x => x.Nome).ToList(), programas.Select(x => x.Marcado).ToArray());
+        var escolhidos = programas.Where((_, k) => marcados?[k] == true).ToList();
+        idsProgramas = escolhidos.SelectMany(x => x.Ids).ToList();
+        if (escolhidos.Count > 0) aviso.Add("Programas no primeiro login: " + string.Join(", ", escolhidos.Select(x => x.Nome)));
+    }
     bool restaurar = false;
     if (pastaArquivos != null)
     {
@@ -295,6 +315,8 @@ void Instalar()
                                                   : $"Backup de arquivos: copiado para C:\\{Unattend.PastaRestaurados}");
     }
     aviso.Add($"Instalar: {edicao.Nome}   ·   Modo: {(uefi ? "UEFI (GPT)" : "BIOS (MBR)")}");
+    if (disco.Saude.Nivel == NivelSaude.Falhando) aviso.Add($"DISCO FALHANDO: {disco.Saude.Texto}");
+    else if (disco.Saude.Nivel == NivelSaude.Atencao) aviso.Add($"Disco com problemas: {disco.Saude.Texto}");
     Tui.Etapa("Formatar e instalar", "Verificando a velocidade do pendrive...");
     if (Sistema.AvisoPendriveLento(Sistema.VelocidadeLeitura(edicao.Arquivo), new FileInfo(edicao.Arquivo).Length) is string lento) aviso.Add(lento);
     if (Sistema.NaBateria) aviso.Add("Notebook na bateria: ligue o carregador (a instalação fica mais rápida e não corre risco de desligar).");
@@ -333,7 +355,8 @@ void Instalar()
             : new List<string>();
         var script = $@"{w}:\{Unattend.ScriptPrimeiroLogin}";
         Directory.CreateDirectory(Path.GetDirectoryName(script)!);
-        File.WriteAllText(script, Unattend.GerarScriptPrimeiroLogin(pessoais));
+        File.WriteAllText(script, Unattend.GerarScriptPrimeiroLogin(pessoais, idsProgramas.Count > 0));
+        if (idsProgramas.Count > 0) File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(idsProgramas));
     }
 
     Tui.Etapa("Instalando", "4/5 · Criando a inicialização");

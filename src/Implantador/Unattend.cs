@@ -11,6 +11,7 @@ public static class Unattend
     /// <summary>Caminho (no Windows instalado) do script que roda uma vez no primeiro login.</summary>
     public const string ScriptPrimeiroLogin = @"Windows\Setup\Scripts\MontaWin-primeiro-login.cmd";
     public const string PastaRestaurados = "Arquivos restaurados";
+    public const string ScriptProgramas = @"Windows\Setup\Scripts\MontaWin-programas.cmd";
 
     const string Componente = "processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\"";
 
@@ -67,7 +68,7 @@ public static class Unattend
     /// Script do primeiro login: move as pastas pessoais restauradas (ex.: "joao\Documents") para as pastas
     /// do usuário novo e apaga o unattend.xml, que guarda a senha em texto simples.
     /// </summary>
-    public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas)
+    public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas, bool temProgramas = false)
     {
         var s = new System.Text.StringBuilder("@echo off\r\nrem Gerado pelo MontaWin: roda uma vez, no primeiro login.\r\n");
         foreach (var rel in pastasRestauradas)
@@ -80,6 +81,31 @@ public static class Unattend
             s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\\{usuario}\" 2>nul\r\n");
         s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\" 2>nul\r\n");
         s.Append("del /f /q \"%WINDIR%\\Panther\\unattend.xml\"\r\n");
+        // Programas em outra janela (minimizada): a Área de Trabalho aparece sem esperar os downloads.
+        if (temProgramas) s.Append($"start \"MontaWin - instalando programas\" /min cmd /c \"%SystemDrive%\\{ScriptProgramas}\"\r\n");
+        return s.ToString();
+    }
+
+    /// <summary>Instala os programas pelo winget, esperando ele ficar disponível (é registrado logo depois do 1º login).</summary>
+    public static string GerarScriptProgramas(IEnumerable<string> idsWinget)
+    {
+        var s = new System.Text.StringBuilder("""
+            @echo off
+            rem Gerado pelo MontaWin: instala os programas escolhidos no painel.
+            echo Instalando programas (MontaWin). Pode usar o computador enquanto isso.
+            set tentativas=0
+            :esperar
+            where winget >nul 2>nul && goto instalar
+            set /a tentativas+=1
+            if %tentativas% geq 60 goto fim
+            timeout /t 5 /nobreak >nul
+            goto esperar
+            :instalar
+
+            """.Replace("\n", "\r\n"));
+        foreach (var id in idsWinget)
+            s.Append($"winget install --id {id} -e --silent --accept-package-agreements --accept-source-agreements\r\n");
+        s.Append(":fim\r\n");
         return s.ToString();
     }
 }
