@@ -127,6 +127,12 @@ public static class Pendrive
         }
         Directory.CreateDirectory(mount);
 
+        // Perfis e relatórios de um pendrive MontaWin sobrevivem à regravação: guardados aqui e devolvidos depois.
+        var guardados = Path.Combine(Path.GetTempPath(), "MontaWin-guardados");
+        if (g.Manter == null && Existente(g.Pendrive) is (_, char antigo))
+            foreach (var pasta in PastasGuardadas)
+                if (Directory.Exists($@"{antigo}:\MontaWin\{pasta}"))
+                    Copiar($@"{antigo}:\MontaWin\{pasta}", Path.Combine(guardados, pasta));
         if (g.Manter == null)
         {
             progresso("Apagando e particionando o pendrive", 0);
@@ -170,6 +176,12 @@ public static class Pendrive
         Directory.CreateDirectory(Path.GetDirectoryName(leiaMe)!);
         if (!File.Exists(leiaMe)) File.WriteAllText(leiaMe, LeiaMeDrivers);
 
+        if (Directory.Exists(guardados))
+        {
+            foreach (var pasta in PastasGuardadas)
+                if (Directory.Exists(Path.Combine(guardados, pasta))) Copiar(Path.Combine(guardados, pasta), $@"{dados}:\MontaWin\{pasta}");
+            Directory.Delete(guardados, recursive: true);
+        }
         File.WriteAllText($@"{dados}:\MontaWin\tema.txt", g.Tema);
         var licenca = $@"{dados}:\MontaWin\licenca.txt";
         if (g.Licenca != null) File.WriteAllText(licenca, g.Licenca);
@@ -247,6 +259,29 @@ public static class Pendrive
         var falhas = g.BaixarProgramas ? BaixarProgramas(dados, progresso) : [];
         progresso("Pendrive pronto", 100);
         return falhas;
+    }
+
+    /// <summary>O que volta para o pendrive quando ele é apagado e gravado de novo (pequeno: os backups não cabem aqui).</summary>
+    public static readonly string[] PastasGuardadas = ["Perfis", "Relatorios"];
+
+    static void Copiar(string origem, string destino)
+    {
+        foreach (var arquivo in Directory.GetFiles(origem, "*", SearchOption.AllDirectories))
+        {
+            var alvo = Path.Combine(destino, Path.GetRelativePath(origem, arquivo));
+            Directory.CreateDirectory(Path.GetDirectoryName(alvo)!);
+            File.Copy(arquivo, alvo, overwrite: true);
+        }
+    }
+
+    /// <summary>Aviso antes de apagar um pendrive MontaWin: o que fica (perfis) e o que se perde (backups).</summary>
+    public static string? AvisoAoApagar(char dados)
+    {
+        int perfis = Directory.Exists($@"{dados}:\MontaWin\Perfis") ? Directory.GetFiles($@"{dados}:\MontaWin\Perfis", "*.txt").Length : 0;
+        int backups = Directory.Exists($@"{dados}:\MontaWin\Backups") ? Directory.GetDirectories($@"{dados}:\MontaWin\Backups").Length : 0;
+        if (perfis + backups == 0) return null;
+        return (perfis > 0 ? $"Os {perfis} perfis ficam guardados e voltam para o pendrive." : "") +
+               (backups > 0 ? $"\nOs backups de {backups} PC(s) (drivers e arquivos) serão APAGADOS. Copie a pasta MontaWin\\Backups antes, se precisar deles." : "");
     }
 
     /// <summary>Grava a lista no pendrive e copia os instaladores adicionados por arquivo (só os que mudaram).</summary>

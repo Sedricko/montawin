@@ -319,7 +319,8 @@ public partial class MainWindow : Window
         }
         var pergunta = manter != null
             ? $"A ISO será adicionada ao pendrive e o painel será atualizado. Imagens e backups que já estão nele ficam.\n\n{pendrive.Descricao.Trim()}\n\nContinuar?"
-            : $"TUDO o que estiver no pendrive será apagado:\n\n{pendrive.Descricao.Trim()}\n\nContinuar?";
+            : $"TUDO o que estiver no pendrive será apagado:\n\n{pendrive.Descricao.Trim()}\n\n" +
+              (Pendrive.Existente(pendrive) is (_, char dadosAntigos) && Pendrive.AvisoAoApagar(dadosAntigos) is string aviso ? aviso + "\n\n" : "") + "Continuar?";
         if (MessageBox.Show(this, pergunta, "MontaWin", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
 
         Ocupado(true, "Começando...");

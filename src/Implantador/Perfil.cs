@@ -7,6 +7,8 @@ public record Perfil(string Nome)
 {
     /// <summary>Identidade da placa-mãe (UUID do SMBIOS) do PC ao qual o perfil foi vinculado.</summary>
     public string? Pc { get; init; }
+    /// <summary>Número de série do PC (ou da placa-mãe): a segunda identidade, quando a placa não tem UUID.</summary>
+    public string? Serie { get; init; }
     public string? Modelo { get; init; }
     public string Edicao { get; init; } = "";
     /// <summary>"apagar", "dividir:200" (GB do Windows) ou "particao".</summary>
@@ -27,8 +29,8 @@ public record Perfil(string Nome)
     /// <summary>Rede Wi-Fi do Windows novo (null = sem Wi-Fi); a senha segue a regra da senha da conta.</summary>
     public string? Wifi { get; init; }
     public string? SenhaWifi { get; init; }
-    /// <summary>Ativar com a licença gravada no pendrive pelo MontaWin.exe, quando houver.</summary>
-    public bool Licenca { get; init; } = true;
+    /// <summary>Chave do Windows deste PC (null = sem licença; o PC com licença de fábrica ativa sozinho).</summary>
+    public string? Chave { get; init; }
     /// <summary>Ponto de restauração "Windows recém-instalado" depois dos programas.</summary>
     public bool PontoRestauracao { get; init; } = true;
 
@@ -39,6 +41,7 @@ public record Perfil(string Nome)
             "# Perfil MontaWin. Pode editar; apagar a linha Senha (ou SenhaWifi) faz o painel perguntar na hora.",
             $"Nome = {Nome}",
             $"PC = {Pc}",
+            $"Serie = {Serie}",
             $"Modelo = {Modelo}",
             $"Edicao = {Edicao}",
             $"Instalacao = {Instalacao}",
@@ -54,7 +57,7 @@ public record Perfil(string Nome)
         linhas.Add($"NomePc = {NomePc}");
         linhas.Add($"Wifi = {Wifi}");
         if (SenhaWifi != null) linhas.Add($"SenhaWifi = {SenhaWifi}");
-        linhas.Add($"Licenca = {(Licenca ? "sim" : "nao")}");
+        linhas.Add($"Chave = {Chave}");
         linhas.Add($"PontoRestauracao = {(PontoRestauracao ? "sim" : "nao")}");
         return string.Join("\r\n", linhas) + "\r\n";
     }
@@ -71,7 +74,8 @@ public record Perfil(string Nome)
         if (Campo("Nome") is not string nome) return null;
         return new Perfil(nome)
         {
-            Pc = Campo("PC"),
+            Pc = Campo("PC") is string pc && !pc.StartsWith("modelo:") ? pc : null, // versões antigas guardavam o modelo
+            Serie = Campo("Serie"),
             Modelo = Campo("Modelo"),
             Edicao = Campo("Edicao") ?? "",
             Instalacao = Campo("Instalacao") ?? "apagar",
@@ -86,7 +90,7 @@ public record Perfil(string Nome)
             NomePc = Campo("NomePc"),
             Wifi = Campo("Wifi"),
             SenhaWifi = campos.TryGetValue("SenhaWifi", out var senhaWifi) ? senhaWifi : null,
-            Licenca = !string.Equals(Campo("Licenca"), "nao", StringComparison.OrdinalIgnoreCase),
+            Chave = Campo("Chave") is string chave ? Unattend.ChaveValida(chave) : null,
             PontoRestauracao = !string.Equals(Campo("PontoRestauracao"), "nao", StringComparison.OrdinalIgnoreCase),
         };
     }

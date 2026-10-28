@@ -20,37 +20,78 @@ public static partial class Sistema
         return $"{bios?.GetValue("SystemManufacturer")} {bios?.GetValue("SystemProductName")}".Trim();
     }
 
-    /// <summary>Identidade única do PC: UUID da placa-mãe (SMBIOS); se a placa não tiver, o modelo.</summary>
-    public static unsafe string IdPc()
+    /// <summary>
+    /// As duas identidades de fábrica do PC, gravadas na BIOS: o UUID da placa-mãe e o número de série (o da etiqueta do
+    /// notebook ou PC de marca; em PC montado, o da placa-mãe). Valores genéricos de fábrica viram null.
+    /// </summary>
+    public static unsafe (string? Uuid, string? Serie) Identidade()
     {
         const uint Rsmb = 0x52534D42; // 'RSMB': tabela SMBIOS
         uint tamanho = GetSystemFirmwareTable(Rsmb, 0, null, 0);
         var tabela = new byte[tamanho];
         fixed (byte* p = tabela)
-            if (tamanho > 0 && GetSystemFirmwareTable(Rsmb, 0, p, tamanho) == tamanho && UuidSmbios(tabela) is string uuid)
-                return uuid;
-        return "modelo:" + Modelo();
+            if (tamanho == 0 || GetSystemFirmwareTable(Rsmb, 0, p, tamanho) != tamanho) return (null, null);
+        return (UuidSmbios(tabela), SerieSmbios(tabela));
     }
 
-    /// <summary>UUID da estrutura tipo 1 (System Information); null se ausente ou genérico (tudo 0 ou tudo FF).</summary>
-    public static string? UuidSmbios(byte[] tabela)
+    /// <summary>
+    /// Mesmo PC? Compara o UUID quando os dois têm; senão, o número de série. Sem nenhum dos dois, nunca é o mesmo
+    /// (o modelo sozinho confundiria dois PCs iguais).
+    /// </summary>
+    public static bool MesmoPc(string? uuidA, string? serieA, string? uuidB, string? serieB) =>
+        uuidA != null && uuidB != null ? uuidA.Equals(uuidB, StringComparison.OrdinalIgnoreCase)
+        : serieA != null && serieB != null && serieA.Equals(serieB, StringComparison.OrdinalIgnoreCase);
+
+    // Estruturas SMBIOS: (tipo, parte fixa, textos). Os textos vêm depois da parte fixa, terminados por dois zeros.
+    static IEnumerable<(byte Tipo, int Inicio, int Comprimento, List<string> Textos)> Estruturas(byte[] tabela)
     {
         int o = 8; // cabeçalho RawSMBIOSData
         while (o + 4 <= tabela.Length)
         {
             byte tipo = tabela[o], comprimento = tabela[o + 1];
-            if (comprimento < 4 || o + comprimento > tabela.Length || tipo == 127) break;
+            if (comprimento < 4 || o + comprimento > tabela.Length || tipo == 127) yield break;
+            var textos = new List<string>();
+            int s = o + comprimento;
+            while (s < tabela.Length && tabela[s] != 0)
+            {
+                int fim = Array.IndexOf(tabela, (byte)0, s);
+                if (fim < 0) fim = tabela.Length;
+                textos.Add(System.Text.Encoding.ASCII.GetString(tabela, s, fim - s).Trim());
+                s = fim + 1;
+            }
+            yield return (tipo, o, comprimento, textos);
+            o = (textos.Count == 0 ? s + 1 : s) + 1;
+        }
+    }
+
+    /// <summary>UUID da estrutura tipo 1 (System Information); null se ausente ou genérico (tudo 0 ou tudo FF).</summary>
+    public static string? UuidSmbios(byte[] tabela)
+    {
+        foreach (var (tipo, inicio, comprimento, _) in Estruturas(tabela))
             if (tipo == 1 && comprimento >= 0x18)
             {
-                var uuid = tabela.AsSpan(o + 8, 16);
+                var uuid = tabela.AsSpan(inicio + 8, 16);
                 return uuid.IndexOfAnyExcept((byte)0) < 0 || uuid.IndexOfAnyExcept((byte)0xFF) < 0 ? null : new Guid(uuid).ToString();
             }
-            int s = o + comprimento; // depois da parte fixa vêm os textos, terminados por dois zeros
-            while (s + 1 < tabela.Length && (tabela[s] != 0 || tabela[s + 1] != 0)) s++;
-            o = s + 2;
-        }
         return null;
     }
+
+    /// <summary>Número de série do PC (tipo 1) ou, se for genérico, o da placa-mãe (tipo 2).</summary>
+    public static string? SerieSmbios(byte[] tabela)
+    {
+        string? Serie(byte tipoProcurado) => Estruturas(tabela)
+            .Where(e => e.Tipo == tipoProcurado && e.Comprimento > 7)
+            .Select(e => tabela[e.Inicio + 7] is var i && i > 0 && i <= e.Textos.Count ? e.Textos[i - 1] : null)
+            .FirstOrDefault(SerieValida);
+        return Serie(1) ?? Serie(2);
+    }
+
+    static readonly string[] SeriesGenericas = ["to be filled by o.e.m.", "default string", "system serial number", "chassis serial number",
+        "not specified", "not applicable", "none", "n/a", "na", "serial", "serial number", "invalid", "123456789", "0123456789", "base board serial number"];
+
+    /// <summary>Número de série de verdade (não "To be filled by O.E.M.", "Default string", "0000..." e parecidos).</summary>
+    public static bool SerieValida(string? serie) =>
+        serie is { Length: >= 3 } && !SeriesGenericas.Contains(serie.ToLowerInvariant()) && serie.Distinct().Count() > 1;
 
     /// <summary>Ex.: "Dell Inc. Inspiron 15 · 16 GB RAM · UEFI"</summary>
     public static string Resumo()

@@ -20,6 +20,13 @@ public class TelasTests
     /// <summary>Uma tela de cada tipo, como o painel mostra durante uma instalação.</summary>
     public static IEnumerable<(string Nome, Tela Tela)> Exemplos()
     {
+        yield return ("0-reconhecido", new Tela
+        {
+            Tipo = TipoTela.Lista, Titulo = "PC Escritório reconhecido", Selecionado = 0, Rodape = "Setas: navegar    Enter: escolher",
+            Info = ["Dell Inc. OptiPlex 7090 · 16 GB RAM · UEFI · série 5CG1234XYZ",
+                "Windows 11 Pro · Windows 200 GB + Dados · conta joao · Wi-Fi Casa", "O perfil já sabe tudo deste PC: você só escolhe o disco e confirma."],
+            Itens = [new Item("Formatar com o perfil \"PC Escritório\""), new Item("Ir para o menu (outras opções)")],
+        });
         yield return ("1-menu", new Tela
         {
             Tipo = TipoTela.Lista, Titulo = "O que vamos fazer?", Selecionado = 0, Rodape = "Setas: navegar    Enter: escolher",
@@ -280,11 +287,12 @@ public class TelasTests
     [Fact]
     public void PerfilGuardaNomeWifiELicenca()
     {
-        var p = Perfil.Ler(new Perfil("Casa") { NomePc = "JOAO-PC", Wifi = "Casa", SenhaWifi = "abc", Licenca = false }.Texto())!;
-        Assert.Equal(("JOAO-PC", "Casa", "abc", false), (p.NomePc, p.Wifi, p.SenhaWifi, p.Licenca));
+        var p = Perfil.Ler(new Perfil("Casa") { NomePc = "JOAO-PC", Wifi = "Casa", SenhaWifi = "abc", Chave = "ABCDE-12345-FGHIJ-67890-KLMNO", Serie = "5CG1234XYZ" }.Texto())!;
+        Assert.Equal(("JOAO-PC", "Casa", "abc", "ABCDE-12345-FGHIJ-67890-KLMNO", "5CG1234XYZ"), (p.NomePc, p.Wifi, p.SenhaWifi, p.Chave, p.Serie));
         var sem = Perfil.Ler(new Perfil("Outro") { Wifi = "Casa" }.Texto())!;
         Assert.Null(sem.SenhaWifi); // perguntada na hora
-        Assert.True(sem.Licenca);
+        Assert.Null(sem.Chave);
+        Assert.Null(Perfil.Ler("Nome = Velho\r\nPC = modelo:Dell Inc. OptiPlex")!.Pc); // versão antiga: o modelo não identifica o PC
     }
 
     [Fact]
@@ -315,5 +323,30 @@ public class TelasTests
         Assert.True(programas.IndexOf("Checkpoint-Computer") > programas.IndexOf(":fim"));
         Assert.DoesNotContain("Checkpoint", Unattend.GerarScriptProgramas(["Google.Chrome"]));
         Assert.False(Perfil.Ler(new Perfil("X") { PontoRestauracao = false }.Texto())!.PontoRestauracao);
+    }
+
+    [Fact]
+    public void IdentidadeDuplaDoPc()
+    {
+        var uuid = new Guid("4c4c4544-0042-3510-8051-b4c04f4a3333");
+        byte[] Tabela(string serie)
+        {
+            var t = new List<byte>(new byte[8]);
+            var tipo1 = new byte[0x1B]; tipo1[0] = 1; tipo1[1] = 0x1B; tipo1[4] = 1; tipo1[7] = 2; uuid.ToByteArray().CopyTo(tipo1, 8);
+            t.AddRange(tipo1); t.AddRange(System.Text.Encoding.ASCII.GetBytes($"Dell Inc.\0{serie}\0\0"));
+            var tipo2 = new byte[0x0F]; tipo2[0] = 2; tipo2[1] = 0x0F; tipo2[7] = 1;
+            t.AddRange(tipo2); t.AddRange("PLACA998877\0\0"u8.ToArray());
+            return t.ToArray();
+        }
+        Assert.Equal(uuid.ToString(), Sistema.UuidSmbios(Tabela("5CG1234XYZ")));
+        Assert.Equal("5CG1234XYZ", Sistema.SerieSmbios(Tabela("5CG1234XYZ")));
+        Assert.Equal("PLACA998877", Sistema.SerieSmbios(Tabela("To be filled by O.E.M."))); // genérico: usa o da placa-mãe
+        Assert.False(Sistema.SerieValida("0000000"));
+        Assert.False(Sistema.SerieValida("Default string"));
+
+        Assert.True(Sistema.MesmoPc("a", "S1", "a", "S2"));      // UUID manda quando os dois têm
+        Assert.False(Sistema.MesmoPc("a", "S1", "b", "S1"));     // placas diferentes, mesma série: não
+        Assert.True(Sistema.MesmoPc(null, "S1", "b", "S1"));     // sem UUID de um lado: vale a série
+        Assert.False(Sistema.MesmoPc(null, null, null, null));   // sem identidade nenhuma, nunca reconhece
     }
 }

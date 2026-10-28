@@ -20,10 +20,12 @@ Disco? alvo = null;
 string? pastaDrivers = null;
 string? pastaArquivos = null;
 var backupsFeitos = new List<string>(); // pastas de backup: nunca podem ficar no disco que vai ser formatado
-string idPc = Sistema.IdPc();
+// Duas identidades de fábrica (UUID da placa e número de série): o perfil e os backups são reconhecidos por elas.
+var (uuidPc, seriePc) = Sistema.Identidade();
+bool pcIdentificado = uuidPc != null || seriePc != null;
 // Perfil vinculado a este PC (pela identidade da placa-mãe): sugerido na instalação e usado no nome da pasta de backup.
-Perfil? perfilDoPc = LerPerfis().FirstOrDefault(x => x.Pc == idPc);
-Comandos.Registrar($"MontaWin iniciado: {Sistema.Resumo()} · PC {idPc} · perfil {perfilDoPc?.Nome ?? "(nenhum)"} · tema {Tui.Tema}");
+Perfil? perfilDoPc = LerPerfis().FirstOrDefault(EstePc);
+Comandos.Registrar($"MontaWin iniciado: {Sistema.Resumo()} · PC {uuidPc ?? "-"} / série {seriePc ?? "-"} · perfil {perfilDoPc?.Nome ?? "(nenhum)"} · tema {Tui.Tema}");
 
 // Plano Alto desempenho: o WinPE inicia em Equilibrado e a Microsoft recomenda trocar para acelerar a implantação.
 Comandos.Executar("powercfg", "/s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c");
@@ -45,8 +47,30 @@ if (infsExtras.Length > 0)
 string[] acoes = ["Formatar e instalar o Windows", "Backup (drivers e arquivos)", "Restaurar backup de arquivos", "Escolher disco (para os backups)",
                   "Perfis", "Capturar imagem de um Windows", "Prompt de comando", "Reiniciar", "Desligar"];
 int ultima = 0;
+// PC reconhecido pelas identidades de fábrica: a primeira tela já oferece formatar com o perfil dele.
+bool oferecerPerfil = perfilDoPc != null;
 while (true)
 {
+    if (oferecerPerfil && perfilDoPc != null)
+    {
+        oferecerPerfil = false;
+        var p = perfilDoPc;
+        int r = Tui.Menu($"{p.Nome} reconhecido", [
+            Sistema.Resumo() + (seriePc != null ? $" · série {seriePc}" : ""),
+            $"{p.Edicao} · {DescreverInstalacao(p.Instalacao)}" + (p.Usuario != null ? $" · conta {p.Usuario}" : "") + (p.Wifi != null ? $" · Wi-Fi {p.Wifi}" : ""),
+            "O perfil já sabe tudo deste PC: você só escolhe o disco e confirma."],
+            [$"Formatar com o perfil \"{p.Nome}\"", "Ir para o menu (outras opções)"], voltar: null);
+        if (r == 0)
+        {
+            try { Instalar(p); }
+            catch (Exception e)
+            {
+                Comandos.Registrar($"ERRO: {e.Message}");
+                Tui.Mensagem("Algo deu errado", e.Message.Split('\n'), erro: true);
+            }
+            continue;
+        }
+    }
     var info = new List<string>
     {
         alvo != null ? $"Disco escolhido: {Compacto(alvo.Descricao)}" : "Nenhum disco escolhido para os backups",
@@ -130,7 +154,7 @@ string PastaBackup(string unidade)
     var nomePc = perfilDoPc?.Nome ?? (Sistema.Modelo() is { Length: > 0 } modelo ? modelo : "PC");
     var pasta = Path.Combine(unidade, "MontaWin", "Backups", Perfil.NomeSeguro(nomePc), sessao);
     Directory.CreateDirectory(pasta);
-    File.WriteAllText(Path.Combine(pasta, "pc.txt"), $"{idPc}\r\n{Sistema.Resumo()}\r\n");
+    File.WriteAllText(Path.Combine(pasta, "pc.txt"), $"uuid={uuidPc}\r\nserie={seriePc}\r\n{Sistema.Resumo()}\r\n");
     return pasta;
 }
 
@@ -335,6 +359,57 @@ string? PerguntarNomePc(string titulo, string? atual)
     }
 }
 
+bool EstePc(Perfil p) => Sistema.MesmoPc(p.Pc, p.Serie, uuidPc, seriePc);
+
+// Licença do PC: a do pendrive, digitada (a deste PC) ou nenhuma. Voltou = Esc.
+(bool Voltou, string? Chave) EscolherLicenca(string titulo, string? atual)
+{
+    var doPendrive = LicencaDoPendrive();
+    while (true)
+    {
+        var opcoes = new List<string>();
+        if (doPendrive != null) opcoes.Add($"Usar a licença do pendrive (final {doPendrive[^5..]})");
+        opcoes.Add(atual != null && atual != doPendrive ? $"Digitar a licença deste PC (atual: final {atual[^5..]})" : "Digitar a licença deste PC");
+        opcoes.Add("Sem licença (o Windows ativa sozinho se o PC tiver licença de fábrica)");
+        int sel = atual == null ? opcoes.Count - 1 : atual == doPendrive ? 0 : opcoes.Count - 2;
+        int r = Tui.Menu(titulo, ["A licença precisa ser da mesma edição (Home ou Pro).", "Fica guardada no perfil deste PC, se você salvar o perfil."], opcoes, sel);
+        if (r < 0) return (true, atual);
+        if (r == opcoes.Count - 1) return (false, null);
+        if (doPendrive != null && r == 0) return (false, doPendrive);
+        var digitada = Tui.Perguntar("Licença deste PC", ["Formato: XXXXX-XXXXX-XXXXX-XXXXX-XXXXX."], "Chave do produto", inicial: atual ?? "");
+        if (digitada == null) continue;
+        if (Unattend.ChaveValida(digitada) is string valida) return (false, valida);
+        Tui.Mensagem("Licença inválida", ["Use o formato XXXXX-XXXXX-XXXXX-XXXXX-XXXXX (25 letras e números)."], erro: true);
+    }
+}
+
+// Sugestão de nome do computador a partir do usuário: "João" vira "JOAO-PC".
+static string SugestaoNomePc(string? usuario)
+{
+    if (usuario == null) return "";
+    var semAcento = string.Concat(usuario.ToUpperInvariant().Select(c => "ÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇÑ".IndexOf(c) is int i and >= 0 ? "AAAAAEEEEIIIIOOOOOUUUUCN"[i] : c));
+    var letras = new string(semAcento.Where(char.IsAsciiLetterOrDigit).Take(12).ToArray());
+    return letras.Length == 0 ? "" : letras + "-PC";
+}
+
+// Último backup de drivers deste mesmo PC (pelas identidades de fábrica): serve quando o disco não tem Windows.
+(string Pasta, string Data)? UltimoBackupDeDrivers()
+{
+    if (raiz == null || !pcIdentificado || !Directory.Exists(Path.Combine(raiz, "Backups"))) return null;
+    foreach (var pc in Directory.GetFiles(Path.Combine(raiz, "Backups"), "pc.txt", SearchOption.AllDirectories)
+                 .OrderByDescending(f => Path.GetFileName(Path.GetDirectoryName(f)))) // pasta com a data: a mais nova primeiro
+    {
+        var linhas = File.ReadAllLines(pc);
+        string? Campo(string nome) => linhas.FirstOrDefault(l => l.StartsWith(nome + "="))?[(nome.Length + 1)..] is { Length: > 0 } v ? v : null;
+        var uuid = Campo("uuid") ?? (linhas.Length > 0 && Guid.TryParse(linhas[0], out _) ? linhas[0] : null); // versão antiga: só o UUID
+        var drivers = Path.Combine(Path.GetDirectoryName(pc)!, "Drivers");
+        if (Sistema.MesmoPc(uuid, Campo("serie"), uuidPc, seriePc) && Directory.Exists(drivers)
+            && Directory.EnumerateFiles(drivers, "*.inf", SearchOption.AllDirectories).Any())
+            return (drivers, Path.GetFileName(Path.GetDirectoryName(pc))!);
+    }
+    return null;
+}
+
 // Licença gravada pelo MontaWin.exe (MontaWin\licenca.txt); null se não houver ou estiver errada.
 string? LicencaDoPendrive()
 {
@@ -396,7 +471,7 @@ void MenuPerfis()
     while (true)
     {
         var perfis = LerPerfis();
-        var opcoes = perfis.Select(x => $"{x.Nome}  ({x.Edicao} · {DescreverInstalacao(x.Instalacao)})" + (x.Pc == idPc ? "  ← este PC" : "")).Prepend("+ Adicionar perfil").ToList();
+        var opcoes = perfis.Select(x => $"{x.Nome}  ({x.Edicao} · {DescreverInstalacao(x.Instalacao)})" + (EstePc(x) ? "  ← este PC" : "")).Prepend("+ Adicionar perfil").ToList();
         sel = Tui.Menu("Perfis", ["Cada perfil guarda as respostas da instalação de um PC.", "Com um perfil, a instalação só pede o disco e a confirmação."], opcoes, sel);
         if (sel < 0) return;
         if (sel == 0) { AdicionarPerfil(); continue; }
@@ -421,7 +496,8 @@ void AdicionarPerfil()
     int edicao = 0, modo = 0, configuracao = 0, guardar = 0, gb = 120;
     string? usuario = null, senha = null;
     var escolhidos = new List<Programa>();
-    bool restaurar = true, drivers = true, otimizar = true, removerOneDrive = true, altoDesempenho = false, vincular = true, licenca = true, pontoRestauracao = true;
+    bool restaurar = true, drivers = true, otimizar = true, removerOneDrive = true, altoDesempenho = false, vincular = true, pontoRestauracao = true;
+    string? chave = null;
     string? nomePc = null, wifi = null, senhaWifi = null;
 
     if (!Assistente(
@@ -491,8 +567,13 @@ void AdicionarPerfil()
             senhaWifi = Tui.Perguntar($"{nome}: senha do Wi-Fi {wifi}", ["Deixe em branco se a rede for aberta."], "Senha do Wi-Fi", oculto: true);
             return senhaWifi == null ? Passo.Voltar : Passo.Avancar;
         },
-        _ => LicencaDoPendrive() is not string chave ? Passo.Pular : SimNao(Tui.Menu($"{nome}: licença", [$"Licença gravada no pendrive (final {chave[^5..]})."],
-            ["Ativar o Windows com a licença do pendrive", "Não usar a licença"], licenca ? 0 : 1), ref licenca),
+        _ =>
+        {
+            var (voltou, c) = EscolherLicenca($"{nome}: licença do Windows", chave);
+            if (voltou) return Passo.Voltar;
+            chave = c;
+            return Passo.Avancar;
+        },
         _ =>
         {
             if (usuario == null) { escolhidos = []; return Passo.Pular; }
@@ -513,13 +594,19 @@ void AdicionarPerfil()
             (removerOneDrive, altoDesempenho, pontoRestauracao) = (m[0], m[1], m[2]);
             return Passo.Avancar;
         },
-        _ => SimNao(Tui.Menu($"{nome}: este PC", [$"PC atual: {Sistema.Resumo()}"],
-            ["Vincular a este PC: o painel sugere este perfil sozinho aqui", "Não vincular (perfil para usar em qualquer PC)"], vincular ? 0 : 1), ref vincular)))
+        _ =>
+        {
+            // Sem identidade de fábrica, vincular confundiria PCs iguais: o perfil é escolhido na hora.
+            if (!pcIdentificado) { vincular = false; return Passo.Pular; }
+            return SimNao(Tui.Menu($"{nome}: este PC", [$"PC atual: {Sistema.Resumo()}", $"Identificado pela placa-mãe{(seriePc != null ? $" e pelo número de série {seriePc}" : "")}."],
+                ["Vincular a este PC: o painel reconhece este PC e já oferece o perfil ao ligar", "Não vincular (perfil para usar em qualquer PC)"], vincular ? 0 : 1), ref vincular);
+        }))
         return;
 
     var perfil = new Perfil(nome)
     {
-        Pc = vincular ? idPc : null,
+        Pc = vincular ? uuidPc : null,
+        Serie = vincular ? seriePc : null,
         Modelo = vincular ? Sistema.Modelo() : null,
         Edicao = nomesEdicoes[edicao],
         Instalacao = modo == 2 ? "particao" : modo == 1 ? $"dividir:{gb}" : "apagar",
@@ -534,12 +621,12 @@ void AdicionarPerfil()
         NomePc = nomePc,
         Wifi = wifi,
         SenhaWifi = senhaWifi,
-        Licenca = licenca,
+        Chave = chave,
         PontoRestauracao = pontoRestauracao,
     };
     Directory.CreateDirectory(Path.Combine(raiz!, "Perfis"));
     File.WriteAllText(ArquivoPerfil(perfil.Nome), perfil.Texto());
-    if (perfil.Pc == idPc) perfilDoPc = perfil;
+    if (EstePc(perfil)) perfilDoPc = perfil;
     Comandos.Registrar($"Perfil salvo: {perfil.Nome}");
     Tui.Mensagem("Perfil salvo", [$"Perfil {perfil.Nome} salvo em {ArquivoPerfil(perfil.Nome)}.", "Use em \"Formatar e instalar\"."]);
 }
@@ -559,12 +646,13 @@ static int SimNao(int resposta, ref bool sim)
     return Passo.Avancar;
 }
 
-void Instalar()
+// inicial: perfil já escolhido (PC reconhecido na abertura): o assistente começa direto no disco.
+void Instalar(Perfil? inicial = null)
 {
     if (!Exigir(raiz != null, "Pendrive MontaWin não encontrado (pasta MontaWin\\Imagens).")) return;
     var edicoes = LerEdicoes();
     if (!Exigir(edicoes.Count > 0, "Nenhuma imagem .wim na pasta MontaWin\\Imagens.")) return;
-    var perfis = LerPerfis().OrderByDescending(x => x.Pc == idPc).ToList();
+    var perfis = LerPerfis().OrderByDescending(EstePc).ToList();
     var programas = LerProgramas();
     bool uefi = Discos.Uefi;
 
@@ -581,9 +669,16 @@ void Instalar()
     string senha = "";
     var escolhidos = new List<Programa>();
     bool otimizar = true, removerOneDrive = true, altoDesempenho = false, restaurar = pastaArquivos != null, pontoRestauracao = true;
-    string? nomePc = null, rede = null, licenca = LicencaDoPendrive();
+    string? nomePc = null, rede = null, chave = LicencaDoPendrive();
     string senhaRede = "";
-    bool usarLicenca = licenca != null;
+    bool recomendado = true;
+    (string Pasta, string Data)? driversAnteriores = null;
+    // A imagem é conferida em segundo plano enquanto as perguntas são respondidas: no resumo, já está pronta.
+    var conferencias = new Dictionary<string, Task<bool?>>();
+    void Conferir(Edicao e)
+    {
+        if (!conferencias.ContainsKey(e.Arquivo)) conferencias[e.Arquivo] = Task.Run(() => Wim.Conferir(e.Arquivo));
+    }
     Edicao? velocidadeMedida = null;
     string? avisoLento = null;
 
@@ -593,22 +688,29 @@ void Instalar()
         // Perfil: o deste PC vem primeiro e já selecionado
         _ =>
         {
+            void Aplicar(Perfil p) =>
+                (otimizar, removerOneDrive, altoDesempenho, restaurar, pontoRestauracao) =
+                    (p.Otimizar, p.RemoverOneDrive, p.AltoDesempenho, p.Restaurar && pastaArquivos != null, p.PontoRestauracao);
+            if (inicial != null)
+            {
+                (perfil, inicial) = (inicial, null); // só na primeira passada; voltando aqui, mostra a lista
+                Aplicar(perfil);
+                return Passo.Pular;
+            }
             if (perfis.Count == 0) return Passo.Pular;
-            var opcoes = perfis.Select(x => $"{x.Nome}  ({x.Edicao} · {DescreverInstalacao(x.Instalacao)})" + (x.Pc == idPc ? "  ← este PC" : ""))
+            var opcoes = perfis.Select(x => $"{x.Nome}  ({x.Edicao} · {DescreverInstalacao(x.Instalacao)})" + (EstePc(x) ? "  ← este PC" : ""))
                 .Append("Sem perfil: responder tudo agora").ToList();
             while (true)
             {
                 int e = Tui.Menu("Usar um perfil?", ["Com um perfil, as respostas já vêm prontas: só falta o disco e a confirmação."], opcoes,
-                    perfil != null ? perfis.IndexOf(perfil) : perfis[0].Pc == idPc ? 0 : perfis.Count);
+                    perfil != null ? perfis.IndexOf(perfil) : EstePc(perfis[0]) ? 0 : perfis.Count);
                 if (e < 0) return Passo.Voltar;
                 var p = e < perfis.Count ? perfis[e] : null;
-                if (p?.Pc is string pc && pc != idPc
+                if (p != null && (p.Pc != null || p.Serie != null) && !EstePc(p)
                     && !Tui.Confirmar("Perfil de outro PC", [$"O perfil {p.Nome} é do PC {p.Modelo}. Este é {Sistema.Modelo()}.", "Os drivers do backup podem não servir. Usar mesmo assim?"]))
                     continue;
                 perfil = p;
-                if (perfil != null)
-                    (otimizar, removerOneDrive, altoDesempenho, restaurar, pontoRestauracao) =
-                        (perfil.Otimizar, perfil.RemoverOneDrive, perfil.AltoDesempenho, perfil.Restaurar && pastaArquivos != null, perfil.PontoRestauracao);
+                if (perfil != null) Aplicar(perfil);
                 return Passo.Avancar;
             }
         },
@@ -620,11 +722,14 @@ void Instalar()
                 var doPerfil = edicoes.FirstOrDefault(x => x.Nome == perfil.Edicao);
                 if (!Exigir(doPerfil != null, $"A edição \"{perfil.Edicao}\" do perfil não está nas imagens do pendrive.")) return Passo.Voltar;
                 edicao = doPerfil!;
+                Conferir(edicao);
                 return Passo.Avancar;
             }
+            if (edicoes.Count == 1) { Conferir(edicao); return Passo.Pular; } // só um Windows no pendrive: nada a escolher
             int e = Tui.Menu("Qual Windows instalar?", [], edicoes.Select(x => $"{x.Nome}  ({Path.GetFileName(x.Arquivo)})").ToList(), edicoes.IndexOf(edicao));
             if (e < 0) return Passo.Voltar;
             edicao = edicoes[e];
+            Conferir(edicao);
             return Passo.Avancar;
         },
         _ =>
@@ -632,6 +737,8 @@ void Instalar()
             var d = EscolherDisco("Em qual disco instalar?", disco ?? alvo);
             if (d == null) return Passo.Voltar;
             disco = d;
+            // Disco sem Windows (novo ou trocado): os drivers vêm do último backup deste mesmo PC, se houver.
+            driversAnteriores = disco.LetraWindows == null && pastaDrivers == null ? UltimoBackupDeDrivers() : null;
             return Passo.Avancar;
         },
         // Disco com Windows e sem backup: oferece antes de formatar (depois não tem volta)
@@ -646,6 +753,19 @@ void Instalar()
             restaurar = pastaArquivos != null && (perfil?.Restaurar ?? true);
             return Passo.Avancar;
         },
+        _ =>
+        {
+            if (perfil != null) return Passo.Pular;
+            int r = Tui.Menu("Como configurar o Windows?", [
+                "Recomendado: conta local sem as telas da Microsoft, Windows otimizado e sem OneDrive, ponto de restauração",
+                "e o backup de arquivos de volta. Você ainda escolhe a partição, a conta, o Wi-Fi, a licença e os programas."],
+                ["Recomendado (menos perguntas)", "Personalizar: escolher cada opção"], recomendado ? 0 : 1);
+            if (r < 0) return Passo.Voltar;
+            recomendado = r == 0;
+            if (recomendado)
+                (configuracao, otimizar, removerOneDrive, altoDesempenho, pontoRestauracao, restaurar) = (0, true, true, false, true, pastaArquivos != null);
+            return Passo.Avancar;
+        },
         sentido =>
         {
             if (perfil != null)
@@ -654,6 +774,7 @@ void Instalar()
                 modo = perfil.Instalacao == "particao" ? 2 : perfil.Instalacao.StartsWith("dividir:") ? 1 : 0;
                 return Passo.Avancar;
             }
+            if (disco.Particoes.Count == 0) { modo = 0; return Passo.Pular; } // disco vazio: não há o que manter
             return Escolha(Tui.Menu($"Como instalar no {Compacto(disco.Descricao)}?", disco.Particoes.Select(p => p.Descricao).ToList(), [
                 "Apagar o disco inteiro (automático)",
                 "Apagar o disco e dividir: Windows + Dados",
@@ -749,6 +870,7 @@ void Instalar()
                 configuracao = usuario != null ? 0 : 1;
                 return Passo.Avancar;
             }
+            if (recomendado) { configuracao = 0; return Passo.Pular; }
             return Escolha(Tui.Menu("Configuração inicial do Windows", [], [
                 "Automática: criar conta local e pular as telas iniciais (recomendado)",
                 "Normal: o cliente responde as telas da Microsoft no primeiro uso",
@@ -774,7 +896,7 @@ void Instalar()
         {
             if (usuario == null) { nomePc = null; return Passo.Pular; }
             if (perfil != null) { nomePc = perfil.NomePc; return Passo.Pular; }
-            var n = PerguntarNomePc("Nome do computador", nomePc);
+            var n = PerguntarNomePc("Nome do computador", nomePc ?? SugestaoNomePc(usuario));
             if (n == null) return Passo.Voltar;
             nomePc = n.Length == 0 ? null : n;
             return Passo.Avancar;
@@ -797,12 +919,11 @@ void Instalar()
         },
         _ =>
         {
-            if (licenca == null) return Passo.Pular;
-            if (perfil != null) { usarLicenca = perfil.Licenca; return Passo.Pular; }
-            return SimNao(Tui.Menu("Ativar o Windows com a sua licença?", [
-                $"Licença gravada no pendrive pelo MontaWin.exe (final {licenca[^5..]}).",
-                "Ela precisa ser da mesma edição (Home ou Pro). Sem ela, o Windows ativa sozinho se o PC tiver licença de fábrica."],
-                ["Sim, ativar com a licença do pendrive", "Não usar a licença"], usarLicenca ? 0 : 1), ref usarLicenca);
+            if (perfil != null) { chave = perfil.Chave; return Passo.Pular; }
+            var (voltou, c) = EscolherLicenca("Licença do Windows", chave);
+            if (voltou) return Passo.Voltar;
+            chave = c;
+            return Passo.Avancar;
         },
         // Programas no primeiro login: só com a configuração automática, que roda o script do primeiro login.
         _ =>
@@ -814,14 +935,14 @@ void Instalar()
             escolhidos = e;
             return Passo.Avancar;
         },
-        _ => perfil != null ? Passo.Pular : SimNao(Tui.Menu("Otimizar o Windows?", [
+        _ => perfil != null || recomendado ? Passo.Pular : SimNao(Tui.Menu("Otimizar o Windows?", [
             "Remove apps inúteis e propaganda (Notícias, Xbox, Paciência, Clipchamp...), bloqueia apps sugeridos,",
             "desliga Widgets, pesquisa do Iniciar só no PC, telemetria no mínimo.",
             "Defender, firewall, Windows Update e Microsoft Store continuam como a Microsoft entrega."],
             ["Sim: otimizar (recomendado)", "Não: Windows como a Microsoft entrega"], otimizar ? 0 : 1), ref otimizar),
         _ =>
         {
-            if (perfil != null) return Passo.Pular;
+            if (perfil != null || recomendado) return Passo.Pular;
             var m = Tui.Selecao("Ajustes opcionais", [], [
                 "Remover o OneDrive",
                 "Modo de energia Alto desempenho (melhor em PC de mesa; em notebook gasta mais bateria e esquenta)",
@@ -831,7 +952,7 @@ void Instalar()
             (removerOneDrive, altoDesempenho, pontoRestauracao) = (m[0], m[1], m[2]);
             return Passo.Avancar;
         },
-        _ => pastaArquivos == null || perfil != null ? Passo.Pular
+        _ => pastaArquivos == null || perfil != null || recomendado ? Passo.Pular
             : SimNao(Tui.Menu("Restaurar o backup de arquivos no Windows novo?", [$"Backup: {pastaArquivos}"], [
                 "Sim: copiar os arquivos para o Windows novo (recomendado)",
                 "Não: deixar só no backup (dá para restaurar depois pelo menu)",
@@ -841,12 +962,14 @@ void Instalar()
         {
             if (velocidadeMedida != edicao)
             {
-                foreach (var arquivo in extras.Prepend(edicao).Select(x => x.Arquivo).Distinct())
+                foreach (var e in extras.Prepend(edicao).DistinctBy(x => x.Arquivo))
                 {
-                    Tui.Etapa("Conferindo", $"Conferindo a imagem do Windows no pendrive ({Path.GetFileName(arquivo)})...");
-                    if (Wim.Conferir(arquivo, Tui.Progresso) == false)
+                    Conferir(e);
+                    var conferencia = conferencias[e.Arquivo];
+                    if (!conferencia.IsCompleted) Tui.Etapa("Conferindo", $"Terminando de conferir a imagem do Windows ({Path.GetFileName(e.Arquivo)})...");
+                    if (conferencia.Result == false)
                     {
-                        Tui.Mensagem("Imagem do Windows corrompida", [$"O arquivo {Path.GetFileName(arquivo)} no pendrive está com defeito.",
+                        Tui.Mensagem("Imagem do Windows corrompida", [$"O arquivo {Path.GetFileName(e.Arquivo)} no pendrive está com defeito.",
                             "Nada foi apagado. Grave o pendrive de novo no MontaWin.exe (ou troque o pendrive, se repetir)."], erro: true);
                         return Passo.Sair;
                     }
@@ -882,7 +1005,7 @@ void Instalar()
                               : "Conta: o cliente cria nas telas da Microsoft");
         if (nomePc != null) r.Add($"Nome do computador: {nomePc}");
         r.Add(rede != null ? $"Internet: Wi-Fi {rede} (o Windows já liga conectado)" : "Internet: cabo de rede, ou conectar depois");
-        if (licenca != null) r.Add(usarLicenca ? $"Licença: a do pendrive (final {licenca[^5..]})" : "Licença: não usar a do pendrive");
+        r.Add(chave != null ? $"Licença: final {chave[^5..]} (ativa antes da tela de login)" : "Licença: nenhuma (ativa sozinho se o PC tiver licença de fábrica)");
         if (usuario != null && pontoRestauracao) r.Add("Ponto de restauração: \"Windows recém-instalado\", depois dos programas");
         if (usuario != null) r.Add("Programas: " + (escolhidos.Count > 0 ? string.Join(", ", escolhidos.Select(x => x.Nome)) : "nenhum"));
         var ajustes = new List<string>();
@@ -892,6 +1015,7 @@ void Instalar()
         r.Add("Ajustes: " + (ajustes.Count > 0 ? string.Join(", ", ajustes) : "nenhum (Windows como a Microsoft entrega)"));
         if (perfil?.BackupDrivers == true && disco.LetraWindows != null && pastaDrivers == null) r.Add("Drivers: backup dos básicos antes de formatar, reinstalados depois");
         else if (pastaDrivers != null) r.Add("Drivers: o backup volta no Windows novo");
+        else if (driversAnteriores is var (_, data)) r.Add($"Drivers: o último backup deste PC ({data}) volta no Windows novo");
         if (restaurar) r.Add("Arquivos: o backup volta " + (usuario != null ? "para as pastas do usuário novo" : $"em C:\\{Unattend.PastaRestaurados}"));
         var fabrica = disco.Particoes.Where(p => p.Tipo == TipoParticao.Fabricante).ToList();
         if (modo != 2 && fabrica.Count > 0) r.Add($"Atenção: a recuperação de fábrica do fabricante ({Formatar.Tamanho(fabrica.Sum(p => p.Tamanho))}) também será apagada.");
@@ -904,12 +1028,12 @@ void Instalar()
     }
 
     Executar(perfil, edicao, extras, disco, modo, plano, particao, uefi, usuario, senha, escolhidos, otimizar, removerOneDrive, altoDesempenho, restaurar, windowsGb,
-        nomePc, rede, senhaRede, usarLicenca ? licenca : null, pontoRestauracao, Resumo());
+        nomePc, rede, senhaRede, chave, pontoRestauracao, Resumo(), pastaDrivers ?? driversAnteriores?.Pasta);
 }
 
 void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, int modo, PlanoParticoes plano, Particao? particao, bool uefi,
     string? usuario, string senha, List<Programa> escolhidos, bool otimizar, bool removerOneDrive, bool altoDesempenho, bool restaurar, int? windowsGb,
-    string? nomePc, string? rede, string senhaRede, string? chave, bool pontoRestauracao, List<string> resumo)
+    string? nomePc, string? rede, string senhaRede, string? chave, bool pontoRestauracao, List<string> resumo, string? drivers)
 {
     Tui.Etapa("Instalando o Windows", "Preparando..."); // a tela de confirmação não fica parada enquanto calcula
     bool backupDriversAutomatico = perfil?.BackupDrivers == true && disco.LetraWindows != null && pastaDrivers == null;
@@ -970,11 +1094,11 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
                 if (removerOneDrive) Tui.Registro("OneDrive não será instalado");
                 if (altoDesempenho) Tui.Registro("Modo de energia Alto desempenho ativado");
             }));
-        if (pastaDrivers != null || backupDriversAutomatico || infsExtras.Length > 0)
+        if (drivers != null || backupDriversAutomatico || infsExtras.Length > 0)
             trabalho.Add(($"Instalando os drivers{de}", 6, () =>
             {
                 // Driver que falhar não impede a instalação: o Windows Update completa depois.
-                foreach (var (pasta, nome) in new[] { (pastaDrivers, "do backup"), (infsExtras.Length > 0 ? pastaDriversExtras : null, "extras") })
+                foreach (var (pasta, nome) in new[] { (pastaDrivers ?? drivers, "do backup deste PC"), (infsExtras.Length > 0 ? pastaDriversExtras : null, "extras") })
                 {
                     if (pasta == null) continue;
                     Tui.Registro($"Instalando {Directory.GetFiles(pasta, "*.inf", SearchOption.AllDirectories).Length} drivers {nome}");
@@ -1083,7 +1207,7 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
             NomePc = nomePc,
             Wifi = rede,
             SenhaWifi = senhaRede,
-            Licenca = chave != null,
+            Chave = chave,
             PontoRestauracao = pontoRestauracao,
         });
     if (Tui.Menu("Instalação concluída", avisos, ["Reiniciar agora", "Voltar ao menu"], voltar: null) == 0)
@@ -1098,6 +1222,7 @@ string? SalvarRelatorio(char windows, List<string> resumo)
         "RELATÓRIO DA FORMATAÇÃO (MontaWin)",
         $"Data: {DateTime.Now:dd/MM/yyyy HH:mm}",
         $"Computador: {Sistema.Resumo()}",
+        $"Número de série: {seriePc ?? "não informado pelo fabricante"}",
         "",
         "O QUE FOI ESCOLHIDO",
     };
@@ -1130,14 +1255,15 @@ void SalvarComoPerfil(Perfil escolhas)
     if (string.IsNullOrEmpty(nome) || Perfil.NomeSeguro(nome).Length == 0) return;
     bool guardarSenha = (escolhas.Usuario != null || escolhas.Wifi != null) && Tui.Menu("Senhas (conta e Wi-Fi)", [], ["Perguntar a senha na hora de instalar (mais seguro)",
         "Guardar a senha no perfil (mais rápido; fica escrita no pendrive)"], voltar: null) == 1;
-    bool vincular = Tui.Menu("Este PC", [$"PC atual: {Sistema.Resumo()}"],
-        ["Vincular a este PC: o painel sugere este perfil sozinho aqui", "Não vincular"], voltar: null) == 0;
+    bool vincular = pcIdentificado && Tui.Menu("Este PC", [$"PC atual: {Sistema.Resumo()}"],
+        ["Vincular a este PC: o painel reconhece este PC e já oferece o perfil ao ligar", "Não vincular"], voltar: null) == 0;
     var perfil = escolhas with
     {
         Nome = nome.Trim(),
         Senha = guardarSenha ? escolhas.Senha : null,
         SenhaWifi = guardarSenha ? escolhas.SenhaWifi : null,
-        Pc = vincular ? idPc : null,
+        Pc = vincular ? uuidPc : null,
+        Serie = vincular ? seriePc : null,
         Modelo = vincular ? Sistema.Modelo() : null,
     };
     Directory.CreateDirectory(Path.Combine(raiz!, "Perfis"));
