@@ -1,0 +1,73 @@
+<Window x:Class="MontaWin.Montador.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="MontaWin" Width="660" Height="760" MinWidth="520" MinHeight="560"
+        WindowStartupLocation="CenterScreen">
+  <Window.Resources>
+    <Style x:Key="Cartao" TargetType="Border">
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="Margin" Value="0,0,0,12" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CardStrokeColorDefaultBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CardBackgroundFillColorDefaultBrush}" />
+    </Style>
+    <Style x:Key="Titulo" TargetType="TextBlock">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,0,0,10" />
+    </Style>
+    <Style x:Key="Dica" TargetType="TextBlock">
+      <Setter Property="Opacity" Value="0.7" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+  </Window.Resources>
+
+  <ScrollViewer VerticalScrollBarVisibility="Auto">
+    <StackPanel Margin="24">
+      <TextBlock Text="MontaWin" FontSize="28" FontWeight="SemiBold" />
+      <TextBlock Style="{StaticResource Dica}" Margin="0,4,0,20"
+                 Text="Cria o pendrive de implantação: o PC dá boot e abre direto o painel MontaWin." />
+
+      <Border Style="{StaticResource Cartao}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Titulo}" Text="1 · Imagem do Windows" />
+          <DockPanel>
+            <Button x:Name="BotaoIso" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher ISO..." Click="EscolherIso" />
+            <TextBox x:Name="CaminhoIso" IsReadOnly="True" VerticalContentAlignment="Center" />
+          </DockPanel>
+          <TextBlock x:Name="TituloEdicoes" Text="Edições que vão para o pendrive (escolhidas no painel na hora de instalar)"
+                     Style="{StaticResource Dica}" Margin="0,14,0,6" Visibility="Collapsed" />
+          <ItemsControl x:Name="ListaEdicoes">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate>
+                <CheckBox Content="{Binding Nome}" IsChecked="{Binding Marcada}" Margin="0,2" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <Border Style="{StaticResource Cartao}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Titulo}" Text="2 · Pendrive" />
+          <DockPanel>
+            <Button x:Name="BotaoAtualizar" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Atualizar" Click="Atualizar" />
+            <ComboBox x:Name="ListaPendrives" DisplayMemberPath="Descricao" />
+          </DockPanel>
+          <TextBlock Style="{StaticResource Dica}" Margin="0,8,0,0"
+                     Text="Use um pendrive de 16 GB ou mais. Tudo o que estiver nele será apagado. Só aparecem discos USB." />
+        </StackPanel>
+      </Border>
+
+      <Border Style="{StaticResource Cartao}">
+        <StackPanel>
+          <TextBlock Style="{StaticResource Titulo}" Text="3 · Criar" />
+          <Button x:Name="BotaoCriar" Content="Criar pendrive" Padding="24,10" HorizontalAlignment="Left" FontWeight="SemiBold" Click="Criar" />
+          <ProgressBar x:Name="Barra" Height="6" Margin="0,16,0,6" Maximum="100" />
+          <TextBlock x:Name="Status" Style="{StaticResource Dica}" Text="Escolha a ISO e o pendrive." />
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </ScrollViewer>
+</Window>

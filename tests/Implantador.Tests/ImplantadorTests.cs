@@ -207,4 +207,20 @@ public class ImplantadorTests
         Assert.Equal("pt-BR", xml.Descendants(ns + "UILanguage").Single().Value);
         Assert.Equal("Administrators", System.Xml.Linq.XDocument.Parse(Unattend.Gerar("en-US", "a", "")).Descendants(ns + "Group").Single().Value);
     }
+
+    [Fact]
+    public void ParticionaPendriveComBootFat32EDadosNtfs()
+    {
+        var linhas = MontaWin.Montador.Pendrive.ScriptParticionar(3, 'S', 'W').Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.Equal(new[] { "select disk 3", "clean", "convert mbr", "create partition primary size=2048", "format quick fs=fat32 label=MONTAWIN", "active", "assign letter=S" }, linhas[..7]);
+        Assert.Contains("format quick fs=ntfs label=MONTAWIN-DADOS", linhas);
+        Assert.Contains("assign letter=W", linhas);
+    }
+
+    [Fact]
+    public void WinpeAbreOImplantadorDepoisDoWpeinit()
+    {
+        var linhas = MontaWin.Montador.Pendrive.WinpeshlIni.Replace("\r", "").Split('\n');
+        Assert.Equal(new[] { "[LaunchApps]", @"%SYSTEMROOT%\System32\wpeinit.exe", @"%SYSTEMDRIVE%\MontaWin\Implantador.exe" }, linhas);
+    }
 }

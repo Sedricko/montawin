@@ -13,6 +13,11 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
   </ItemGroup>
 
+  <!-- Lógica do Montador sem a parte de tela (o projeto dele é WPF) -->
+  <ItemGroup>
+    <Compile Include="..\..\src\Montador\Pendrive.cs" Link="Pendrive.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\..\src\Implantador\Implantador.csproj" />
   </ItemGroup>

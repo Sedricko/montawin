@@ -6,18 +6,28 @@ on:
   workflow_dispatch:
 
 jobs:
-  implantador:
+  montawin:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 8.0.x
+          dotnet-version: |
+            8.0.x
+            10.0.x
       - name: Testes
         run: dotnet test tests/Implantador.Tests
-      - name: Compilar (Native AOT)
-        run: dotnet publish src/Implantador -c Release -r win-x64 -o publicar
+      - name: Compilar o Implantador (Native AOT)
+        run: dotnet publish src/Implantador -c Release -r win-x64 -p:DebugType=none -o publicar
+      - name: Compilar o Montador (exe único)
+        run: >
+          dotnet publish src/Montador -c Release -r win-x64 --self-contained
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=none -o publicar
+      # Os dois exe vão juntos: o MontaWin.exe coloca o Implantador.exe no pendrive.
       - uses: actions/upload-artifact@v4
         with:
-          name: Implantador
-          path: publicar/Implantador.exe
+          name: MontaWin
+          path: |
+            publicar/MontaWin.exe
+            publicar/Implantador.exe

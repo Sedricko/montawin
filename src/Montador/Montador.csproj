@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>MontaWin.Montador</RootNamespace>
+    <AssemblyName>MontaWin</AssemblyName>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <!-- WPF0001: o tema Fluent (Windows 11) ainda é marcado como experimental -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+  </PropertyGroup>
+
+  <!-- Mesma leitura de discos, .wim e execução de comandos do Implantador -->
+  <ItemGroup>
+    <Compile Include="..\Implantador\Comandos.cs;..\Implantador\Discos.cs;..\Implantador\Tui.cs;..\Implantador\Wim.cs" LinkBase="Compartilhado" />
+  </ItemGroup>
+
+</Project>
