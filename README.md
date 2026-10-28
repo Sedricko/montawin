@@ -1,29 +1,28 @@
-# MontaWin
+# Aurora Win
 
-Kit de formatação e implantação do Windows para técnicos. São dois programas que trabalham juntos:
-
-| Programa | Onde roda | O que faz |
-|---|---|---|
-| **MontaWin.exe** (Montador) | No PC do técnico | Grava o pendrive bootável a partir de uma ISO oficial do Windows |
-| **Implantador.exe** | No pendrive (WinPE) | Painel próprio que abre no boot: backups, particionamento e instalação |
+Kit de formatação e implantação do Windows (uso pessoal). Um programa só, **AuroraWin.exe**, que grava um pendrive bootável a partir de uma ISO oficial do Windows. O painel que abre no boot do pendrive (backups, particionamento e instalação) vai embutido nele.
 
 ## Como usar
 
-1. Baixe `MontaWin.exe` e `Implantador.exe` na **[última Release](../../releases/latest)** e deixe os dois **na mesma pasta**. (Versões de teste de outros branches ficam em **Actions → build → Artifacts**.)
-2. Abra o `MontaWin.exe` (ele pede administrador).
-3. **Escolher ISO:** use uma ISO oficial do Windows 10/11 ([download da Microsoft](https://www.microsoft.com/software-download/windows11)) e marque as edições que vão para o pendrive.
-4. Escolha o **pendrive** (16 GB ou mais) e clique em **Criar pendrive**. Na primeira vez, tudo nele é apagado. Se o pendrive já foi gravado pelo MontaWin, a opção **Manter** só adiciona a nova ISO e atualiza o painel, sem apagar imagens e backups.
-   - **Atualizações do mês (automático):** o MontaWin descobre a versão da ISO (ex.: 25H2), baixa do [Microsoft Update Catalog](https://www.catalog.update.microsoft.com) a atualização cumulativa e a do .NET mais novas (sem as "Preview") e instala em cada edição: o Windows já sai atualizado. Na primeira vez são uns 5 GB; depois o download é reaproveitado. Se o Catalog mudar e o download falhar, ele abre a pesquisa certa no navegador para baixar na mão. Também dá para escolher uma pasta com `.msu` já baixados.
-   - **Certificado do boot:** ao abrir a ISO, o MontaWin mostra se o boot dela usa o certificado novo (2023) ou o antigo (2011) do Secure Boot.
-   - **.NET Framework 3.5:** ativado em cada edição a partir da própria ISO (muitos programas antigos pedem). Vem antes das atualizações, como a Microsoft recomenda, e depois a imagem é limpa do que as atualizações substituíram (fica menor).
-   - **Sua licença (opcional):** digite a chave do Windows. No painel, a instalação oferece ativar com ela (precisa ser da mesma edição). Em branco, segue normal; PCs com licença de fábrica ativam sozinhos.
-   - **Visual do painel:** escolha o tema (**Ondas**, **Bloom** ou **Pastel**). O próprio MontaWin muda de visual na hora, e o painel do boot usa o mesmo tema.
-   - **Programas:** a lista oferecida no painel. **Adicionar pela internet:** digite o nome (ex.: anydesk), clique em Procurar, escolha o resultado do winget e "Adicionar à lista". **Ou um instalador que você já tem:** escolha o `.exe`/`.msi`, confira o nome e os parâmetros silenciosos e adicione; ele vai para o pendrive e instala sem internet. A lista fica guardada neste PC e vai para todo pendrive que você criar; "Salvar programas no pendrive" atualiza um pendrive já pronto sem gravar tudo de novo.
-   - **Baixar os programas para o pendrive:** baixa com o `winget` os instaladores da lista (`MontaWin\Instaladores\winget`). No PC eles instalam sem internet; os da Microsoft Store e os que não baixarem ficam para a internet.
-   - **Instalação mais rápida:** grava a imagem com compressão rápida (arquivo ~30% maior, instala mais depressa). Bom para pendrive USB 3.0 ou SSD externo.
-5. No PC do cliente, dê boot pelo pendrive: o **painel MontaWin abre sozinho**.
+1. Baixe o `AuroraWin.exe` na **[última Release](../../releases/latest)** (versões de teste: **Actions → build → Artifacts → AuroraWin**) e abra (ele pede administrador).
+2. **Bloco Windows:** escolha uma ISO oficial do Windows 10/11 e marque as edições. O app mostra a versão (ex.: 25H2) e o certificado do boot da ISO.
+   - **.NET Framework 3.5:** ativado em cada edição a partir da própria ISO.
+   - **Atualizações do mês (automático):** baixa do Microsoft Update Catalog a cumulativa e a do .NET mais novas (sem "Preview") e instala em cada edição. Também aceita uma pasta com `.msu` já baixados.
+3. **Bloco Pendrive:** escolha o pendrive (16 GB ou mais). Na primeira vez tudo nele é apagado; num pendrive já gravado, **Manter** só adiciona a ISO e atualiza o painel. Antes de apagar, o app confere se o disco ainda é o mesmo pendrive escolhido.
+4. **Bloco Programas:** a caixa de cada programa diz se ele **já vem marcado** no painel; o selo diz de onde instala (**no pendrive**, **internet**, **Store**, **só internet**, **arquivo**). Populares com um clique, procura no winget, instalador próprio (.exe/.msi com parâmetros silenciosos) e remover vários de uma vez (Ctrl/Shift). "Baixar os programas para o pendrive" deixa tudo instalando sem internet; o Chrome vem direto do Google (o .msi corporativo).
+5. **Bloco Perfis:** os perfis do pendrive (por pessoa ou por PC): novo (começa do zero), editar, duplicar e apagar. Senhas e licença continuam sendo guardadas pelo painel, no PC.
+6. **Criar pendrive:** a janela sai da frente e uma janelinha animada acompanha a gravação (anel com o percentual, etapa, tempo restante e o que já foi feito).
+7. No PC, dê boot pelo pendrive: o **painel Aurora Win abre sozinho**.
+
+**Engrenagem (Configurações):** tema (**Aurora**, **Galáxia**, **Alvorada** ou **Cristal**), que vale para o app e para o painel do pendrive; licença do Windows (opcional); certificado do boot (**Compatível 2011**, padrão, ou **Novo 2023**, tirado do próprio WinPE de ISOs atualizadas, para PCs que já têm o certificado novo); instalação mais rápida (compressão rápida); e o **PIN de administrador**.
+
+**PIN e dados escondidos:** com o PIN definido, "Esconder os dados do pendrive no Windows" marca a parte de dados (perfis, licença, relatórios, backups e imagens) como oculta (tipo 0x27): no PC de um cliente só aparece a parte de boot. O painel do pendrive acha os dados sozinho; no app, "Mostrar com o PIN" mostra só enquanto ele está aberto. É esconder, não criptografar: quem souber usar o diskpart ainda chega aos arquivos.
+
+O app tem janela própria (sem a moldura do Windows, cantos arredondados, blocos de vidro) e avisos no mesmo visual, sem as caixas do Windows.
 
 ## O pendrive
+
+As pastas no pendrive continuam se chamando `MontaWin` (nome antigo), para os pendrives, perfis e backups já gravados continuarem valendo.
 
 | Partição | Sistema | Conteúdo |
 |---|---|---|
@@ -36,13 +35,14 @@ Kit de formatação e implantação do Windows para técnicos. São dois program
 
 ## O painel (Implantador)
 
-Painel em **tela cheia**, no tema escolhido no MontaWin, usado com o mouse ou o teclado (setas, Enter, Esc). Se o WinPE não conseguir desenhar a tela gráfica, o painel abre a versão em texto, com as mesmas opções. Ao abrir, coloca o WinPE no plano de energia Alto desempenho e carrega os drivers extras do pendrive.
+Painel em **tela cheia**, com o nome e o ícone do Aurora Win, no tema escolhido no app, usado com o mouse ou o teclado (setas, Enter, Esc). Se o WinPE não conseguir desenhar a tela gráfica, o painel abre a versão em texto, com as mesmas opções. Ao abrir, coloca o WinPE no plano de energia Alto desempenho e carrega os drivers extras do pendrive.
 
 - **Voltar em todas as telas:** toda tela tem "← Voltar", e o Esc volta um passo (as respostas já dadas ficam guardadas).
 - **Botões separados das opções:** "← Voltar" e "Continuar →" ficam fixos embaixo do cartão, sempre à vista; só as opções rolam. O resumo e o fim da instalação têm botões lado a lado (setas trocam o botão).
-- **Mouse:** clique escolhe, a rodinha rola. O segundo clique de um clique duplo não escolhe nada na tela seguinte.
-- **Fonte:** o MontaWin.exe copia a Segoe UI e a Consolas do PC do técnico para `MontaWin\Fontes`; o WinPE não tem a Segoe UI completa (o texto saía inclinado).
-- **Listas de marcar** (programas, drivers, pastas, ajustes): clique no item ou aperte Enter/Espaço para marcar, "Marcar todos" para tudo e "Continuar →" para seguir (Tab vai direto para ele). Os programas começam desmarcados.
+- **Mouse:** clique escolhe, a rodinha rola e a opção sob o mouse fica destacada. O segundo clique de um clique duplo não escolhe nada na tela seguinte.
+- **Fonte:** o AuroraWin.exe copia a Segoe UI e a Consolas do PC do técnico para `MontaWin\Fontes`; o WinPE não tem a Segoe UI completa (o texto saía inclinado).
+- **Listas de marcar** (programas, drivers, pastas, ajustes): clique no item ou aperte Enter/Espaço para marcar, "Marcar todos" para tudo e "Continuar →" para seguir (Tab vai direto para ele). Os programas marcados no app já vêm escolhidos.
+- **Assistente:** o resumo traz sugestões sobre o PC (pouca RAM, modo BIOS, Secure Boot desligado, processador fora da lista do Windows 11, HD em vez de SSD, disco pequeno), e as mensagens de erro conhecidas (falta de espaço, arquivo corrompido, pendrive que desconectou, disco protegido, BitLocker, boot) vêm com "O que costuma resolver". É só sugestão: a decisão é sua.
 - **Confirmação em dois passos:** primeiro o resumo de tudo ("Formatar e instalar", "← Voltar e corrigir" ou "Cancelar"); depois um aviso vermelho em que você digita **SIM**. O vermelho fica só para o que apaga dados; avisos comuns ("nenhum backup encontrado") são neutros.
 - **Progresso detalhado:** lista de etapas, a caixa "O que está acontecendo" (partições, apps removidos, drivers, arquivos copiados com a velocidade...), o tempo decorrido e o restante. Na cópia do Windows mostra quanto já foi copiado e a velocidade ("3,1 de 8,6 GB · 45 MB/s").
 
@@ -59,7 +59,7 @@ Painel em **tela cheia**, no tema escolhido no MontaWin, usado com o mouse ou o 
 
   Depois pergunta a **configuração inicial**: automática (cria uma conta local e pula as telas da Microsoft) ou normal, e, se houver backup de arquivos, se ele deve **voltar para o Windows novo**. Com a configuração automática, as pastas pessoais voltam para as pastas do usuário novo no primeiro login, e o arquivo com a senha (`Windows\Panther\unattend.xml`) é apagado logo em seguida. Antes de confirmar, mede a velocidade do pendrive e avisa se estiver lento (USB 2.0) ou se o notebook estiver na bateria. Mostra o resumo, pede para digitar `SIM`, avisa se a recuperação de fábrica vai ser apagada, aplica a imagem com DISM, reinstala os drivers, cria a inicialização com `bcdboot` e configura a recuperação do Windows (WinRE).
 - **Nome do computador, Wi-Fi e licença:** a instalação pergunta o nome do PC na rede (sugere um aleatório, ex.: `PC-7K2P9QX`), a rede Wi-Fi (mostra as redes que o Windows antigo conhecia e, se o WinPE tiver Wi-Fi, as com sinal agora; só os nomes, a senha é digitada: a salva no Windows antigo é criptografada por ele e não é lida) e se ativa com a licença do pendrive. O Wi-Fi e a licença são aplicados antes da tela de login, e os arquivos com a senha e a chave são apagados logo em seguida. As telas da Microsoft continuam puladas, com ou sem rede.
-- **Antes de formatar, a imagem é conferida:** o MontaWin.exe grava a impressão digital (SHA-256) de cada imagem; o painel confere uma vez e, se a cópia no pendrive estiver corrompida, para sem apagar nada.
+- **Antes de formatar, a imagem é conferida:** o AuroraWin.exe grava a impressão digital (SHA-256) de cada imagem; o painel confere uma vez e, se a cópia no pendrive estiver corrompida, para sem apagar nada.
 - **Relatório da formatação:** no fim, um arquivo na área de trabalho do cliente e uma cópia em `MontaWin\Relatorios` com o PC, o que foi escolhido e o que foi feito (sem senhas).
 - **Conferência no primeiro login:** depois dos programas, acrescenta ao relatório da área de trabalho quais programas instalaram (OK/FALHOU), os dispositivos sem driver e se o Windows está ativado. Se algum dispositivo ficou sem driver, tenta de novo com a cópia do backup de drivers que o painel deixa em `C:\MontaWin\Drivers` (até 1,5 GB; apagada sozinha quando fica tudo certo).
 - **Depois da instalação:** o relógio é acertado antes de baixar os programas, o Windows Update já começa a procurar os drivers que faltam no primeiro login e, se marcado, é criado o ponto de restauração "Windows recém-instalado" depois dos programas.
@@ -80,26 +80,21 @@ Painel em **tela cheia**, no tema escolhido no MontaWin, usado com o mouse ou o 
 
 ## Compilar
 
-O GitHub Actions compila a cada push (`.github/workflows/build.yml`): roda os testes, gera o `Implantador.exe` nativo (Native AOT, roda no WinPE sem .NET) e o `MontaWin.exe` (WPF, exe único que não precisa de .NET instalado).
+O GitHub Actions compila a cada push (`.github/workflows/build.yml`): roda os testes, gera o painel `Implantador.exe` nativo (Native AOT, roda no WinPE sem .NET) e o `AuroraWin.exe` (WPF, exe único que não precisa de .NET instalado), com o painel embutido.
 
 Localmente, no Windows, com os SDKs .NET 8 e 10:
 
 ```
 dotnet test tests/Implantador.Tests
 dotnet publish src/Implantador -c Release -r win-x64 -o publicar
-dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -o publicar
+dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:PainelExe=%CD%\publicar\Implantador.exe -o publicar
 ```
 
-## Próximas atualizações (combinado)
+## Próximas atualizações
 
-- **Aurora Win:** nome novo, logo e ícones (claro para o app, escuro para o painel, e o tema Cristal), Montador em blocos de vidro (não formulário), janelas flutuantes de cantos arredondados, caixas de aviso próprias (sem MessageBox do Windows) e janelinha animada de progresso da gravação.
-- **Engrenagem de configurações:** o tema do app vale para o painel (Ondas → Aurora, Bloom → Galáxia, Pastel → Alvorada, novo Cristal), PIN de administrador e certificado do boot (2011 ou 2023).
-- **Parte do sistema escondida no pendrive** (perfis, licença, relatórios), mostrada só com o PIN.
-- **Programas:** "vem marcado no painel" por programa, populares com um clique, ícone e versão, selo "no pendrive", download do Chrome direto do Google e Office marcado "só internet".
-- **Perfis por pessoa** criados e editados no app; editar e duplicar perfil; tamanho do Windows "recomendado" em vez de um número fixo.
-- **Desempenho:** otimizar a imagem uma vez no Montador (em vez de remover os apps a cada formatação).
-- **Assistente de problemas comuns** e sugestão de sistema pelo hardware (sempre só sugestão).
-- Destaque da opção ao passar o mouse.
+- **Desempenho:** otimizar a imagem uma vez no app (em vez de remover os apps a cada formatação), sem tirar a opção "Windows como a Microsoft entrega".
+- **Programas:** aviso e atualização quando sair versão nova dos que estão no pendrive.
+- **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos
 
