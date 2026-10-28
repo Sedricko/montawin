@@ -24,7 +24,7 @@ Kit de formatação e implantação do Windows para técnicos. São dois program
 
 ## O painel (Implantador)
 
-Menu em tela de texto, usado com as setas:
+Menu em tela de texto, usado com as setas. Ao abrir, coloca o WinPE no plano de energia Alto desempenho para a instalação ser mais rápida.
 
 - **Escolher disco:** lista os discos internos com modelo, tamanho e se têm Windows. Discos USB nunca aparecem, para não apagar o pendrive.
 - **Backup de drivers:** exporta os drivers do Windows antigo para o pendrive e mostra a lista agrupada por tipo (Rede, Vídeo, Áudio...) para desmarcar os que não devem voltar. Os marcados são reinstalados sozinhos depois da instalação.

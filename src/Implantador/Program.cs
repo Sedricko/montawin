@@ -3,6 +3,8 @@ using MontaWin.Implantador;
 
 Tui.Iniciar();
 Tui.InfoSistema = Sistema.Resumo() + " ";
+// Plano Alto desempenho: o WinPE inicia em Equilibrado e a Microsoft recomenda trocar para acelerar a implantação.
+Comandos.Executar("powercfg", "/s 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c");
 
 // Pasta MontaWin no pendrive (partição NTFS): imagens e backups ficam lá.
 string? raiz = DriveInfo.GetDrives()
