@@ -232,6 +232,13 @@ public class TelasTests
     }
 
     [Fact]
+    public void NumerosComVirgula()
+    {
+        Assert.Equal("25,9", Formatar.Decimal(25.94));
+        Assert.Equal("1,5 TB", Formatar.Tamanho(1_500_000_000_000));
+    }
+
+    [Fact]
     public void RedesVisiveisVemDoNetsh()
     {
         var saida = "Nome da interface : Wi-Fi\r\nHá 2 redes visíveis no momento.\r\n\r\nSSID 1 : Casa 5G\r\n    Tipo de rede : Infraestrutura\r\n"

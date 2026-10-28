@@ -251,7 +251,11 @@ public static partial class Discos
 public static class Formatar
 {
     public static string Tamanho(long bytes) =>
-        bytes >= 1_000_000_000_000 ? $"{bytes / 1e12:0.0} TB" : bytes >= 1_000_000_000 ? $"{bytes / 1e9:0} GB" : $"{bytes / 1e6:0} MB";
+        bytes >= 1_000_000_000_000 ? $"{Decimal(bytes / 1e12)} TB" : bytes >= 1_000_000_000 ? $"{bytes / 1e9:0} GB" : $"{bytes / 1e6:0} MB";
+
+    /// <summary>Uma casa com vírgula ("25,9"): o painel roda sem cultura (WinPE), então o padrão seria o ponto.</summary>
+    public static string Decimal(double valor) => valor.ToString("0.0", Virgula);
+    static readonly System.Globalization.NumberFormatInfo Virgula = new() { NumberDecimalSeparator = "," };
 
     /// <summary>Corta ou completa com espaços: colunas alinhadas (o painel gráfico também usa as colunas).</summary>
     public static string Ajustar(string s, int n) => s.Length > n ? s[..n] : s.PadRight(n);

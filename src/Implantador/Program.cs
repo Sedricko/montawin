@@ -1125,7 +1125,7 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
             void Copiado(double pct)
             {
                 if (ed.Bytes > 0 && relogio.Elapsed.TotalSeconds > 3)
-                    Tui.Detalhe($"Copiando o Windows{de} · {ed.Bytes * pct / 100 / 1e9:0.0} de {ed.Bytes / 1e9:0.0} GB · " +
+                    Tui.Detalhe($"Copiando o Windows{de} · {Formatar.Decimal(ed.Bytes * pct / 100 / 1e9)} de {Formatar.Decimal(ed.Bytes / 1e9)} GB · " +
                         $"{ed.Bytes * pct / 100 / 1e6 / relogio.Elapsed.TotalSeconds:0} MB/s");
                 Tui.Progresso(pct);
             }
