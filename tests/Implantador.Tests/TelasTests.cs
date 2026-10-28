@@ -124,6 +124,29 @@ public class TelasTests
     }
 
     [Fact]
+    public void ConferenciaDoPrimeiroLoginEntraNosScripts()
+    {
+        var ps = Unattend.GerarConferencia([("Google Chrome", ["Google.Chrome"]), ("Sistema d'Loja", ["loja.exe"])]);
+        Assert.Contains("[pscustomobject]@{ Nome = 'Google Chrome'; Marcas = @('Google.Chrome') }", ps);
+        Assert.Contains("'Sistema d''Loja'", ps); // aspas simples escapadas no PowerShell
+        Assert.Contains("Get-PnpDevice", ps);
+        if (OperatingSystem.IsWindows()) // no CI: o PowerShell precisa conseguir ler o script (erro de sintaxe falha aqui)
+        {
+            var arquivo = Path.Combine(Path.GetTempPath(), "montawin-conferencia.ps1");
+            File.WriteAllText(arquivo, ps, new System.Text.UTF8Encoding(true));
+            var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("powershell",
+                $"-NoProfile -Command \"[ScriptBlock]::Create((Get-Content -Raw '{arquivo}')) | Out-Null\"") { RedirectStandardError = true })!;
+            var erro = p.StandardError.ReadToEnd();
+            p.WaitForExit();
+            Assert.True(p.ExitCode == 0 && erro.Length == 0, erro);
+        }
+        Assert.Contains(Unattend.ChamadaConferencia, Unattend.GerarScriptProgramas(["Google.Chrome"], conferencia: true));
+        Assert.Contains(Unattend.ChamadaConferencia, Unattend.GerarScriptPrimeiroLogin([], temProgramas: false, conferencia: true));
+        Assert.DoesNotContain(Unattend.ChamadaConferencia, Unattend.GerarScriptPrimeiroLogin([], temProgramas: true, conferencia: true));
+        Assert.Contains(@"-File %SystemDrive%\Windows\Setup\Scripts\MontaWin-conferencia.ps1", Unattend.ChamadaConferencia);
+    }
+
+    [Fact]
     public void RedesVisiveisVemDoNetsh()
     {
         var saida = "Nome da interface : Wi-Fi\r\nHá 2 redes visíveis no momento.\r\n\r\nSSID 1 : Casa 5G\r\n    Tipo de rede : Infraestrutura\r\n"

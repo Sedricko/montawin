@@ -17,6 +17,8 @@ public static class Unattend
     public const string ScriptSetupComplete = @"Windows\Setup\Scripts\SetupComplete.cmd";
     public const string ScriptAntesDoLogin = @"Windows\Setup\Scripts\MontaWin-antes-do-login.cmd";
     public const string PerfilWifi = @"Windows\Setup\Scripts\MontaWin-wifi.xml";
+    public const string ScriptConferencia = @"Windows\Setup\Scripts\MontaWin-conferencia.ps1";
+    public const string ChamadaConferencia = $"powershell -NoProfile -ExecutionPolicy Bypass -File %SystemDrive%\\{ScriptConferencia}";
     public const string ChamadaSetupComplete = $"call %SystemDrive%\\{ScriptAntesDoLogin}\r\n";
 
     const string Componente = "processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\"";
@@ -87,7 +89,8 @@ public static class Unattend
     public const string PontoDeRestauracao = "powershell -NoProfile -Command \"Enable-ComputerRestore -Drive $env:SystemDrive\\; " +
         "Checkpoint-Computer -Description 'Windows recem-instalado (MontaWin)' -RestorePointType MODIFY_SETTINGS\" >nul 2>&1";
 
-    public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas, bool temProgramas = false, bool pontoRestauracao = false)
+    public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas, bool temProgramas = false, bool pontoRestauracao = false,
+        bool conferencia = false)
     {
         var s = new System.Text.StringBuilder("@echo off\r\nrem Gerado pelo MontaWin: roda uma vez, no primeiro login.\r\n");
         foreach (var rel in pastasRestauradas)
@@ -106,6 +109,8 @@ public static class Unattend
         // O ponto de restauração vem depois deles (no script dos programas) ou agora, se não houver programas.
         if (temProgramas) s.Append($"start \"\" conhost.exe --headless cmd /c %SystemDrive%\\{ScriptProgramas} usuario\r\n");
         else if (pontoRestauracao) s.Append($"start \"\" conhost.exe --headless cmd /c {PontoDeRestauracao}\r\n");
+        // Sem programas, a conferência já pode rodar; com eles, o script dos programas a chama no fim.
+        if (conferencia && !temProgramas) s.Append($"start \"\" conhost.exe --headless {ChamadaConferencia}\r\n");
         return s.ToString();
     }
 
@@ -155,7 +160,7 @@ public static class Unattend
     /// no pendrive que falharem sem internet são tentados de novo online.
     /// </summary>
     public static string GerarScriptProgramas(IEnumerable<string> idsWinget, IEnumerable<(string Arquivo, string Parametros)>? instaladores = null,
-        IEnumerable<(string Id, string Comando, bool SoUsuario)>? offline = null, bool pontoRestauracao = false)
+        IEnumerable<(string Id, string Comando, bool SoUsuario)>? offline = null, bool pontoRestauracao = false, bool conferencia = false)
     {
         var s = new System.Text.StringBuilder("""
             @echo off
@@ -229,7 +234,47 @@ public static class Unattend
 
             """.ReplaceLineEndings("\r\n"));
         if (pontoRestauracao) s.Append($"if \"%MODO%\"==\"usuario\" {PontoDeRestauracao}\r\n"); // depois dos programas
+        if (conferencia) s.Append($"if \"%MODO%\"==\"usuario\" {ChamadaConferencia}\r\n");
         return s.ToString();
+    }
+
+    /// <summary>
+    /// Conferência no primeiro login, depois dos programas: acrescenta ao relatório da Área de Trabalho quais programas
+    /// instalaram, os dispositivos sem driver e se o Windows está ativado. Gravar com BOM (o PowerShell 5 lê assim os acentos).
+    /// </summary>
+    public static string GerarConferencia(IEnumerable<(string Nome, string[] Marcadores)> programas)
+    {
+        static string Ps(string t) => "'" + t.Replace("'", "''") + "'";
+        var lista = string.Join(",\r\n", programas.Select(p => $"    [pscustomobject]@{{ Nome = {Ps(p.Nome)}; Marcas = @({string.Join(", ", p.Marcadores.Select(Ps))}) }}"));
+        return $$"""
+            # Gerado pelo MontaWin: conferência do primeiro login (roda uma vez e se apaga).
+            $feitos = Join-Path $PSScriptRoot 'MontaWin-feitos'
+            $programas = @(
+            {{lista}}
+            )
+            $linhas = @('', "===== Conferência no primeiro login ($(Get-Date -Format 'dd/MM/yyyy HH:mm')) =====", '')
+            if ($programas.Count -gt 0) {
+                $linhas += 'Programas:'
+                foreach ($p in $programas) {
+                    $falta = @($p.Marcas | Where-Object { -not (Test-Path (Join-Path $feitos $_)) })
+                    $linhas += '  ' + $(if ($falta.Count -eq 0) { 'OK       ' } else { 'FALHOU   ' }) + $p.Nome
+                }
+                $linhas += ''
+            }
+            $sem = @(Get-PnpDevice -PresentOnly -ErrorAction SilentlyContinue | Where-Object { $_.Status -in 'Error', 'Degraded' })
+            if ($sem.Count -eq 0) { $linhas += 'Drivers: todos os dispositivos estão funcionando.' }
+            else {
+                $linhas += "Drivers: $($sem.Count) dispositivo(s) com problema (o Windows Update ainda pode instalar alguns):"
+                foreach ($d in $sem) { $linhas += '  - ' + $(if ($d.FriendlyName) { $d.FriendlyName } else { $d.InstanceId }) }
+            }
+            $licenca = Get-CimInstance SoftwareLicensingProduct -Filter "PartialProductKey IS NOT NULL AND ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f'" -ErrorAction SilentlyContinue | Select-Object -First 1
+            $linhas += '', $(if ($licenca.LicenseStatus -eq 1) { 'Windows: ativado.' } else { 'Windows: NÃO ativado (sem licença ou ainda sem internet para ativar).' })
+            $relatorio = Get-ChildItem "$env:PUBLIC\Desktop" -Filter 'Relat*.txt' -ErrorAction SilentlyContinue | Select-Object -First 1
+            $arquivo = if ($relatorio) { $relatorio.FullName } else { Join-Path "$env:PUBLIC\Desktop" 'Relatório da formatação.txt' }
+            [IO.File]::AppendAllText($arquivo, ($linhas -join "`r`n") + "`r`n", (New-Object Text.UTF8Encoding $false))
+            Remove-Item $PSCommandPath -Force -ErrorAction SilentlyContinue
+
+            """.ReplaceLineEndings("\r\n");
     }
 
     const string Silencioso = "--silent --accept-package-agreements --accept-source-agreements";

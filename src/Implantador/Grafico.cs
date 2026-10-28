@@ -98,9 +98,18 @@ public sealed unsafe partial class TelaGrafica : ISaida
         if (largura < 640 || altura < 480) throw new Exception($"resolução {largura}x{altura} pequena demais");
         s = Math.Clamp(Math.Min(largura / 1280f, altura / 720f), 0.8f, 2.5f);
 
+        // O WinPE não traz a Segoe UI completa (o texto saía inclinado): o Montador copia as fontes para MontaWin\Fontes
+        nint nova = 0, colecao = 0;
+        var fontes = pasta == null ? null : Path.Combine(pasta, "Fontes");
+        if (fontes != null && Directory.Exists(fontes) && GdipNewPrivateFontCollection(&nova) == 0) colecao = nova;
+        if (colecao != 0)
+            foreach (var arquivo in Directory.GetFiles(fontes, "*.ttf"))
+                GdipPrivateAddFontFile(colecao, arquivo);
+        bool Familia(string nome, nint* f) => (colecao != 0 && GdipCreateFontFamilyFromName(nome, colecao, f) == 0) || GdipCreateFontFamilyFromName(nome, 0, f) == 0;
+
         nint familia = 0, forte = 0;
-        if (GdipCreateFontFamilyFromName("Segoe UI", 0, &familia) != 0) Ok(GdipGetGenericFontFamilySansSerif(&familia), "fonte");
-        bool semibold = GdipCreateFontFamilyFromName("Segoe UI Semibold", 0, &forte) == 0;
+        if (!Familia("Segoe UI", &familia)) Ok(GdipGetGenericFontFamilySansSerif(&familia), "fonte");
+        bool semibold = Familia("Segoe UI Semibold", &forte);
         if (!semibold) forte = familia;
         fonteTitulo = Fonte(forte, 26, semibold ? 0 : 1);
         fonteForte = Fonte(forte, 16, semibold ? 0 : 1);
@@ -108,7 +117,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
         fonteNormal = Fonte(familia, 16, 0);
         fontePequena = Fonte(familia, 13, 0);
         nint mono = 0;
-        if (GdipCreateFontFamilyFromName("Consolas", 0, &mono) != 0 && GdipCreateFontFamilyFromName("Courier New", 0, &mono) != 0)
+        if (!Familia("Consolas", &mono) && !Familia("Courier New", &mono))
             mono = familia;
         fonteMono = Fonte(mono, 14, 0);
         linha = Formato(0x1000, 0, 1);
@@ -811,6 +820,9 @@ public sealed unsafe partial class TelaGrafica : ISaida
     [LibraryImport("gdiplus.dll", StringMarshalling = StringMarshalling.Utf16)]
     private static partial int GdipCreateFontFamilyFromName(string nome, nint colecao, nint* familia);
     [LibraryImport("gdiplus.dll")] private static partial int GdipGetGenericFontFamilySansSerif(nint* familia);
+    [LibraryImport("gdiplus.dll")] private static partial int GdipNewPrivateFontCollection(nint* colecao);
+    [LibraryImport("gdiplus.dll", StringMarshalling = StringMarshalling.Utf16)]
+    private static partial int GdipPrivateAddFontFile(nint colecao, string arquivo);
     [LibraryImport("gdiplus.dll")] private static partial int GdipCreateFont(nint familia, float tamanho, int estilo, int unidade, nint* fonte);
     [LibraryImport("gdiplus.dll")] private static partial int GdipCreateStringFormat(int flags, ushort idioma, nint* formato);
     [LibraryImport("gdiplus.dll")] private static partial int GdipSetStringFormatAlign(nint formato, int alinhar);

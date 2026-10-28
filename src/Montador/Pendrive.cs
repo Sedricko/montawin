@@ -183,6 +183,11 @@ public static class Pendrive
             Directory.Delete(guardados, recursive: true);
         }
         File.WriteAllText($@"{dados}:\MontaWin\tema.txt", g.Tema);
+        // Fontes do painel (o WinPE não tem a Segoe UI completa); sem elas o painel usa a fonte que o WinPE tiver
+        Directory.CreateDirectory($@"{dados}:\MontaWin\Fontes");
+        foreach (var fonte in new[] { "segoeui.ttf", "seguisb.ttf", "consola.ttf" })
+            if (Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Fonts), fonte) is var origem && File.Exists(origem))
+                File.Copy(origem, $@"{dados}:\MontaWin\Fontes\{fonte}", overwrite: true);
         var licenca = $@"{dados}:\MontaWin\licenca.txt";
         if (g.Licenca != null) File.WriteAllText(licenca, g.Licenca);
         else File.Delete(licenca);

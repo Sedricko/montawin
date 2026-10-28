@@ -4,7 +4,8 @@ using System.Xml.Linq;
 namespace MontaWin.Implantador;
 
 /// <param name="Build">Número da versão (ex.: 26200 = Windows 11 25H2); usado para achar as atualizações certas.</param>
-public record Edicao(string Arquivo, int Indice, string Nome, string Idioma, int Build = 0);
+/// <param name="Bytes">Tamanho do Windows já instalado (TOTALBYTES): mostra quanto falta na cópia.</param>
+public record Edicao(string Arquivo, int Indice, string Nome, string Idioma, int Build = 0, long Bytes = 0);
 
 // Lê a lista de edições direto do cabeçalho do .wim: não depende da saída (traduzida) do DISM.
 public static class Wim
@@ -59,6 +60,7 @@ public static class Wim
             .Select(i => new Edicao(arquivo, (int)i.Attribute("INDEX")!,
                 (string?)i.Element("DISPLAYNAME") ?? (string?)i.Element("NAME") ?? $"Imagem {(int)i.Attribute("INDEX")!}",
                 (string?)i.Element("WINDOWS")?.Element("LANGUAGES")?.Element("DEFAULT") ?? "en-US",
-                (int?)i.Element("WINDOWS")?.Element("VERSION")?.Element("BUILD") ?? 0))
+                (int?)i.Element("WINDOWS")?.Element("VERSION")?.Element("BUILD") ?? 0,
+                (long?)i.Element("TOTALBYTES") ?? 0))
             .ToList();
 }

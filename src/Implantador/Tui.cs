@@ -385,6 +385,9 @@ public static class Tui
         DesenharProgresso(forcar: true);
     }
 
+    /// <summary>Troca o texto ao lado do percentual sem zerar a etapa (ex.: quanto já foi copiado).</summary>
+    public static void Detalhe(string texto) => detalhe = texto;
+
     public static void Progresso(double percentual)
     {
         percentualEtapa = Math.Clamp(percentual, 0, 100);
