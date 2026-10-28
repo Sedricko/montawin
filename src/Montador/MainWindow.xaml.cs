@@ -348,10 +348,10 @@ public partial class MainWindow : Window
 
     void EscolherAtualizacoes(object sender, RoutedEventArgs e)
     {
-        var dialogo = new OpenFolderDialog { Title = "Pasta com as atualizações .msu" };
+        // Escolhe o arquivo .msu (é o que a pessoa procura); vale a pasta dele, com todos os .msu que estiverem juntos
+        var dialogo = new OpenFileDialog { Title = "Atualização do Windows (.msu) baixada do Microsoft Update Catalog", Filter = "Atualização do Windows (*.msu)|*.msu" };
         if (dialogo.ShowDialog(this) != true) return;
-        if (Directory.GetFiles(dialogo.FolderName, "*.msu").Length == 0) { Erro("Essa pasta não tem arquivos .msu."); return; }
-        PastaAtualizacoes.Text = dialogo.FolderName;
+        PastaAtualizacoes.Text = Path.GetDirectoryName(dialogo.FileName)!;
         AtualizarAuto.IsChecked = false; // a pasta escolhida substitui o download automático
     }
 
