@@ -49,7 +49,7 @@ public class ItemLista(Programa programa, string selo) : System.ComponentModel.I
 /// </summary>
 public static class Icones
 {
-    static string Pasta => Path.Combine(ListaProgramas.Pasta, "Icones2"); // 2: os da 1ª versão vinham do site da empresa (Valve, Google...)
+    static string Pasta => Path.Combine(ListaProgramas.Pasta, "Icones3"); // 3: as versões antigas guardaram ícones errados (da empresa ou genéricos)
 
     // Site do produto (não da empresa) dos programas conhecidos: o ícone sai certo e não depende do winget
     static readonly Dictionary<string, string> Sites = new(StringComparer.OrdinalIgnoreCase)
@@ -57,35 +57,57 @@ public static class Icones
         ["Google.Chrome"] = "chrome.google.com", ["RARLab.WinRAR"] = "win-rar.com", ["Notepad++.Notepad++"] = "notepad-plus-plus.org",
         ["Skillbrains.Lightshot"] = "app.prntscr.com", ["pCloudAG.pCloudDrive"] = "pcloud.com", ["9NCBCSZSJRSB"] = "spotify.com",
         ["Microsoft.Office"] = "microsoft365.com", ["Foxit.PhantomPDF"] = "foxit.com", ["Mozilla.Firefox"] = "firefox.com",
-        ["7zip.7zip"] = "7-zip.org", ["VideoLAN.VLC"] = "videolan.org", ["AnyDesk.AnyDesk"] = "anydesk.com",
+        ["7zip.7zip"] = "7-zip.org", ["VideoLAN.VLC"] = "www.videolan.org", ["AnyDesk.AnyDesk"] = "anydesk.com",
         ["TeamViewer.TeamViewer"] = "teamviewer.com", ["Adobe.Acrobat.Reader.64-bit"] = "acrobat.adobe.com", ["Zoom.Zoom"] = "zoom.us",
-        ["Discord.Discord"] = "discord.com", ["Valve.Steam"] = "store.steampowered.com", ["EclipseAdoptium.Temurin.21.JRE"] = "adoptium.net",
-        ["CodecGuide.K-LiteCodecPack.Standard"] = "codecguide.com", ["TheDocumentFoundation.LibreOffice"] = "libreoffice.org",
+        ["Discord.Discord"] = "discord.com", ["Valve.Steam"] = "store.steampowered.com", ["EclipseAdoptium.Temurin.21.JRE"] = "www.java.com",
+        ["CodecGuide.K-LiteCodecPack.Standard"] = "www.codecguide.com", ["TheDocumentFoundation.LibreOffice"] = "www.libreoffice.org",
         ["Google.GoogleDrive"] = "drive.google.com", ["9NKSQGP7F2NH"] = "whatsapp.com", ["Telegram.TelegramDesktop"] = "telegram.org",
         ["CPUID.CPU-Z"] = "cpuid.com", ["Microsoft.VCRedist.2008.x86"] = "visualstudio.microsoft.com", ["NVIDIA"] = "nvidia.com",
     };
-    static string Arquivo(Programa p) => Path.Combine(Pasta, Perfil.NomeSeguro(p.Ids.FirstOrDefault() ?? p.Nome) + ".png");
+    public static string Arquivo(Programa p) => Path.Combine(Pasta, Perfil.NomeSeguro(p.Ids.FirstOrDefault() ?? p.Nome) + ".png");
 
     public static string? EmCache(Programa p) => File.Exists(Arquivo(p)) ? Arquivo(p) : null;
 
-    // shortcut: instaladores por arquivo só têm ícone se o nome estiver na lista de sites (ex.: NVIDIA), dá para tirar do .exe se fizer falta
-    public static async Task<string?> Baixar(Programa p, System.Net.Http.HttpClient http)
+    /// <summary>
+    /// Ícone do programa, na ordem: site do produto (programas conhecidos), ícone do próprio instalador
+    /// (<paramref name="doInstalador"/>, quando ele está no pendrive ou na pasta de instaladores) e o site do winget.
+    /// Ícone pequeno demais (o genérico que os serviços devolvem quando não acham) não vale: tenta o próximo.
+    /// </summary>
+    public static async Task<string?> Baixar(Programa p, System.Net.Http.HttpClient http, Func<Programa, string?>? doInstalador = null)
     {
         if (EmCache(p) is string pronto) return pronto;
         var conhecido = p.Ids.Select(i => Sites.GetValueOrDefault(i)).FirstOrDefault(s => s != null)
                         ?? Sites.FirstOrDefault(s => p.Nome.Contains(s.Key, StringComparison.OrdinalIgnoreCase)).Value;
-        if (conhecido == null && p.Ids.FirstOrDefault() is null) return null;
-        try
-        {
-            var site = conhecido ?? await SiteDoWinget(p.Ids[0]);
-            if (site == null) return null;
-            var png = await http.GetByteArrayAsync($"https://www.google.com/s2/favicons?domain={Uri.EscapeDataString(site)}&sz=128");
-            Directory.CreateDirectory(Pasta);
-            await File.WriteAllBytesAsync(Arquivo(p), png);
-            return Arquivo(p);
-        }
-        catch (Exception) { return null; } // sem internet ou sem winget: fica a inicial
+        if (conhecido != null && await DoSite(conhecido, p, http) is string a) return a;
+        if (doInstalador?.Invoke(p) is string b) return b;
+        try { if (p.Ids.FirstOrDefault() is string id && await SiteDoWinget(id) is string site && await DoSite(site, p, http) is string c) return c; }
+        catch (Exception) { } // sem winget: fica a inicial
+        return null;
     }
+
+    // Google primeiro, DuckDuckGo se o do Google vier genérico ou falhar
+    static async Task<string?> DoSite(string site, Programa p, System.Net.Http.HttpClient http)
+    {
+        foreach (var url in new[] { $"https://www.google.com/s2/favicons?domain={Uri.EscapeDataString(site)}&sz=128",
+                                    $"https://icons.duckduckgo.com/ip3/{Uri.EscapeDataString(site)}.ico" })
+        {
+            try
+            {
+                var imagem = await http.GetByteArrayAsync(url);
+                if (!IconeDeVerdade(imagem)) continue;
+                Directory.CreateDirectory(Pasta);
+                await File.WriteAllBytesAsync(Arquivo(p), imagem);
+                return Arquivo(p);
+            }
+            catch (Exception) { } // sem internet ou o site não tem ícone
+        }
+        return null;
+    }
+
+    /// <summary>PNG de pelo menos 32 px ou um .ico (os serviços devolvem um globo de 16 px quando não acham o ícone).</summary>
+    public static bool IconeDeVerdade(byte[] imagem) =>
+        imagem.Length > 24 && imagem[0] == 0x89 && imagem[1] == 'P' ? (imagem[16] << 24 | imagem[17] << 16 | imagem[18] << 8 | imagem[19]) >= 32
+        : imagem.Length > 200 && imagem[0] == 0 && imagem[1] == 0 && imagem[2] == 1; // cabeçalho do .ico
 
     static async Task<string?> SiteDoWinget(string id)
     {

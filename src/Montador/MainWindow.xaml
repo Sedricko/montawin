@@ -146,7 +146,7 @@
           <Ellipse Canvas.Left="290" Canvas.Top="50" Width="700" Height="700" Fill="#3D7BFF" Opacity="0.45">
             <Ellipse.Effect><BlurEffect Radius="160" /></Ellipse.Effect>
           </Ellipse>
-          <Canvas Canvas.Left="640" Canvas.Top="420">
+          <Canvas Canvas.Left="640" Canvas.Top="420" Opacity="0.45"> <!-- mais fraco: o branco no meio brigava com o vidro dos blocos -->
             <Canvas.Effect><BlurEffect Radius="28" /></Canvas.Effect>
             <Canvas.Resources>
               <LinearGradientBrush x:Key="Petala" StartPoint="0,0" EndPoint="1,0">

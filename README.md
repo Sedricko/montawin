@@ -94,7 +94,8 @@ dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSin
 
 - **Desempenho:** otimizar a imagem uma vez no app (em vez de remover os apps a cada formatação), sem tirar a opção "Windows como a Microsoft entrega".
 - **Programas:** aviso e atualização quando sair versão nova dos que estão no pendrive.
-- **Ícone certo de qualquer programa:** tirar o ícone do próprio instalador (do pendrive ou de um .exe escolhido) e só mostrar a letra quando o programa não tiver ícone nenhum. Hoje os conhecidos vêm do site do produto e os outros da página inicial do winget, e às vezes vem o ícone da empresa ou nenhum.
+- **Ícones dos programas:** hoje vêm do site do produto (conhecidos), do próprio instalador .exe (no pendrive ou adicionado por arquivo) e da página do winget, e o ícone genérico é descartado. Falta: instalador .msi e programas só da internet sem site no winget ainda ficam com a letra.
+- **Versões novas do Windows** (ex.: ISO build 26300): reconhecer sozinho qual atualização do mês serve, sem precisar atualizar o app.
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos

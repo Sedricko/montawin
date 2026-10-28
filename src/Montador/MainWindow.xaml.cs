@@ -313,6 +313,9 @@ public partial class MainWindow : Window
                      BaixarProgramas, NetFx3, BotaoProcurar, BotaoAdicionar, BotaoAdicionarArquivo, BotaoRemover, BotaoArquivo, BotaoSalvarProgramas,
                      BotaoConfig, PainelPopulares, BotaoNovoPerfil, BotaoEditarPerfil, BotaoDuplicarPerfil, BotaoApagarPerfil })
             c.IsEnabled = !ocupado;
+        // ISO de versão que o app não conhece: não dá para marcar as atualizações do mês (pararia a gravação)
+        AtualizarAuto.IsEnabled = !ocupado && (iso == null || Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0) != null);
+        if (!AtualizarAuto.IsEnabled && !ocupado) AtualizarAuto.IsChecked = false;
         Status.Text = status;
     }
 
@@ -412,11 +415,41 @@ public partial class MainWindow : Window
 
     // Ícones que faltam, um por vez em segundo plano (cada um é um "winget show" + o ícone do site)
     static readonly System.Net.Http.HttpClient http = new() { Timeout = TimeSpan.FromSeconds(15) };
-    static async Task BaixarIcones(List<ItemLista> itens)
+    async Task BaixarIcones(List<ItemLista> itens)
     {
+        var dados = DadosDoPendrive;
         foreach (var item in itens.Where(i => i.Icone == null))
-            if (await Icones.Baixar(item.Programa, http) is string arquivo) item.Icone = arquivo;
+            if (await Icones.Baixar(item.Programa, http, p => IconeDoInstalador(p, dados)) is string arquivo) item.Icone = arquivo;
     }
+
+    // Ícone de dentro do instalador .exe (no pendrive ou na pasta dos instaladores adicionados por arquivo)
+    static string? IconeDoInstalador(Programa p, char? dados)
+    {
+        var exe = (p.Instalador != null && Directory.Exists(ListaProgramas.PastaInstaladores)
+                ? Directory.GetFiles(ListaProgramas.PastaInstaladores, Programas.Separar(p.Instalador).Arquivo)
+                : dados is char d ? p.Ids.Select(id => $@"{d}:\MontaWin\Instaladores\winget\{id}").Where(Directory.Exists)
+                    .SelectMany(pasta => Directory.GetFiles(pasta, "*.exe")) : [])
+            .FirstOrDefault(f => f.EndsWith(".exe", StringComparison.OrdinalIgnoreCase));
+        if (exe == null) return null;
+        var grande = new nint[1];
+        if (ExtractIconExW(exe, 0, grande, null, 1) == 0 || grande[0] == 0) return null;
+        try
+        {
+            var imagem = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(grande[0], Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
+            var png = new PngBitmapEncoder();
+            png.Frames.Add(BitmapFrame.Create(imagem));
+            Directory.CreateDirectory(Path.GetDirectoryName(Icones.Arquivo(p))!);
+            using (var f = File.Create(Icones.Arquivo(p))) png.Save(f);
+            return Icones.Arquivo(p);
+        }
+        catch (Exception) { return null; }
+        finally { DestroyIcon(grande[0]); }
+    }
+
+    [System.Runtime.InteropServices.DllImport("shell32.dll", CharSet = System.Runtime.InteropServices.CharSet.Unicode)]
+    static extern uint ExtractIconExW(string arquivo, int indice, nint[]? grandes, nint[]? pequenos, uint quantos);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    static extern bool DestroyIcon(nint icone);
 
     void MontarPopulares()
     {

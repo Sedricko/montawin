@@ -53,7 +53,11 @@ public sealed class JanelaProgresso : Window
         giro.RenderTransform = rotacao;
         rotacao.BeginAnimation(RotateTransform.AngleProperty, new DoubleAnimation(0, 360, TimeSpan.FromSeconds(4)) { RepeatBehavior = RepeatBehavior.Forever });
 
-        botao = new Button { Content = "Minimizar", Padding = new Thickness(16, 6, 16, 6), HorizontalAlignment = HorizontalAlignment.Right };
+        botao = new Button { Content = "Minimizar", HorizontalAlignment = HorizontalAlignment.Right, Cursor = Cursors.Hand, Foreground = texto,
+            Template = (ControlTemplate)System.Windows.Markup.XamlReader.Parse( // pílula no visual do app (o botão padrão ficava cinza)
+                "<ControlTemplate TargetType='Button' xmlns='http://schemas.microsoft.com/winfx/2006/xaml/presentation'>" +
+                "<Border Background='#1FFFFFFF' BorderBrush='#33FFFFFF' BorderThickness='1' CornerRadius='14' Padding='16,6'>" +
+                "<ContentPresenter HorizontalAlignment='Center' /></Border></ControlTemplate>") };
         botao.Click += (_, _) => { if (marca.Visibility == Visibility.Visible || giro.Visibility == Visibility.Collapsed) Close(); else WindowState = WindowState.Minimized; };
         var rodape = new DockPanel { Margin = new Thickness(0, 14, 0, 0) };
         DockPanel.SetDock(botao, Dock.Right);

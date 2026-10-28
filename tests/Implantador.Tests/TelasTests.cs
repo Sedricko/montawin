@@ -221,6 +221,17 @@ public class TelasTests
     }
 
     [Fact]
+    public void IconeGenericoNaoVale()
+    {
+        static byte[] Png(int largura) { var b = new byte[64]; b[0] = 0x89; b[1] = (byte)'P'; b[19] = (byte)largura; return b; }
+        Assert.False(MontaWin.Montador.Icones.IconeDeVerdade(Png(16))); // o globo genérico
+        Assert.True(MontaWin.Montador.Icones.IconeDeVerdade(Png(128)));
+        var ico = new byte[300]; ico[2] = 1;
+        Assert.True(MontaWin.Montador.Icones.IconeDeVerdade(ico));
+        Assert.False(MontaWin.Montador.Icones.IconeDeVerdade(new byte[10]));
+    }
+
+    [Fact]
     public void RedesVisiveisVemDoNetsh()
     {
         var saida = "Nome da interface : Wi-Fi\r\nHá 2 redes visíveis no momento.\r\n\r\nSSID 1 : Casa 5G\r\n    Tipo de rede : Infraestrutura\r\n"
