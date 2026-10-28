@@ -470,10 +470,10 @@
 
             <TextBlock FontWeight="SemiBold" Text="Certificado do boot (Secure Boot)" Margin="0,18,0,4" />
             <RadioButton x:Name="BootCompativel" GroupName="Boot" IsChecked="True" Margin="0,2">
-              <TextBlock TextWrapping="Wrap" Text="Compatível (2011): dá boot em todos os PCs de hoje. Recomendado." />
+              <TextBlock TextWrapping="Wrap" Text="Automático (recomendado): o pendrive dá boot em todos os PCs, e o Windows instalado já sai com o certificado certo para cada PC." />
             </RadioButton>
             <RadioButton x:Name="BootNovo" GroupName="Boot" Margin="0,2">
-              <TextBlock TextWrapping="Wrap" Text="Novo (2023): para PCs que já receberam o certificado novo da Microsoft. PCs sem ele não dão boot. Precisa de uma ISO atualizada." />
+              <TextBlock TextWrapping="Wrap" Text="Forçar o novo (2023): só se algum PC recusar o boot do pendrive com o Secure Boot ligado. PCs que ainda não têm o certificado novo não dão boot. Precisa de uma ISO atualizada." />
             </RadioButton>
 
             <TextBlock FontWeight="SemiBold" Text="Gravação" Margin="0,18,0,4" />
