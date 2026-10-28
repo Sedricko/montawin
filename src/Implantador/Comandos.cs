@@ -9,6 +9,9 @@ public static partial class Comandos
     /// <summary>Últimas linhas de saída do último comando, para mostrar em caso de erro.</summary>
     public static readonly List<string> Saida = [];
 
+    /// <summary>Saída inteira (stdout) do último comando, para quem precisa ler uma lista longa (ex.: apps do DISM).</summary>
+    public static string UltimaSaidaCompleta { get; private set; } = "";
+
     /// <summary>Arquivo de registro no pendrive (null = não registra). Ajuda a descobrir o que falhou num PC.</summary>
     public static string? Log;
 
@@ -32,6 +35,7 @@ public static partial class Comandos
         p.BeginErrorReadLine();
         // O DISM atualiza a barra com '\r' sem quebrar linha, então lê caractere a caractere.
         var linha = new StringBuilder();
+        var completa = new StringBuilder();
         int c;
         while ((c = p.StandardOutput.Read()) != -1)
         {
@@ -44,9 +48,11 @@ public static partial class Comandos
                 if (progresso != null && Percentual(texto) is double pct) progresso(pct);
             }
             else linha.Append((char)c);
+            completa.Append((char)c);
         }
         if (linha.Length > 0) Guardar(linha.ToString());
         p.WaitForExit();
+        UltimaSaidaCompleta = completa.ToString();
         lock (Saida) Registrar($"{exe} {argumentos} -> código {p.ExitCode}" + (p.ExitCode == 0 ? "" : "\n    " + string.Join("\n    ", Saida)));
         return p.ExitCode;
     }

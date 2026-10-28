@@ -138,6 +138,22 @@ public static class Tui
         return oculto ? digitado : digitado.Trim();
     }
 
+    /// <summary>Contagem regressiva; qualquer tecla cancela. Retorna true se chegou a zero.</summary>
+    public static bool Contagem(string titulo, IReadOnlyList<string> linhas, string acao, int segundos)
+    {
+        Moldura("Qualquer tecla cancela");
+        for (int s = segundos; s > 0; s--)
+        {
+            Caixa(2, titulo, Simples([.. linhas, "", $"{acao} em {s} s..."]));
+            for (int i = 0; i < 10; i++)
+            {
+                if (Console.KeyAvailable) { Console.ReadKey(true); return false; }
+                Thread.Sleep(100);
+            }
+        }
+        return true;
+    }
+
     static string tituloProgresso = "", etapaProgresso = "";
 
     /// <summary>Abre a tela de progresso de uma etapa; depois atualize com <see cref="Progresso"/>.</summary>

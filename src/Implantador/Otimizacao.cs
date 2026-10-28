@@ -1,0 +1,101 @@
+using System.Text.RegularExpressions;
+
+namespace MontaWin.Implantador;
+
+/// <summary>
+/// Deixa o Windows aplicado mais leve antes do primeiro boot: remove apps de propaganda/inúteis e ajusta o registro.
+/// Só ajustes seguros: Windows Update, Microsoft Store, Defender, rede e drivers continuam como estão.
+/// </summary>
+public static partial class Otimizacao
+{
+    /// <summary>Apps pré-instalados que saem (prefixo do nome do pacote). Store, Fotos, Calculadora, Bloco de Notas etc. ficam.</summary>
+    public static readonly string[] AppsRemovidos =
+    [
+        "Microsoft.BingNews", "Microsoft.BingWeather", "Microsoft.BingSearch", "Microsoft.GamingApp", "Microsoft.GetHelp",
+        "Microsoft.Getstarted", "Microsoft.MicrosoftOfficeHub", "Microsoft.MicrosoftSolitaireCollection", "Microsoft.People",
+        "Microsoft.PowerAutomateDesktop", "Microsoft.Todos", "Microsoft.WindowsFeedbackHub", "Microsoft.WindowsMaps",
+        "Microsoft.Xbox.TCUI", "Microsoft.XboxGameOverlay", "Microsoft.XboxGamingOverlay", "Microsoft.XboxSpeechToTextOverlay",
+        "Microsoft.ZuneMusic", "Microsoft.ZuneVideo", "Microsoft.549981C3F5F10", "Microsoft.Copilot", "Clipchamp.Clipchamp",
+        "MicrosoftCorporationII.MicrosoftFamily", "Microsoft.MixedReality.Portal", "Microsoft.SkypeApp", "Microsoft.Wallet",
+    ];
+
+    // Nome completo de pacote: Nome_Versão_Arquitetura_Recurso_Editor (ex.: Microsoft.BingNews_4.55.62231.0_neutral_~_8wekyb3d8bbwe)
+    [GeneratedRegex(@"[A-Za-z0-9][A-Za-z0-9.\-]*_\d+(?:\.\d+){3}_[A-Za-z0-9]+_~?[A-Za-z0-9]*_[a-z0-9]{13}")]
+    private static partial Regex RegexPacote();
+
+    /// <summary>Pacotes a remover encontrados na saída do "dism /Get-ProvisionedAppxPackages" (não depende do idioma).</summary>
+    public static List<string> PacotesParaRemover(string saidaDism) =>
+        RegexPacote().Matches(saidaDism).Select(m => m.Value).Distinct()
+            .Where(p => AppsRemovidos.Contains(p.Split('_')[0], StringComparer.OrdinalIgnoreCase))
+            .ToList();
+
+    // Chaves temporárias onde os registros do Windows novo são carregados no WinPE.
+    public const string ChaveSoftware = @"HKLM\MW_SOFTWARE", ChaveSystem = @"HKLM\MW_SYSTEM", ChaveUsuario = @"HKLM\MW_DEFAULT";
+
+    /// <summary>Ajustes de registro (argumentos do reg add). O usuário padrão vale para toda conta nova.</summary>
+    public static readonly (string Chave, string Valor, int Dado)[] Registro =
+    [
+        // Sem apps "sugeridos" (Candy Crush etc.) e sem propaganda da Microsoft
+        ($@"{ChaveSoftware}\Policies\Microsoft\Windows\CloudContent", "DisableWindowsConsumerFeatures", 1),
+        ($@"{ChaveSoftware}\Policies\Microsoft\Windows\CloudContent", "DisableCloudOptimizedContent", 1),
+        ($@"{ChaveSoftware}\Policies\Microsoft\Windows\AdvertisingInfo", "DisabledByGroupPolicy", 1),
+        // Telemetria no mínimo permitido no Home/Pro e serviço de telemetria desligado
+        ($@"{ChaveSoftware}\Policies\Microsoft\Windows\DataCollection", "AllowTelemetry", 1),
+        ($@"{ChaveSystem}\ControlSet001\Services\DiagTrack", "Start", 4),
+        // Widgets (notícias) desligados
+        ($@"{ChaveSoftware}\Policies\Microsoft\Dsh", "AllowNewsAndInterests", 0),
+        // Pesquisa do Iniciar só no PC (sem Bing): mais rápida
+        ($@"{ChaveUsuario}\Software\Policies\Microsoft\Windows\Explorer", "DisableSearchBoxSuggestions", 1),
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\Search", "BingSearchEnabled", 0),
+        // Sem apps instalados sozinhos e sem dicas/sugestões
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "SilentInstalledAppsEnabled", 0),
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "PreInstalledAppsEnabled", 0),
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "OemPreInstalledAppsEnabled", 0),
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "SystemPaneSuggestionsEnabled", 0),
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "SubscribedContent-338388Enabled", 0),
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "SubscribedContent-338389Enabled", 0),
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "SubscribedContent-353694Enabled", 0),
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\ContentDeliveryManager", "SubscribedContent-353696Enabled", 0),
+        // Barra de tarefas sem Widgets e sem Copilot
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "TaskbarDa", 0),
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\Explorer\Advanced", "ShowCopilotButton", 0),
+        // Programas da inicialização sem o atraso padrão de ~10 s
+        ($@"{ChaveUsuario}\Software\Microsoft\Windows\CurrentVersion\Explorer\Serialize", "StartupDelayInMSec", 0),
+    ];
+
+    /// <summary>Arquivos de registro do Windows aplicado e a chave onde cada um é carregado.</summary>
+    public static (string Chave, string Arquivo)[] Hives(char windows) =>
+    [
+        (ChaveSoftware, $@"{windows}:\Windows\System32\config\SOFTWARE"),
+        (ChaveSystem, $@"{windows}:\Windows\System32\config\SYSTEM"),
+        (ChaveUsuario, $@"{windows}:\Users\Default\NTUSER.DAT"),
+    ];
+
+    /// <summary>Aplica tudo no Windows em <paramref name="windows"/>. Retorna quantos apps saíram.</summary>
+    public static int Aplicar(char windows, Action<double>? progresso = null)
+    {
+        Comandos.Executar("dism", $@"/Image:{windows}:\ /Get-ProvisionedAppxPackages");
+        var pacotes = PacotesParaRemover(Comandos.UltimaSaidaCompleta);
+        for (int i = 0; i < pacotes.Count; i++)
+        {
+            Comandos.Executar("dism", $@"/Image:{windows}:\ /Remove-ProvisionedAppxPackage /PackageName:{pacotes[i]}");
+            progresso?.Invoke((i + 1) * 80.0 / Math.Max(pacotes.Count, 1));
+        }
+
+        var carregadas = new List<string>();
+        try
+        {
+            foreach (var (chave, arquivo) in Hives(windows))
+                if (File.Exists(arquivo) && Comandos.Executar("reg", $"load {chave} \"{arquivo}\"") == 0) carregadas.Add(chave);
+            foreach (var (chave, valor, dado) in Registro.Where(r => carregadas.Any(c => r.Chave.StartsWith(c + @"\"))))
+                Comandos.Executar("reg", $"add \"{chave}\" /v {valor} /t REG_DWORD /d {dado} /f");
+        }
+        finally
+        {
+            // Sem descarregar, o Windows novo não consegue abrir o próprio registro no primeiro boot.
+            foreach (var chave in carregadas) Comandos.Executar("reg", $"unload {chave}");
+        }
+        progresso?.Invoke(100);
+        return pacotes.Count;
+    }
+}

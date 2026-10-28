@@ -18,6 +18,8 @@ public record Perfil(string Nome)
     public string[] Programas { get; init; } = [];
     public bool Restaurar { get; init; } = true;
     public bool BackupDrivers { get; init; } = true;
+    /// <summary>Remove apps inúteis e propaganda e ajusta o registro (ver <see cref="Otimizacao"/>).</summary>
+    public bool Otimizar { get; init; } = true;
 
     public string Texto()
     {
@@ -35,6 +37,7 @@ public record Perfil(string Nome)
         linhas.Add($"Programas = {string.Join("; ", Programas)}");
         linhas.Add($"Restaurar = {(Restaurar ? "sim" : "nao")}");
         linhas.Add($"BackupDrivers = {(BackupDrivers ? "sim" : "nao")}");
+        linhas.Add($"Otimizar = {(Otimizar ? "sim" : "nao")}");
         return string.Join("\r\n", linhas) + "\r\n";
     }
 
@@ -59,6 +62,7 @@ public record Perfil(string Nome)
             Programas = (Campo("Programas") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             Restaurar = !string.Equals(Campo("Restaurar"), "nao", StringComparison.OrdinalIgnoreCase),
             BackupDrivers = !string.Equals(Campo("BackupDrivers"), "nao", StringComparison.OrdinalIgnoreCase),
+            Otimizar = !string.Equals(Campo("Otimizar"), "nao", StringComparison.OrdinalIgnoreCase),
         };
     }
 
