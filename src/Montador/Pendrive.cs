@@ -43,6 +43,8 @@ public static class Pendrive
 
     public static string ScriptParticionar(int disco, char boot, char dados) => $"""
         select disk {disco}
+        online disk noerr
+        attributes disk clear readonly noerr
         clean
         convert mbr
         create partition primary size={BootMb}

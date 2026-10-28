@@ -34,6 +34,7 @@ public sealed class JanelaProgresso : Window
         (WindowStyle, AllowsTransparency, Background, ResizeMode) = (WindowStyle.None, true, Brushes.Transparent, ResizeMode.NoResize);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         Title = "Aurora Win · gravando o pendrive";
+        Icon = icone;
         arco.Stroke = giro.Stroke = marca.Stroke = destaque;
 
         var topo = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 6) };

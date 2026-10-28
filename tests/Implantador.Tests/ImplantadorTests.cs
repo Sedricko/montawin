@@ -212,7 +212,7 @@ public class ImplantadorTests
     public void ParticionaPendriveComBootFat32EDadosNtfs()
     {
         var linhas = MontaWin.Montador.Pendrive.ScriptParticionar(3, 'S', 'W').Replace("\r", "").Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal(new[] { "select disk 3", "clean", "convert mbr", "create partition primary size=2048", "format quick fs=fat32 label=MONTAWIN", "active", "assign letter=S" }, linhas[..7]);
+        Assert.Equal(new[] { "select disk 3", "online disk noerr", "attributes disk clear readonly noerr", "clean", "convert mbr", "create partition primary size=2048", "format quick fs=fat32 label=MONTAWIN", "active", "assign letter=S" }, linhas[..9]); // online: o pendrive pode ter ficado offline (VM)
         Assert.Contains("format quick fs=ntfs label=MONTAWIN-DADOS", linhas);
         Assert.Contains("assign letter=W", linhas);
     }
