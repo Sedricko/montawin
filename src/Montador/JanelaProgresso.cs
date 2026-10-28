@@ -98,7 +98,7 @@ public sealed class JanelaProgresso : Window
     /// <summary>Fim: check (ou o X do erro), a mensagem e o botão para voltar ao app.</summary>
     public void Concluir(bool ok, string titulo, string mensagem)
     {
-        if (atual != null) Feita(atual);
+        if (atual != null && atual != "Pendrive pronto") Feita(atual); // o título já diz que ficou pronto
         giro.BeginAnimation(OpacityProperty, null);
         giro.Visibility = Visibility.Collapsed;
         pct.Visibility = Visibility.Collapsed;
