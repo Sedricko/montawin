@@ -96,6 +96,12 @@ dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSin
 - **Programas:** aviso e atualização quando sair versão nova dos que estão no pendrive.
 - **Ícones dos programas:** hoje vêm do site do produto (conhecidos), do próprio instalador .exe (no pendrive ou adicionado por arquivo) e da página do winget, e o ícone genérico é descartado. Falta: instalador .msi e programas só da internet sem site no winget ainda ficam com a letra.
 - **Versões novas do Windows** (ex.: ISO build 26300): reconhecer sozinho qual atualização do mês serve, sem precisar atualizar o app.
+- **Vários Windows no mesmo pendrive (10/11 junto com 8.1 e 7)** — projeto:
+  - **Lista organizada:** a escolha do Windows agrupa por versão (Windows 11, Windows 10, Windows 8.1 / 7), do mais novo para o mais velho, com o selo "antigo" no 8.1 e no 7.
+  - **Windows 7 e 8.1 com o que funciona neles:** ao escolher, uma tela explica o que muda; o painel desliga sozinho a otimização (só serve para 10/11), a conferência do primeiro login e os programas do winget (ficam só os instaladores do pendrive), ativa a licença pelo `slmgr` em vez do PowerShell novo, e roda o primeiro login com `cmd` normal (o `conhost --headless` não existe no 7/8: sem isso o arquivo com a senha não seria apagado).
+  - **Boot sempre do Windows mais novo:** ao gravar com "Manter", se a ISO for mais velha que a que já está no pendrive, o painel continua no WinPE da mais nova (drivers de PCs novos, bcdboot com UEFI); só a imagem da ISO velha é acrescentada.
+  - **Sugestão pelo PC:** o assistente avisa quando o Windows 7 não serve para o PC (Secure Boot ligado, disco NVMe, só USB 3, mais de 4 TB) e sugere o 10 ou o 11. Sempre só sugestão.
+  - Testes: lista ordenada, regras do 7/8.1 (scripts sem `conhost --headless`, sem winget, licença pelo slmgr) e a escolha do WinPE pelo build.
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos
