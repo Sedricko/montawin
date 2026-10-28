@@ -476,7 +476,7 @@ void MenuPerfis()
         if (sel < 0) return;
         if (sel == 0) { AdicionarPerfil(); continue; }
         var perfil = perfis[sel - 1];
-        var detalhes = perfil.Texto().Split("\r\n").Where(l => l.Length > 0 && !l.StartsWith('#') && !l.StartsWith("Senha")).ToList();
+        var detalhes = perfil.Texto().Split("\r\n").Where(l => l.Length > 0 && !l.StartsWith('#') && !l.StartsWith("Senha") && !l.EndsWith("= ")).ToList();
         detalhes.Add(perfil.Senha == null ? "Senha: perguntada na hora" : "Senha: guardada no perfil");
         if (Tui.Menu($"Perfil {perfil.Nome}", detalhes, ["Apagar este perfil"]) == 0
             && Tui.Confirmar("Apagar perfil", [$"Apagar o perfil {perfil.Nome}? Os backups dele continuam no pendrive."], "Apagar"))

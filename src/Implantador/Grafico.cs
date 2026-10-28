@@ -35,6 +35,9 @@ public sealed unsafe partial class TelaGrafica : ISaida
     nint fonteTitulo, fonteNormal, fontePequena, fonteForte, fonteGrande;
     nint linha, linhaCentro, linhaDireita, paragrafo;
     Tela? tela;
+    Tela? pintada;          // a tela cujos alvos estão em "alvos"
+    string? tituloPintado;
+    long novaEm;            // quando uma tela com outro título apareceu
     int topoLista;
     string tituloLista = "";
 
@@ -198,6 +201,13 @@ public sealed unsafe partial class TelaGrafica : ISaida
         var antes = Volatile.Read(ref tela);
         // Teclas apertadas durante uma tarefa longa não podem escolher nada na tela seguinte.
         if (antes?.Tipo == TipoTela.Progresso && t.Tipo != TipoTela.Progresso) while (fila.TryTake(out _)) { }
+        // Cliques que ficaram na fila foram dados na tela anterior
+        else if (antes?.Titulo != t.Titulo)
+        {
+            var teclas = new List<Evento>();
+            while (fila.TryTake(out var e)) if (e.Item < 0) teclas.Add(e);
+            foreach (var e in teclas) fila.Add(e);
+        }
         Volatile.Write(ref tela, t);
         PostMessageW(janela, 0x8000, 0, 0);
     }
@@ -251,6 +261,9 @@ public sealed unsafe partial class TelaGrafica : ISaida
                     char ch = (char)wParam;
                     if (ch >= ' ')
                         t.fila.Add(new Evento(ch == ' ' ? ConsoleKey.Spacebar : char.IsAsciiLetter(ch) ? (ConsoleKey)char.ToUpperInvariant(ch) : 0, ch));
+                    return 0;
+                // O segundo clique de um clique duplo não pode escolher nada na tela que acabou de aparecer
+                case 0x0202 when t != null && (t.pintada != Volatile.Read(ref t.tela) || Environment.TickCount64 - t.novaEm < 500):
                     return 0;
                 case 0x0202 when t != null: // WM_LBUTTONUP
                     float x = (short)(lParam & 0xFFFF), y = (short)((lParam >> 16) & 0xFFFF);
@@ -375,6 +388,8 @@ public sealed unsafe partial class TelaGrafica : ISaida
     {
         alvos.Clear();
         var t = Volatile.Read(ref tela);
+        if (t != null && t.Titulo != tituloPintado) (tituloPintado, novaEm) = (t.Titulo, Environment.TickCount64);
+        pintada = t;
         g = graficos;
         GdipSetSmoothingMode(g, 4);
         GdipSetTextRenderingHint(g, 4);
@@ -637,6 +652,19 @@ public sealed unsafe partial class TelaGrafica : ISaida
 
     [LibraryImport("kernel32.dll", StringMarshalling = StringMarshalling.Utf16)] private static partial nint GetModuleHandleW(string? nome);
     [LibraryImport("kernel32.dll")] private static partial nint GetConsoleWindow();
+    [LibraryImport("user32.dll")] private static partial nint GetSystemMenu(nint hwnd, int reverter);
+    [LibraryImport("user32.dll")] private static partial int DeleteMenu(nint menu, uint item, uint modo);
+
+    /// <summary>
+    /// Tira o X da janela de texto (a do Prompt de comando). Fechar por ali encerrava o painel,
+    /// e no WinPE isso reinicia o PC; para sair do prompt, digita-se exit.
+    /// </summary>
+    public static void TravarFechar()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var console = GetConsoleWindow();
+        if (console != 0) DeleteMenu(GetSystemMenu(console, 0), 0xF060, 0); // SC_CLOSE
+    }
     [LibraryImport("user32.dll")] private static partial ushort RegisterClassExW(WndClass* classe);
     [LibraryImport("user32.dll", StringMarshalling = StringMarshalling.Utf16)]
     private static partial nint CreateWindowExW(uint ex, string classe, string titulo, uint estilo, int x, int y, int w, int h, nint pai, nint menu, nint inst, nint param);

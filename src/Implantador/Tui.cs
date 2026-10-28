@@ -59,6 +59,7 @@ public static class Tui
     /// <summary>Abre a tela. <paramref name="pasta"/> é a pasta MontaWin do pendrive (tema.txt e o fundo do tema).</summary>
     public static void Iniciar(string? pasta)
     {
+        TelaGrafica.TravarFechar();
         var arquivoTema = pasta == null ? null : Path.Combine(pasta, "tema.txt");
         if (File.Exists(arquivoTema) && File.ReadAllText(arquivoTema).Trim().ToLowerInvariant() is var t && Temas.Contains(t)) Tema = t;
         try { saida = TelaGrafica.Abrir(Tema, pasta); }
