@@ -94,7 +94,7 @@ public static class Unattend
     public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas, bool temProgramas = false, bool pontoRestauracao = false,
         bool conferencia = false)
     {
-        var s = new System.Text.StringBuilder("@echo off\r\nrem Gerado pelo MontaWin: roda uma vez, no primeiro login.\r\n");
+        var s = new System.Text.StringBuilder("@echo off\r\nchcp 65001 >nul\r\nrem Gerado pelo MontaWin: roda uma vez, no primeiro login.\r\n");
         foreach (var rel in pastasRestauradas)
         {
             var origem = $@"%SystemDrive%\{PastaRestaurados}\{rel}";
@@ -135,7 +135,7 @@ public static class Unattend
     /// </summary>
     public static string GerarScriptAntesDoLogin(string? rede, string? chave, bool programas)
     {
-        var s = new System.Text.StringBuilder("@echo off\r\nrem Gerado pelo MontaWin: roda uma vez, antes da tela de login.\r\nset LOG=%~dp0MontaWin-antes-do-login.log\r\n");
+        var s = new System.Text.StringBuilder("@echo off\r\nchcp 65001 >nul\r\nrem Gerado pelo MontaWin: roda uma vez, antes da tela de login.\r\nset LOG=%~dp0MontaWin-antes-do-login.log\r\n");
         if (rede != null)
             s.Append($"netsh wlan add profile filename=\"%SystemDrive%\\{PerfilWifi}\" user=all >>\"%LOG%\" 2>&1\r\n" +
                      $"del /f /q \"%SystemDrive%\\{PerfilWifi}\"\r\n" +
@@ -166,6 +166,8 @@ public static class Unattend
     {
         var s = new System.Text.StringBuilder("""
             @echo off
+            rem Os scripts são gravados em UTF-8: sem o chcp, nomes com acento (Redistribuíveis) não são achados
+            chcp 65001 >nul
             rem Gerado pelo MontaWin: instala os programas escolhidos no painel.
             if not "%3"=="log" (call "%~f0" %1 "%~2" log >>"%~dp0MontaWin-programas.log" 2>&1 & exit /b)
             setlocal
@@ -198,7 +200,14 @@ public static class Unattend
             :usuario
             set WINGET=winget
             set ESCOPO=
-            goto internet
+            rem Sem internet ainda (rede subindo, Wi-Fi conectando): espera até ~10 min antes de desistir
+            set tentativas=0
+            :redeusuario
+            curl.exe -s -m 10 -o nul https://cdn.winget.microsoft.com/cache/source.msix && goto internet
+            set /a tentativas+=1
+            if %tentativas% geq 20 goto fim
+            ping -n 21 127.0.0.1 >nul
+            goto redeusuario
             :sistema
             rem Antes do login o winget não está no PATH: usa o que vem com o Windows, só se houver internet
             set WINGETDIR=

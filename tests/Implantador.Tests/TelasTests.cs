@@ -142,6 +142,10 @@ public class TelasTests
             Assert.True(p.ExitCode == 0 && erro.Length == 0, erro);
         }
         Assert.Contains(Unattend.ChamadaConferencia, Unattend.GerarScriptProgramas(["Google.Chrome"], conferencia: true));
+        // UTF-8: sem o chcp, o cmd não acha instaladores com acento no nome ("Pacotes Redistribuíveis do Visual C++")
+        Assert.StartsWith("@echo off\r\nrem Os scripts", Unattend.GerarScriptProgramas([]));
+        Assert.Contains("chcp 65001 >nul", Unattend.GerarScriptProgramas([]));
+        Assert.Contains("chcp 65001 >nul", Unattend.GerarScriptAntesDoLogin(null, null, true));
         Assert.Contains(Unattend.ChamadaConferencia, Unattend.GerarScriptPrimeiroLogin([], temProgramas: false, conferencia: true));
         Assert.DoesNotContain(Unattend.ChamadaConferencia, Unattend.GerarScriptPrimeiroLogin([], temProgramas: true, conferencia: true));
         Assert.Contains(@"-File %SystemDrive%\Windows\Setup\Scripts\MontaWin-conferencia.ps1", Unattend.ChamadaConferencia);
