@@ -205,6 +205,7 @@ public partial class MainWindow : Window
             janela.Concluir(true, "Pendrive pronto!", "Dê boot por ele no PC: o painel Aurora Win abre sozinho.");
             cartao.Measure(new Size(420, double.PositiveInfinity));
             Salvar(cartao, Path.Combine(pasta, $"progresso-pronto-{config.Tema}.png"), 420, (int)cartao.DesiredSize.Height);
+            janela.Close(); // janela criada e não mostrada também segura o app aberto
 
             SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-{config.Tema}.png"), desfocado: false);
             SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-desfocado-{config.Tema}.png"), desfocado: true);
