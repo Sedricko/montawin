@@ -9,6 +9,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RootNamespace>MontaWin.Montador</RootNamespace>
     <AssemblyName>MontaWin</AssemblyName>
+    <!-- Ícone claro: o app do PC do técnico (a janela usa o mesmo ícone do exe) -->
+    <ApplicationIcon>MontaWin.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <!-- WPF0001: o tema Fluent (Windows 11) ainda é marcado como experimental -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>

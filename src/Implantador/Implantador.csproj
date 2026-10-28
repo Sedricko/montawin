@@ -5,6 +5,8 @@
     <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>MontaWin.Implantador</RootNamespace>
     <AssemblyName>Implantador</AssemblyName>
+    <!-- Ícone escuro: o painel do boot -->
+    <ApplicationIcon>Implantador.ico</ApplicationIcon>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
