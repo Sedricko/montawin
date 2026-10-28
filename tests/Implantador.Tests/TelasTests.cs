@@ -169,6 +169,21 @@ public class TelasTests
     }
 
     [Fact]
+    public void AssistenteSugereSemDecidir()
+    {
+        Assert.True(Sugestoes.CpuAntiga("Intel(R) Core(TM) i5-7200U CPU @ 2.50GHz"));
+        Assert.False(Sugestoes.CpuAntiga("Intel(R) Core(TM) i7-10700 CPU @ 2.90GHz")); // 10ª geração: 5 dígitos
+        Assert.False(Sugestoes.CpuAntiga("Intel(R) Core(TM) i5-8250U CPU"));
+        Assert.True(Sugestoes.CpuAntiga("AMD Ryzen 5 1600 Six-Core Processor"));
+        Assert.False(Sugestoes.CpuAntiga("AMD Ryzen 5 3600 6-Core Processor"));
+        var avisos = Sugestoes.Instalacao("Windows 11 Pro", uefi: false, secureBoot: null, ramGb: 2, ssd: false, discoBytes: 32_000_000_000, cpu: "Intel(R) Core(TM) i3-6100");
+        Assert.Equal(5, avisos.Count); // RAM, BIOS, processador, HD, disco pequeno
+        Assert.Empty(Sugestoes.Instalacao("Windows 11 Pro", true, true, 16, true, 512_000_000_000, "Intel(R) Core(TM) i7-12700"));
+        Assert.Contains("pendrive", Sugestoes.Explicar("Erro: 0x8007000d dados inválidos")!);
+        Assert.Null(Sugestoes.Explicar("qualquer outra coisa"));
+    }
+
+    [Fact]
     public void RedesVisiveisVemDoNetsh()
     {
         var saida = "Nome da interface : Wi-Fi\r\nHá 2 redes visíveis no momento.\r\n\r\nSSID 1 : Casa 5G\r\n    Tipo de rede : Infraestrutura\r\n"

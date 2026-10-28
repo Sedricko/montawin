@@ -66,7 +66,7 @@ while (true)
             catch (Exception e)
             {
                 Comandos.Registrar($"ERRO: {e.Message}");
-                Tui.Mensagem("Algo deu errado", e.Message.Split('\n'), erro: true);
+                Tui.Mensagem("Algo deu errado", LinhasDoErro(e.Message), erro: true);
             }
             continue;
         }
@@ -99,7 +99,7 @@ while (true)
     catch (Exception e)
     {
         Comandos.Registrar($"ERRO: {e.Message}");
-        Tui.Mensagem("Algo deu errado", e.Message.Split('\n'), erro: true);
+        Tui.Mensagem("Algo deu errado", LinhasDoErro(e.Message), erro: true);
     }
 }
 
@@ -1052,7 +1052,10 @@ void Instalar(Perfil? inicial = null)
         else if (disco.Saude.Nivel == NivelSaude.Atencao) r.Add($"Atenção, disco com problemas: {disco.Saude.Texto}");
         if (avisoLento != null) r.Add($"Atenção: {avisoLento}");
         if (Sistema.NaBateria) r.Add("Atenção: notebook na bateria. Ligue o carregador.");
-        if (disco.LetraWindows != null && pastaDrivers == null && perfil?.BackupDrivers != true) r.Add("Atenção: o backup de drivers deste Windows ainda não foi feito.");
+        if (disco.LetraWindows != null && pastaDrivers == null && !DriversAutomaticos(perfil, disco)) r.Add("Atenção: o backup de drivers deste Windows não será feito.");
+        // Assistente: só sugestões sobre este PC; a decisão continua sendo do técnico
+        r.AddRange(Sugestoes.Instalacao(edicao.Nome, uefi, Sistema.SecureBoot, Sistema.RamGb, disco.Ssd, disco.Tamanho, Sistema.Processador)
+            .Select(x => "Sugestão: " + x));
         return r;
     }
 
@@ -1364,6 +1367,14 @@ static bool ConfigurarRecuperacao(char windows, char recuperacao)
     if (File.Exists(destino)) File.SetAttributes(destino, FileAttributes.Normal); // o antigo fica oculto/sistema
     File.Copy(origem, destino, overwrite: true);
     return Comandos.Executar($@"{windows}:\Windows\System32\Reagentc.exe", $@"/Setreimage /Path {pasta} /Target {windows}:\Windows") == 0;
+}
+
+// Mensagem de erro com a dica do assistente, quando ele reconhece o problema
+static List<string> LinhasDoErro(string mensagem)
+{
+    var linhas = mensagem.Split('\n').ToList();
+    if (Sugestoes.Explicar(mensagem) is string dica) linhas.AddRange(["", "O que costuma resolver: " + dica]);
+    return linhas;
 }
 
 static string Falha(string mensagem)

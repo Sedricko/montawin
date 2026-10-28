@@ -93,12 +93,22 @@ public static partial class Sistema
     public static bool SerieValida(string? serie) =>
         serie is { Length: >= 3 } && !SeriesGenericas.Contains(serie.ToLowerInvariant()) && serie.Distinct().Count() > 1;
 
+    public static double RamGb => GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (1024.0 * 1024 * 1024);
+
+    /// <summary>Nome do processador (ex.: "Intel(R) Core(TM) i5-7200U CPU @ 2.50GHz"); null se o registro não informa.</summary>
+    public static string? Processador => OperatingSystem.IsWindows()
+        ? Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString", null) as string : null;
+
+    /// <summary>Secure Boot ligado? null em BIOS ou quando o firmware não informa.</summary>
+    public static bool? SecureBoot => OperatingSystem.IsWindows() &&
+        Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecureBoot\State", "UEFISecureBootEnabled", null) is int v
+        ? v == 1 : null;
+
     /// <summary>Ex.: "Dell Inc. Inspiron 15 · 16 GB RAM · UEFI"</summary>
     public static string Resumo()
     {
         var modelo = Modelo();
-        var ram = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / (1024.0 * 1024 * 1024);
-        return $"{modelo} · {ram:0} GB RAM · {(Discos.Uefi ? "UEFI" : "BIOS")}".TrimStart(' ', '·');
+        return $"{modelo} · {RamGb:0} GB RAM · {(Discos.Uefi ? "UEFI" : "BIOS")}".TrimStart(' ', '·');
     }
 
     /// <summary>Notebook fora da tomada (SYSTEM_POWER_STATUS.ACLineStatus = 0). PCs de mesa respondem 1 ou 255.</summary>
