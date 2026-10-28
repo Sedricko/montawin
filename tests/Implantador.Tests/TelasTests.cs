@@ -59,11 +59,11 @@ public class TelasTests
         });
         yield return ("5-resumo", new Tela
         {
-            Tipo = TipoTela.Lista, Titulo = "Confira antes de começar", Rodape = "Setas: navegar    Enter: escolher    Esc: voltar",
+            Tipo = TipoTela.Mensagem, Titulo = "Confira antes de começar", Rodape = "Setas: trocar de botão    Enter: escolher    Esc: voltar", Selecionado = 2,
             Info = ["Windows: Windows 11 Pro  ·  UEFI (GPT)", "Disco: Disco 0 · Samsung SSD 980 1TB · 954 GB · Boa", "Partições: Windows 200 GB + Dados (o resto) + recuperação",
                 "Conta: joao (com senha) · telas iniciais da Microsoft puladas", "Programas: Google Chrome, Visual C++, Notepad++",
                 "Ajustes: otimizado (SSD: inicialização sem atraso), sem OneDrive", "Drivers: o backup volta no Windows novo"],
-            Itens = [new Item("Formatar e instalar"), new Item("Cancelar e voltar ao menu"), new Item("← Voltar e corrigir", TipoItem.Voltar)],
+            Itens = [new Item("← Voltar e corrigir", TipoItem.Voltar), new Item("Cancelar", TipoItem.Voltar), new Item("Formatar e instalar →", TipoItem.Continuar)],
         });
         yield return ("6-confirmar", new Tela
         {

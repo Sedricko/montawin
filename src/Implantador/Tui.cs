@@ -272,6 +272,28 @@ public static class Tui
         }
     }
 
+    /// <summary>
+    /// Texto com botões lado a lado (o Continuar fica à direita, em destaque). Setas trocam o foco, Enter escolhe, Esc = -1.
+    /// </summary>
+    public static int Acoes(string titulo, IReadOnlyList<string> linhas, IReadOnlyList<Item> botoes, int padrao = 0)
+    {
+        int sel = padrao;
+        while (true)
+        {
+            Mostrar(new Tela
+            {
+                Tipo = TipoTela.Mensagem, Titulo = titulo, Info = linhas, Itens = botoes, Selecionado = sel,
+                Rodape = "Setas: trocar de botão    Enter: escolher    Esc: voltar",
+            });
+            var e = Ler();
+            if (e.Item >= 0 && e.Item < botoes.Count) return e.Item;
+            if (e.Tecla == ConsoleKey.Escape) return -1;
+            if (e.Tecla == ConsoleKey.Enter) return sel;
+            if (e.Tecla is ConsoleKey.LeftArrow or ConsoleKey.UpArrow) sel = (sel + botoes.Count - 1) % botoes.Count;
+            if (e.Tecla is ConsoleKey.RightArrow or ConsoleKey.DownArrow or ConsoleKey.Tab) sel = (sel + 1) % botoes.Count;
+        }
+    }
+
     public static void Mensagem(string titulo, IReadOnlyList<string> linhas, bool erro = false)
     {
         Mostrar(new Tela
@@ -500,7 +522,15 @@ sealed class TelaTexto : ISaida
             case TipoTela.Lista:
             case TipoTela.Mensagem:
             case TipoTela.Contagem:
-                if (t.Tipo != TipoTela.Lista) { Caixa(y, t.Titulo, Simples(t.Info), cor); break; }
+                if (t.Tipo != TipoTela.Lista)
+                {
+                    // Vários botões (ex.: resumo): uma linha com o escolhido entre colchetes
+                    var info = t.Itens.Count > 1
+                        ? [.. t.Info, "", string.Join("     ", t.Itens.Select((it, i) => i == t.Selecionado ? $"[ {it.Texto} ]" : it.Texto))]
+                        : t.Info;
+                    Caixa(y, t.Titulo, Simples(info), cor);
+                    break;
+                }
                 if (t.Info.Count > 0) y = Caixa(y, "Informações", Simples(t.Info), cor);
                 // Rola a lista quando não cabe na tela
                 int espaco = Math.Max(3, Altura - y - 3);

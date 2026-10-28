@@ -446,12 +446,12 @@ public sealed unsafe partial class TelaGrafica : ISaida
         float alturaInfo = t.Info.Sum(l => Altura(l, fonteNormal, dentro - (perigo ? 32 * s : 0)) + 2 * s);
         if (t.Info.Count > 0) alturaInfo += 14 * s + 2 * topoTexto;
         bool lista = t.Tipo == TipoTela.Lista;
-        // Lista com caixas de marcar: "Continuar" e "Voltar" ficam fixos embaixo, sempre à vista; só as opções rolam
-        int botoes = lista ? t.Itens.ToList().FindIndex(i => i.Tipo == TipoItem.Continuar) : -1;
+        // "Continuar" e "Voltar" são botões fixos embaixo, separados das opções e sempre à vista; só as opções rolam
+        int botoes = lista ? t.Itens.ToList().FindIndex(i => i.Tipo is TipoItem.Continuar or TipoItem.Voltar) : -1;
         int rolaveis = botoes >= 0 ? botoes : t.Itens.Count;
         float fixo = pad + 40 * s + alturaInfo + (t.Tipo == TipoTela.Pergunta ? 30 * s + 56 * s + 20 * s : 0)
                      + (lista && botoes < 0 ? 0 : linhaItem + 10 * s) + 36 * s + pad;
-        int visiveis = lista ? Math.Max(3, Math.Min(rolaveis, (int)((altura - 120 * s - fixo) / (linhaItem + espaco)))) : 0;
+        int visiveis = lista ? Math.Min(rolaveis, Math.Max(3, (int)((altura - 120 * s - fixo) / (linhaItem + espaco)))) : 0;
         float h = fixo + visiveis * (linhaItem + espaco);
         var (x, y, _, hp) = Vidro(w, h);
 
@@ -534,13 +534,20 @@ public sealed unsafe partial class TelaGrafica : ISaida
         else if (!lista)
         {
             // Botões lado a lado: Voltar à esquerda, o principal à direita
-            float bx = x + w - pad;
+            float bx = x + w - pad, esquerda = x + pad;
             for (int i = 0; i < t.Itens.Count; i++)
             {
                 var item = t.Itens[i];
                 float bw = Largura(item.Texto, fonteForte) + 44 * s;
                 bool principal = item.Tipo == TipoItem.Continuar;
-                float px = principal ? bx - bw : x + pad;
+                float px = principal ? bx - bw : esquerda;
+                if (!principal) esquerda += bw + 10 * s;
+                if (t.Itens.Count > 1 && i == t.Selecionado) // foco do teclado
+                {
+                    var anel = Arredondado(px - 3 * s, cy - 3 * s, bw + 6 * s, linhaItem + 6 * s, 12 * s);
+                    GdipDrawPath(g, Caneta(c.CorDestaque, 2 * s), anel);
+                    GdipDeletePath(anel);
+                }
                 if (principal)
                 {
                     if (perigo) Caixa(px, cy, bw, linhaItem, 10 * s, 0xFFE5354F);

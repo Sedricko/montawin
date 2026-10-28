@@ -986,8 +986,9 @@ void Instalar(Perfil? inicial = null)
                 avisoLento = Sistema.AvisoPendriveLento(Sistema.VelocidadeLeitura(edicao.Arquivo), new FileInfo(edicao.Arquivo).Length);
                 velocidadeMedida = edicao;
             }
-            int r = Tui.Menu("Confira antes de começar", Resumo(), ["Formatar e instalar", "Cancelar e voltar ao menu"], 0, "← Voltar e corrigir");
-            return r switch { 0 => Passo.Avancar, 1 => Passo.Sair, _ => Passo.Voltar };
+            int r = Tui.Acoes("Confira antes de começar", Resumo(), [new("← Voltar e corrigir", TipoItem.Voltar), new("Cancelar", TipoItem.Voltar),
+                new("Formatar e instalar →", TipoItem.Continuar)], 2);
+            return r switch { 2 => Passo.Avancar, 1 => Passo.Sair, _ => Passo.Voltar };
         },
         // Último passo: aviso vermelho e digitar SIM
         _ => Tui.Confirmar(modo == 2 ? "Isso vai apagar a partição" : "Isso vai apagar tudo", modo == 2
