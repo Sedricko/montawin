@@ -102,6 +102,11 @@ dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSin
   - **Boot sempre do Windows mais novo:** ao gravar com "Manter", se a ISO for mais velha que a que já está no pendrive, o painel continua no WinPE da mais nova (drivers de PCs novos, bcdboot com UEFI); só a imagem da ISO velha é acrescentada.
   - **Sugestão pelo PC:** o assistente avisa quando o Windows 7 não serve para o PC (Secure Boot ligado, disco NVMe, só USB 3, mais de 4 TB) e sugere o 10 ou o 11. Sempre só sugestão.
   - Testes: lista ordenada, regras do 7/8.1 (scripts sem `conhost --headless`, sem winget, licença pelo slmgr) e a escolha do WinPE pelo build.
+- **Atualizar o pendrive sem apagar e sem ISO** — projeto:
+  - Botão **"Atualizar o pendrive"** (num pendrive já gravado): troca só o painel (Implantador dentro do boot.wim do próprio pendrive), o tema, os fundos, o ícone, a licença e a lista de programas. Não precisa da ISO e leva uns 2 minutos, em vez de copiar o Windows de novo.
+  - **Windows do pendrive como lista:** ver quais ISOs estão nele (versão, edições, tamanho), **acrescentar** outra e **remover** uma sem mexer nas outras, nos perfis e nos backups.
+  - **Aviso de versão nova:** ao conectar um pendrive gravado com uma versão antiga do app, oferece atualizar o painel.
+  - Apagar o pendrive só na primeira vez ou quando o técnico pedir ("Apagar e recriar"), sempre com a confirmação.
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos
