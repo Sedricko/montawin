@@ -112,6 +112,14 @@ dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSin
   - Na restauração, uma tela mostra o que há no backup (Chrome, Firefox, Outlook...) e a pessoa marca o que devolver. O Aurora Win devolve cada pasta no lugar certo do programa **já instalado** (ex.: `AppData\Roaming\Mozilla` para o Firefox).
   - **Limite honesto:** Firefox devolve os favoritos e as senhas copiando a pasta. Chrome/Edge (Chromium): os favoritos voltam, mas as senhas salvas são presas ao login do Windows antigo e muitas vezes **não** voltam só copiando a pasta — o certo é a pessoa entrar na conta Google/Microsoft do navegador, que sincroniza as senhas. Outlook: contas e e-mails (.pst/.ost) voltam; a senha de cada conta é digitada uma vez.
   - Sem varredura do PC nem arquivo com senhas decifradas (um arquivo desses no pendrive seria um risco para o cliente).
+- **Instalação remota, ao lado do Windows antigo** — projeto:
+  - O cliente baixa o **AuroraWin-Remoto.exe**, abre como administrador e lê o aviso. Você entra pelo AnyDesk/TeamViewer e configura o **perfil** no mesmo assistente do painel. O cliente digita **SIM** na tela dele (sempre, e fica registrado no relatório com data e hora).
+  - Depois disso a ferramenta faz **toda a formatação sozinha**: encolhe a C:, cria a partição nova, aplica a imagem (DISM, com o Windows antigo funcionando), conta, drivers, programas, otimização, relatório, cria a entrada de boot e reinicia no Windows novo. Você acompanha ao vivo pelo AnyDesk.
+  - **Proteções, conferidas antes de começar (se uma falhar, nada é alterado):** espaço livre de pelo menos 40 GB além do Windows antigo; BitLocker (suspende ou recusa); notebook na tomada; saúde do disco (SMART: não segue se "falhando"); imagem conferida pelo SHA-256; modo de boot compatível (UEFI/BIOS, Secure Boot); só mexe na C: e na partição nova, nunca em outras partições de dados.
+  - **O Windows antigo não é apagado:** fica como plano B e como origem dos arquivos do cliente (o novo copia de lá, sem backup externo). Ele só é apagado depois que o cliente confirma que está tudo certo, com um **segundo SIM** na tela dele. Até lá o menu de boot mostra os dois, com o novo como padrão.
+  - Cancelar até a hora de reiniciar; log completo e relatório no fim. A autorização é sempre dada na hora, nunca guardada no perfil.
+  - Primeiro passo (menos risco): **pós-instalação remota** num Windows já instalado (programas do perfil, otimização, nome do PC, ponto de restauração e relatório), sem apagar nada. Testar muito numa VM antes de qualquer cliente real.
+  - Limites: precisa de espaço livre e de a C: poder ser encolhida; o espaço do Windows antigo, depois de apagado, vira uma partição de dados; o arquivo baixado pode ser barrado por antivírus/SmartScreen (o ideal é assiná-lo).
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos
