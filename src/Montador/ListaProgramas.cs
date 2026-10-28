@@ -7,11 +7,43 @@ public record ResultadoBusca(string Nome, string Id)
     public string Texto => $"{Nome}   ({Id})";
 }
 
-public record ItemLista(Programa Programa)
+/// <summary>Uma linha da lista de programas no app: a caixa marca se vem escolhido no painel; o selo diz de onde instala.</summary>
+public class ItemLista(Programa programa, string selo)
 {
-    public string Texto => Programa.Instalador != null
-        ? $"{Programa.Nome}   ·   arquivo {Programas.Separar(Programa.Instalador).Arquivo} (sem internet)"
-        : $"{Programa.Nome}   ·   winget {string.Join(" ", Programa.Ids.Take(2))}{(Programa.Ids.Length > 2 ? " ..." : "")}";
+    public Programa Programa { get; } = programa;
+    public string Nome => Programa.Nome;
+    public bool Marcado { get; set; } = programa.Marcado;
+    public string Selo { get; } = selo;
+    public string Inicial => Nome.Length > 0 ? char.ToUpperInvariant(Nome[0]).ToString() : "?";
+    public string Detalhe => Programa.Instalador != null
+        ? $"arquivo {Programas.Separar(Programa.Instalador).Arquivo}"
+        : $"winget {string.Join(" ", Programa.Ids.Take(2))}{(Programa.Ids.Length > 2 ? " ..." : "")}";
+
+    /// <summary>
+    /// De onde o programa instala, olhando o pendrive escolhido (pasta MontaWin\Instaladores\winget\id):
+    /// "no pendrive" (sem internet), "internet" (winget online), "Store" ou "arquivo".
+    /// </summary>
+    public static string SeloDe(Programa p, char? dados)
+    {
+        if (p.Instalador != null) return "arquivo";
+        if (p.Ids.Any(Programas.DaLoja)) return "Store";
+        if (p.Ids.Any(id => Programas.SoInternet(id))) return "só internet";
+        if (dados is char d && p.Ids.All(id => Directory.Exists($@"{d}:\MontaWin\Instaladores\winget\{id}"))) return "no pendrive";
+        return "internet";
+    }
+}
+
+/// <summary>Programas populares para adicionar com um clique (id do winget).</summary>
+public static class Populares
+{
+    public static readonly (string Nome, string Id)[] Lista =
+    [
+        ("Mozilla Firefox", "Mozilla.Firefox"), ("7-Zip", "7zip.7zip"), ("VLC", "VideoLAN.VLC"), ("AnyDesk", "AnyDesk.AnyDesk"),
+        ("TeamViewer", "TeamViewer.TeamViewer"), ("Adobe Acrobat Reader", "Adobe.Acrobat.Reader.64-bit"), ("Zoom", "Zoom.Zoom"),
+        ("Discord", "Discord.Discord"), ("Steam", "Valve.Steam"), ("Java (Temurin)", "EclipseAdoptium.Temurin.21.JRE"),
+        ("K-Lite Codec Pack", "CodecGuide.K-LiteCodecPack.Standard"), ("LibreOffice", "TheDocumentFoundation.LibreOffice"),
+        ("Google Drive", "Google.GoogleDrive"), ("WhatsApp", "9NKSQGP7F2NH"), ("Telegram", "Telegram.TelegramDesktop"), ("CPU-Z", "CPUID.CPU-Z"),
+    ];
 }
 
 /// <summary>
@@ -40,6 +72,12 @@ public static class ListaProgramas
         nome = nome.Replace("=", "-").Trim();
         return Remover(texto, nome).TrimEnd() + Environment.NewLine + $"{nome} = {valor}" + Environment.NewLine;
     }
+
+    /// <summary>Marca (+) ou desmarca a linha do programa: marcado = já vem escolhido no painel.</summary>
+    public static string Marcar(string texto, string nome, bool marcado) =>
+        string.Join(Environment.NewLine, texto.Split('\n').Select(l => l.TrimEnd('\r')).Select(l =>
+            l.TrimStart().StartsWith('#') || !l.Contains('=') || !NomeDaLinha(l).Equals(nome, StringComparison.OrdinalIgnoreCase)
+                ? l : (marcado ? "+ " : "") + l.Trim().TrimStart('-', '+').TrimStart()));
 
     public static string Remover(string texto, string nome) =>
         string.Join(Environment.NewLine, texto.Split('\n').Select(l => l.TrimEnd('\r'))

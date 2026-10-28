@@ -12,10 +12,11 @@ public record IsoAberta(string Iso, char Letra, string Install, List<Edicao> Edi
 /// <param name="NetFx3">Ativa o .NET Framework 3.5 em cada edição (vem da própria ISO; muitos programas antigos pedem).</param>
 /// <param name="Licenca">Chave do produto do técnico (opcional): o painel ativa o Windows com ela; null apaga a do pendrive.</param>
 /// <param name="Programas">Lista de programas do técnico (texto do Programas.txt) e a pasta com os instaladores adicionados por arquivo.</param>
+/// <param name="BootNovo">Boot UEFI assinado com o certificado novo (Windows UEFI CA 2023), tirado do próprio boot.wim da ISO.</param>
 /// <param name="Atualizacoes">Pasta com as atualizações .msu do Microsoft Update Catalog, injetadas em cada edição (null = nenhuma).</param>
 public record Gravacao(IsoAberta Iso, int[] Indices, Disco Pendrive, string Implantador, bool Rapida, (char Boot, char Dados)? Manter,
     string? Atualizacoes = null, string Tema = "ondas", (string Fundo, string Desfocado)? Fundos = null, bool BaixarProgramas = false,
-    (string Lista, string PastaInstaladores)? Programas = null, bool NetFx3 = true, string? Licenca = null);
+    (string Lista, string PastaInstaladores)? Programas = null, bool NetFx3 = true, string? Licenca = null, bool BootNovo = false);
 
 /// <summary>
 /// Monta o pendrive: partição FAT32 de boot (UEFI e BIOS) com o WinPE da ISO abrindo o Implantador,
@@ -178,6 +179,7 @@ public static class Pendrive
             var ini = Path.Combine(mount, "Windows", "System32", "winpeshl.ini");
             if (File.Exists(ini)) File.SetAttributes(ini, FileAttributes.Normal);
             File.WriteAllText(ini, WinpeshlIni);
+            if (g.BootNovo) BootComCertificadoNovo(mount, boot);
         }
         catch
         {
@@ -288,6 +290,25 @@ public static class Pendrive
         return falhas;
     }
 
+    /// <summary>
+    /// Troca o boot UEFI do pendrive pelo assinado com o certificado de 2023, como o script da Microsoft
+    /// (Make2023BootableMedia): os arquivos "_EX" vêm dentro do próprio WinPE das ISOs atualizadas.
+    /// PCs que ainda não receberam o certificado novo não dão boot com ele: por isso o padrão é o compatível (2011).
+    /// </summary>
+    static void BootComCertificadoNovo(string mount, char boot)
+    {
+        var ex = Path.Combine(mount, "Windows", "Boot", "EFI_EX");
+        if (!File.Exists(Path.Combine(ex, "bootmgfw_EX.efi")))
+            throw new Exception("Esta ISO não traz o boot com o certificado novo (2023). Use uma ISO mais nova da Microsoft, " +
+                                "ou volte o certificado do boot para \"Compatível (2011)\" na engrenagem.");
+        File.Copy(Path.Combine(ex, "bootmgfw_EX.efi"), $@"{boot}:\efi\boot\bootx64.efi", overwrite: true);
+        if (File.Exists(Path.Combine(ex, "bootmgr_EX.efi"))) File.Copy(Path.Combine(ex, "bootmgr_EX.efi"), $@"{boot}:\bootmgr.efi", overwrite: true);
+        var fontes = Path.Combine(mount, "Windows", "Boot", "Fonts_EX");
+        if (Directory.Exists(fontes))
+            foreach (var fonte in Directory.GetFiles(fontes, "*_EX.ttf"))
+                File.Copy(fonte, $@"{boot}:\efi\microsoft\boot\fonts\{Path.GetFileName(fonte).Replace("_EX", "")}", overwrite: true);
+    }
+
     /// <summary>O que volta para o pendrive quando ele é apagado e gravado de novo (pequeno: os backups não cabem aqui).</summary>
     public static readonly string[] PastasGuardadas = ["Perfis", "Relatorios"];
 
@@ -298,6 +319,29 @@ public static class Pendrive
             var alvo = Path.Combine(destino, Path.GetRelativePath(origem, arquivo));
             Directory.CreateDirectory(Path.GetDirectoryName(alvo)!);
             File.Copy(arquivo, alvo, overwrite: true);
+        }
+    }
+
+    /// <summary>
+    /// Chrome direto do Google (o instalador corporativo .msi): pelo winget o download falha toda hora, porque o Google
+    /// troca o arquivo e o hash do manifesto não bate. O manifesto mínimo diz ao painel que é msi (instala com /qn).
+    /// </summary>
+    static bool BaixarChrome(string pasta)
+    {
+        try
+        {
+            Directory.CreateDirectory(pasta);
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromMinutes(10) };
+            using (var origem = http.GetStreamAsync("https://dl.google.com/dl/chrome/install/googlechromestandaloneenterprise64.msi").Result)
+            using (var arquivo = File.Create(Path.Combine(pasta, "GoogleChromeEnterprise64.msi")))
+                origem.CopyTo(arquivo);
+            File.WriteAllText(Path.Combine(pasta, "Google.Chrome.yaml"), "PackageIdentifier: Google.Chrome\nInstallerType: msi\nScope: machine\n");
+            return true;
+        }
+        catch (Exception)
+        {
+            if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true); // sem pasta, o painel usa o winget online
+            return false;
         }
     }
 
@@ -338,6 +382,11 @@ public static class Pendrive
             progresso($"Baixando programas para o pendrive: {ids[i]} ({i + 1} de {ids.Count})", 92 + i * 8.0 / ids.Count);
             var pasta = $@"{dados}:\MontaWin\Instaladores\winget\{ids[i]}";
             if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true); // sempre a versão mais nova
+            if (ids[i].Equals("Google.Chrome", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!BaixarChrome(pasta)) falhas.Add(ids[i]);
+                continue;
+            }
             if (Comandos.Executar("winget", $"download --id {ids[i]} -e --source winget --download-directory \"{pasta}\" --accept-package-agreements --accept-source-agreements") != 0)
             {
                 falhas.Add(ids[i]);

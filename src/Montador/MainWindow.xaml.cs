@@ -1,10 +1,12 @@
 using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Markup;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using MontaWin.Implantador;
 using Microsoft.Win32;
 
@@ -17,24 +19,45 @@ public class EdicaoItem(int indice, string nome)
     public bool Marcada { get; set; } = true;
 }
 
+/// <summary>Perfil na lista do app (os perfis ficam no pendrive, em MontaWin\Perfis).</summary>
+public record PerfilItem(Perfil Perfil)
+{
+    public string Texto => $"{Perfil.Nome}   ·   {(Perfil.Usuario != null ? $"conta {Perfil.Usuario}" : "telas da Microsoft")}" +
+                           $"   ·   {Perfil.Programas.Length} programas" + (Perfil.Pc != null || Perfil.Serie != null ? "   ·   vinculado a um PC" : "");
+}
+
 public partial class MainWindow : Window
 {
     // O painel do pendrive (Implantador.exe) vem dentro do AuroraWin.exe; em testes locais, pode estar ao lado.
     static readonly string Implantador = Pendrive.Painel() ?? Path.Combine(AppContext.BaseDirectory, "Implantador.exe");
     IsoAberta? iso;
-    string tema = "ondas";
+    readonly Configuracoes config = Configuracoes.Ler();
+    Perfil? perfilEditado;
+    bool perfilNovo;
+    TaskCompletionSource<bool>? resposta;
+    readonly DispatcherTimer tempoAviso = new() { Interval = TimeSpan.FromSeconds(4) };
 
-    // Painel, BordaPainel, Cartao, Borda (ARGB) e Destaque (degradê) — mesmas cores do painel no boot.
-    static readonly Dictionary<string, (string Painel, string BordaPainel, string Cartao, string Borda, string De, string Ate)> Cores = new()
+    // Os nomes por dentro são os antigos (tema.txt dos pendrives já gravados): ondas = Aurora, bloom = Galáxia, pastel = Alvorada.
+    public static readonly string[] NomesTemas = ["ondas", "bloom", "pastel", "cristal"];
+
+    // Vidro do painel, painel sólido (janelinhas), borda do painel, bloco, borda do bloco e o degradê — as mesmas do painel do boot.
+    static readonly Dictionary<string, (string Painel, string Solido, string BordaPainel, string Cartao, string Borda, string De, string Ate, bool Claro)> Cores = new()
     {
-        ["ondas"] = ("#C20C0824", "#1AFFFFFF", "#0FFFFFFF", "#1AFFFFFF", "#E0218A", "#3B7BFF"),
-        ["bloom"] = ("#BD0E1A3A", "#1FFFFFFF", "#0FFFFFFF", "#1AFFFFFF", "#2F8CFF", "#60CDFF"),
-        ["pastel"] = ("#99FFFFFF", "#CCFFFFFF", "#8CFFFFFF", "#1F1B1640", "#4D5BFF", "#9B4DFF"),
+        ["ondas"] = ("#C20C0824", "#F2140C3A", "#1AFFFFFF", "#14FFFFFF", "#1FFFFFFF", "#E0218A", "#3B7BFF", false),
+        ["bloom"] = ("#BD0E1A3A", "#F20D1733", "#1FFFFFFF", "#14FFFFFF", "#1FFFFFFF", "#2F8CFF", "#60CDFF", false),
+        ["pastel"] = ("#99FFFFFF", "#F7F6F7FD", "#CCFFFFFF", "#99FFFFFF", "#1F1B1640", "#4D5BFF", "#9B4DFF", true),
+        ["cristal"] = ("#80FFFFFF", "#F7FBF7FF", "#E6FFFFFF", "#8CFFFFFF", "#261D1747", "#FF5FB0", "#36C9FF", true),
     };
 
     public MainWindow()
     {
         InitializeComponent();
+        if (!Cores.ContainsKey(config.Tema)) config.Tema = "ondas";
+        foreach (RadioButton r in Temas.Children) r.IsChecked = (string)r.Tag == config.Tema;
+        AplicarTema(config.Tema);
+        (BootNovo.IsChecked, BootCompativel.IsChecked, Rapida.IsChecked) = (config.BootNovo, !config.BootNovo, config.Rapida);
+        tempoAviso.Tick += (_, _) => { tempoAviso.Stop(); Aviso.Visibility = Visibility.Collapsed; };
+        MontarPopulares();
         Closed += (_, _) => { if (iso != null) Pendrive.FecharIso(iso.Iso); };
         Loaded += (_, _) =>
         {
@@ -50,27 +73,62 @@ public partial class MainWindow : Window
             }
             if (!File.Exists(Implantador)) Erro($"Não encontrei o painel do pendrive (Implantador.exe):\n{Implantador}");
             CarregarProgramas();
+            CarregarPerfis();
             Atualizar(this, new RoutedEventArgs());
         };
     }
 
+    // ---------- Janela solta (sem a moldura do Windows) ----------
+
+    void RaizMudou(object sender, SizeChangedEventArgs e) =>
+        Raiz.Clip = new RectangleGeometry(new Rect(Raiz.RenderSize), 26, 26); // cantos arredondados de verdade
+
+    void ArrastarJanela(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2) WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+        else if (e.ButtonState == MouseButtonState.Pressed) DragMove();
+    }
+
+    void Minimizar(object sender, RoutedEventArgs e) => WindowState = WindowState.Minimized;
+    void Fechar(object sender, RoutedEventArgs e) => Close();
+
+    // ---------- Tema e configurações (engrenagem) ----------
+
     void TemaEscolhido(object sender, RoutedEventArgs e)
     {
-        tema = (string)((RadioButton)sender).Tag;
+        config.Tema = (string)((RadioButton)sender).Tag;
+        AplicarTema(config.Tema);
+        if (IsLoaded) config.Salvar();
+    }
+
+    void AplicarTema(string tema)
+    {
         var c = Cores[tema];
-        Brush Cor(string hex) => new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex));
-        Resources["CorPainel"] = Cor(c.Painel);
-        Resources["CorBordaPainel"] = Cor(c.BordaPainel);
-        Resources["CorCartao"] = Cor(c.Cartao);
-        Resources["CorBorda"] = Cor(c.Borda);
-        Resources["CorDestaque"] = new LinearGradientBrush((Color)ColorConverter.ConvertFromString(c.De), (Color)ColorConverter.ConvertFromString(c.Ate), 0);
+        static Color Cor(string hex) => (Color)ColorConverter.ConvertFromString(hex);
+        Resources["CorPainel"] = new SolidColorBrush(Cor(c.Painel));
+        Resources["CorPainelSolido"] = new SolidColorBrush(Cor(c.Solido));
+        Resources["CorBordaPainel"] = new SolidColorBrush(Cor(c.BordaPainel));
+        Resources["CorCartao"] = new SolidColorBrush(Cor(c.Cartao));
+        Resources["CorBorda"] = new SolidColorBrush(Cor(c.Borda));
+        Resources["CorDestaque"] = new LinearGradientBrush(Cor(c.De), Cor(c.Ate), 0);
         FundoOndas.Visibility = tema == "ondas" ? Visibility.Visible : Visibility.Collapsed;
         FundoBloom.Visibility = tema == "bloom" ? Visibility.Visible : Visibility.Collapsed;
         FundoPastel.Visibility = tema == "pastel" ? Visibility.Visible : Visibility.Collapsed;
-        ThemeMode = tema == "pastel" ? ThemeMode.Light : ThemeMode.Dark; // controles claros no tema claro
+        FundoCristal.Visibility = tema == "cristal" ? Visibility.Visible : Visibility.Collapsed;
+        ThemeMode = c.Claro ? ThemeMode.Light : ThemeMode.Dark; // controles claros nos temas claros
     }
 
-    FrameworkElement FundoDoTema => tema switch { "bloom" => FundoBloom, "pastel" => FundoPastel, _ => FundoOndas };
+    FrameworkElement FundoDoTema => config.Tema switch { "bloom" => FundoBloom, "pastel" => FundoPastel, "cristal" => FundoCristal, _ => FundoOndas };
+    Brush CorTexto => Cores[config.Tema].Claro ? new SolidColorBrush(Color.FromRgb(0x1B, 0x16, 0x40)) : Brushes.White;
+
+    void AbrirConfig(object sender, RoutedEventArgs e) => CamadaConfig.Visibility = Visibility.Visible;
+
+    void FecharConfig(object sender, RoutedEventArgs e)
+    {
+        (config.BootNovo, config.Rapida) = (BootNovo.IsChecked == true, Rapida.IsChecked == true);
+        config.Salvar();
+        CamadaConfig.Visibility = Visibility.Collapsed;
+    }
 
     /// <summary>
     /// O painel do boot usa o mesmo fundo deste tema: desenha uma cópia em 1920x1080 (normal e desfocada, para o "vidro")
@@ -97,45 +155,95 @@ public partial class MainWindow : Window
         png.Save(f);
     }
 
-    /// <summary>Imagens de exemplo (MontaWin.exe --captura pasta): esta janela e os fundos do painel, nos 3 temas.</summary>
+    /// <summary>Imagens de exemplo (AuroraWin.exe --captura pasta): a janela, a engrenagem, um aviso, um perfil e a janelinha de progresso, nos 4 temas.</summary>
     void Capturar(string pasta)
     {
         CaminhoIso.Text = @"D:\ISOs\Win11_25H2_BrazilianPortuguese_x64.iso";
+        InfoIso.Text = "2 edições encontradas (versão 25H2). Boot com o certificado antigo (2011) do Secure Boot.";
         ListaEdicoes.ItemsSource = new[] { new EdicaoItem(1, "Windows 11 Home"), new EdicaoItem(6, "Windows 11 Pro") };
         TituloEdicoes.Visibility = Visibility.Visible;
         ListaPendrives.ItemsSource = new[] { new Disco(2, 256L << 30, "Kingston DataTraveler Max", true, false, []) };
         ListaPendrives.SelectedIndex = 0;
         CarregarProgramas();
+        ListaPerfis.ItemsSource = new[] { new PerfilItem(new Perfil("João (escritório)") { Usuario = "joao", Programas = ["Google Chrome", "WinRAR"], Pc = "x" }),
+                                         new PerfilItem(new Perfil("Maria") { Usuario = "maria", Programas = ["Spotify"] }) };
         BuscaPrograma.Text = "anydesk";
-        Status.Text = "Copiando Windows 11 Pro (2 de 2)";
-        Barra.Value = 62;
+        Status.Text = "Escolha a ISO e o pendrive.";
+        UpdateLayout();
         foreach (RadioButton r in Temas.Children)
         {
             r.IsChecked = true;
             var conteudo = (FrameworkElement)Content;
-            // A janela rola: uma imagem por "página", de cima até o fim.
+            void Foto(string nome) { UpdateLayout(); Salvar(conteudo, Path.Combine(pasta, $"montador-{config.Tema}-{nome}.png"), (int)conteudo.ActualWidth, (int)conteudo.ActualHeight); }
             Rolagem.ScrollToTop();
-            for (int pagina = 1; pagina <= 6; pagina++)
+            for (int pagina = 1; pagina <= 3; pagina++)
             {
-                UpdateLayout();
-                Salvar(conteudo, Path.Combine(pasta, $"montador-{tema}-{pagina}.png"), (int)conteudo.ActualWidth, (int)conteudo.ActualHeight);
+                Foto(pagina.ToString());
                 if (Rolagem.VerticalOffset >= Rolagem.ScrollableHeight - 1) break;
                 Rolagem.ScrollToVerticalOffset(Rolagem.VerticalOffset + Rolagem.ViewportHeight * 0.9);
             }
-            SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-{tema}.png"), desfocado: false);
-            SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-desfocado-{tema}.png"), desfocado: true);
+            CamadaConfig.Visibility = Visibility.Visible; Foto("configuracoes"); CamadaConfig.Visibility = Visibility.Collapsed;
+            AbrirPerfil(((PerfilItem)ListaPerfis.Items[0]).Perfil, novo: false); Foto("perfil"); CamadaPerfil.Visibility = Visibility.Collapsed;
+            _ = Perguntar("Apagar e gravar o pendrive?", "TUDO o que estiver no pendrive será apagado:\nDisco 2  Kingston DataTraveler Max  256 GB",
+                "Apagar e gravar", "Cancelar", perigo: true);
+            Foto("aviso"); CamadaDialogo.Visibility = Visibility.Collapsed;
+
+            var janela = NovaJanelaProgresso("Disco 2 · Kingston DataTraveler Max · 256 GB");
+            foreach (var (etapa, pct) in new[] { ("Apagando e particionando o pendrive", 1.0), ("Preparando o painel de inicialização (WinPE)", 8),
+                         ("Copiando Windows 11 Pro (1 de 1)", 20), ("Ativando o .NET Framework 3.5: Windows 11 Pro (1 de 1)", 47) })
+                janela.Atualizar(etapa, pct);
+            var cartao = (FrameworkElement)janela.Content;
+            cartao.Measure(new Size(420, double.PositiveInfinity));
+            Salvar(cartao, Path.Combine(pasta, $"progresso-{config.Tema}.png"), 420, (int)cartao.DesiredSize.Height);
+            janela.Concluir(true, "Pendrive pronto!", "Dê boot por ele no PC: o painel Aurora Win abre sozinho.");
+            cartao.Measure(new Size(420, double.PositiveInfinity));
+            Salvar(cartao, Path.Combine(pasta, $"progresso-pronto-{config.Tema}.png"), 420, (int)cartao.DesiredSize.Height);
+
+            SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-{config.Tema}.png"), desfocado: false);
+            SalvarFundo(FundoDoTema, Path.Combine(pasta, $"fundo-desfocado-{config.Tema}.png"), desfocado: true);
         }
     }
 
-    void Erro(string mensagem) => MessageBox.Show(this, mensagem, "MontaWin", MessageBoxButton.OK, MessageBoxImage.Error);
+    // ---------- Avisos no visual do app (no lugar das caixas do Windows) ----------
+
+    Task<bool> Perguntar(string titulo, string texto, string sim, string? nao = "Cancelar", bool perigo = false)
+    {
+        (TituloDialogo.Text, TextoDialogo.Text, BotaoDialogoSim.Content) = (titulo, texto, sim);
+        BotaoDialogoNao.Content = nao;
+        BotaoDialogoNao.Visibility = nao == null ? Visibility.Collapsed : Visibility.Visible;
+        SimboloDialogo.Text = perigo ? "\uE7BA" : "\uE946";
+        if (perigo) IconeDialogo.Background = new SolidColorBrush(Color.FromRgb(0xE5, 0x35, 0x4F));
+        else IconeDialogo.SetResourceReference(Border.BackgroundProperty, "CorDestaque");
+        CamadaDialogo.Visibility = Visibility.Visible;
+        resposta?.TrySetResult(false);
+        resposta = new TaskCompletionSource<bool>();
+        return resposta.Task;
+    }
+
+    void DialogoSim(object sender, RoutedEventArgs e) { CamadaDialogo.Visibility = Visibility.Collapsed; resposta?.TrySetResult(true); }
+    void DialogoNao(object sender, RoutedEventArgs e) { CamadaDialogo.Visibility = Visibility.Collapsed; resposta?.TrySetResult(false); }
+
+    void Erro(string mensagem) => _ = Perguntar("Algo não deu certo", mensagem, "Entendi", null, perigo: true);
+
+    /// <summary>Avisinho que some sozinho em 4 segundos.</summary>
+    void Avisar(string texto)
+    {
+        TextoAviso.Text = texto;
+        Aviso.Visibility = Visibility.Visible;
+        tempoAviso.Stop();
+        tempoAviso.Start();
+    }
 
     void Ocupado(bool ocupado, string status)
     {
-        BotaoIso.IsEnabled = BotaoAtualizar.IsEnabled = BotaoCriar.IsEnabled = ListaPendrives.IsEnabled = ListaEdicoes.IsEnabled =
-            Manter.IsEnabled = Rapida.IsEnabled = BotaoAtualizacoes.IsEnabled = Temas.IsEnabled = AtualizarAuto.IsEnabled = BaixarProgramas.IsEnabled = NetFx3.IsEnabled = Licenca.IsEnabled =
-            BotaoProcurar.IsEnabled = BotaoAdicionar.IsEnabled = BotaoRemover.IsEnabled = BotaoArquivo.IsEnabled = BotaoSalvarProgramas.IsEnabled = !ocupado;
+        foreach (var c in new UIElement[] { BotaoIso, BotaoAtualizar, BotaoCriar, ListaPendrives, ListaEdicoes, Manter, BotaoAtualizacoes, AtualizarAuto,
+                     BaixarProgramas, NetFx3, BotaoProcurar, BotaoAdicionar, BotaoAdicionarArquivo, BotaoRemover, BotaoArquivo, BotaoSalvarProgramas,
+                     BotaoConfig, PainelPopulares, BotaoNovoPerfil, BotaoEditarPerfil, BotaoDuplicarPerfil, BotaoApagarPerfil })
+            c.IsEnabled = !ocupado;
         Status.Text = status;
     }
+
+    // ---------- Windows (ISO) ----------
 
     async void EscolherIso(object sender, RoutedEventArgs e)
     {
@@ -152,10 +260,11 @@ public partial class MainWindow : Window
             TituloEdicoes.Visibility = Visibility.Visible;
             var versao = Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0);
             var certificado = Pendrive.CertificadoDoBoot(iso.Letra);
-            Ocupado(false, (iso.Edicoes.Count == 1 ? "1 edição encontrada" : $"{iso.Edicoes.Count} edições encontradas") +
+            InfoIso.Text = (iso.Edicoes.Count == 1 ? "1 edição encontrada" : $"{iso.Edicoes.Count} edições encontradas") +
                 (versao != null ? $" (versão {versao})." : $" (build {iso.Edicoes.FirstOrDefault()?.Build}: versão não reconhecida para as atualizações).") +
                 (certificado != null ? $" Boot com o certificado {certificado} do Secure Boot." : "") +
-                (certificado == "antigo (2011)" ? " Se algum PC recusar o boot do pendrive, use uma ISO mais nova da Microsoft." : ""));
+                (certificado == "antigo (2011)" ? " Se algum PC recusar o boot do pendrive, use uma ISO mais nova da Microsoft." : "");
+            Ocupado(false, "ISO pronta. Escolha o pendrive e clique em Criar pendrive.");
         }
         catch (Exception ex)
         {
@@ -173,6 +282,8 @@ public partial class MainWindow : Window
         AtualizarAuto.IsChecked = false; // a pasta escolhida substitui o download automático
     }
 
+    // ---------- Pendrive ----------
+
     async void Atualizar(object sender, RoutedEventArgs e)
     {
         Ocupado(true, "Procurando pendrives...");
@@ -182,39 +293,73 @@ public partial class MainWindow : Window
         Ocupado(false, pendrives.Count > 0 ? "Escolha a ISO e o pendrive." : "Nenhum pendrive encontrado. Conecte um e clique em Atualizar.");
     }
 
-    // Pendrive já gravado pelo MontaWin: oferece adicionar a ISO sem apagar imagens e backups.
+    /// <summary>Letra da partição de dados do pendrive escolhido, se ele já foi gravado pelo Aurora Win.</summary>
+    char? DadosDoPendrive => ListaPendrives.SelectedItem is Disco d && Pendrive.Existente(d) is (_, char dados) ? dados : null;
+
+    // Pendrive já gravado: oferece adicionar a ISO sem apagar imagens, perfis e backups.
     void PendriveEscolhido(object sender, RoutedEventArgs e)
     {
         var existente = ListaPendrives.SelectedItem is Disco d ? Pendrive.Existente(d) : null;
         Manter.Visibility = existente != null ? Visibility.Visible : Visibility.Collapsed;
         Manter.IsChecked = existente != null;
         BotaoSalvarProgramas.Visibility = existente != null ? Visibility.Visible : Visibility.Collapsed;
-        // Primeira vez neste PC: a lista que o técnico já editou no pendrive vira a lista do MontaWin.
-        // Licença já gravada nesse pendrive: aparece no campo, para não precisar digitar de novo.
+        // Licença já gravada nesse pendrive: aparece na engrenagem, para não precisar digitar de novo.
+        // Primeira vez neste PC: a lista que o técnico já editou no pendrive vira a lista do app.
         if (existente is (_, char comLicenca) && Licenca.Text.Length == 0 && File.Exists($@"{comLicenca}:\MontaWin\licenca.txt"))
             Licenca.Text = File.ReadAllText($@"{comLicenca}:\MontaWin\licenca.txt").Trim();
         if (existente is (_, char dados) && !File.Exists(ListaProgramas.Arquivo) && File.Exists($@"{dados}:\MontaWin\Programas.txt"))
-        {
             ListaProgramas.Salvar(File.ReadAllText($@"{dados}:\MontaWin\Programas.txt"));
-            CarregarProgramas();
-        }
+        CarregarProgramas();
+        CarregarPerfis();
     }
 
     // ---------- Programas ----------
 
-    void CarregarProgramas() =>
-        ListaProgramasUi.ItemsSource = Programas.Ler(ListaProgramas.Ler()).Select(p => new ItemLista(p)).ToList();
+    void CarregarProgramas()
+    {
+        var dados = DadosDoPendrive;
+        var lista = Programas.Ler(ListaProgramas.Ler());
+        ListaProgramasUi.ItemsSource = lista.Select(p => new ItemLista(p, ItemLista.SeloDe(p, dados))).ToList();
+        var ids = lista.SelectMany(p => p.Ids).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (Button b in PainelPopulares.Children) b.Visibility = ids.Contains(((string Nome, string Id))b.Tag is var (_, id) ? id : "") ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    void MontarPopulares()
+    {
+        foreach (var (nome, id) in Populares.Lista)
+        {
+            var b = new Button { Style = (Style)FindResource("Pilula"), Content = "+ " + nome, Tag = (nome, id), ToolTip = $"winget {id}" };
+            b.Click += (_, _) =>
+            {
+                ListaProgramas.Salvar(ListaProgramas.Adicionar(ListaProgramas.Ler(), nome, id));
+                CarregarProgramas();
+                Avisar($"{nome} adicionado à lista.");
+            };
+            PainelPopulares.Children.Add(b);
+        }
+    }
+
+    // A caixa de cada programa: marcado = já vem escolhido no painel (+ na lista)
+    void MarcarPrograma(object sender, RoutedEventArgs e)
+    {
+        if (sender is CheckBox { DataContext: ItemLista item } caixa)
+            ListaProgramas.Salvar(ListaProgramas.Marcar(ListaProgramas.Ler(), item.Nome, caixa.IsChecked == true));
+    }
 
     void RemoverPrograma(object sender, RoutedEventArgs e)
     {
-        if (ListaProgramasUi.SelectedItem is not ItemLista item) { Erro("Escolha na lista o programa que vai sair."); return; }
-        ListaProgramas.Salvar(ListaProgramas.Remover(ListaProgramas.Ler(), item.Programa.Nome));
+        var itens = ListaProgramasUi.SelectedItems.Cast<ItemLista>().ToList();
+        if (itens.Count == 0) { Erro("Escolha na lista os programas que vão sair (Ctrl ou Shift + clique para vários)."); return; }
+        var texto = ListaProgramas.Ler();
+        foreach (var item in itens) texto = ListaProgramas.Remover(texto, item.Nome);
+        ListaProgramas.Salvar(texto);
         CarregarProgramas();
+        Avisar(itens.Count == 1 ? $"{itens[0].Nome} saiu da lista." : $"{itens.Count} programas saíram da lista.");
     }
 
-    void BuscaTecla(object sender, System.Windows.Input.KeyEventArgs e)
+    void BuscaTecla(object sender, KeyEventArgs e)
     {
-        if (e.Key == System.Windows.Input.Key.Enter) ProcurarPrograma(sender, e);
+        if (e.Key == Key.Enter) ProcurarPrograma(sender, e);
     }
 
     async void ProcurarPrograma(object sender, RoutedEventArgs e)
@@ -230,51 +375,48 @@ public partial class MainWindow : Window
         ResultadosBusca.ItemsSource = resultados;
         ResultadosBusca.SelectedIndex = resultados.Count > 0 ? 0 : -1;
         if (resultados.Count > 0) ResultadosBusca.IsDropDownOpen = true;
-        Ocupado(false, resultados.Count > 0 ? $"{resultados.Count} encontrados: escolha um e clique em Adicionar à lista."
+        Ocupado(false, resultados.Count > 0 ? $"{resultados.Count} encontrados: escolha um e clique em Adicionar."
                                             : "Nada encontrado no winget. Tente outro nome ou use um instalador que você já tem.");
     }
 
-    void ResultadoEscolhido(object sender, RoutedEventArgs e)
+    void AdicionarBusca(object sender, RoutedEventArgs e)
     {
-        if (ResultadosBusca.SelectedItem is not ResultadoBusca r) return;
-        (ArquivoInstalador.Text, ParametrosInstalador.Text, NomePrograma.Text) = ("", "", r.Nome.TrimEnd('…'));
+        if (ResultadosBusca.SelectedItem is not ResultadoBusca r) { Erro("Procure o programa e escolha um dos resultados."); return; }
+        var nome = r.Nome.TrimEnd('…').Trim();
+        ListaProgramas.Salvar(ListaProgramas.Adicionar(ListaProgramas.Ler(), nome, r.Id));
+        CarregarProgramas();
+        BuscaPrograma.Text = "";
+        ResultadosBusca.ItemsSource = null;
+        Avisar($"{nome} adicionado. Ele vai para o pendrive ao criar (ou em \"Salvar programas no pendrive\").");
     }
 
     void EscolherInstalador(object sender, RoutedEventArgs e)
     {
         var dialogo = new OpenFileDialog { Filter = "Instalador (*.exe;*.msi)|*.exe;*.msi" };
         if (dialogo.ShowDialog(this) != true) return;
-        ResultadosBusca.SelectedIndex = -1;
         ArquivoInstalador.Text = dialogo.FileName;
         NomePrograma.Text = Path.GetFileNameWithoutExtension(dialogo.FileName);
         ParametrosInstalador.Text = ListaProgramas.ParametrosSugeridos(dialogo.FileName);
     }
 
-    void AdicionarPrograma(object sender, RoutedEventArgs e)
+    void AdicionarArquivo(object sender, RoutedEventArgs e)
     {
         var nome = NomePrograma.Text.Trim();
+        if (ArquivoInstalador.Text.Length == 0) { Erro("Escolha o arquivo do instalador."); return; }
         if (nome.Length == 0) { Erro("Digite o nome que vai aparecer no painel."); return; }
-        string valor;
-        if (ArquivoInstalador.Text.Length > 0)
-        {
-            // Sem espaços no nome do arquivo: a linha da lista separa o arquivo dos parâmetros pelo espaço.
-            var arquivo = Path.GetFileName(ArquivoInstalador.Text).Replace(' ', '_');
-            Directory.CreateDirectory(ListaProgramas.PastaInstaladores);
-            File.Copy(ArquivoInstalador.Text, Path.Combine(ListaProgramas.PastaInstaladores, arquivo), overwrite: true);
-            valor = $"arquivo: {arquivo} {ParametrosInstalador.Text.Trim()}".TrimEnd();
-        }
-        else if (ResultadosBusca.SelectedItem is ResultadoBusca r) valor = r.Id;
-        else { Erro("Procure um programa no winget ou escolha um arquivo instalador."); return; }
-        ListaProgramas.Salvar(ListaProgramas.Adicionar(ListaProgramas.Ler(), nome, valor));
+        // Sem espaços no nome do arquivo: a linha da lista separa o arquivo dos parâmetros pelo espaço.
+        var arquivo = Path.GetFileName(ArquivoInstalador.Text).Replace(' ', '_');
+        Directory.CreateDirectory(ListaProgramas.PastaInstaladores);
+        File.Copy(ArquivoInstalador.Text, Path.Combine(ListaProgramas.PastaInstaladores, arquivo), overwrite: true);
+        ListaProgramas.Salvar(ListaProgramas.Adicionar(ListaProgramas.Ler(), nome, $"arquivo: {arquivo} {ParametrosInstalador.Text.Trim()}".TrimEnd()));
         CarregarProgramas();
-        (BuscaPrograma.Text, ArquivoInstalador.Text, NomePrograma.Text, ParametrosInstalador.Text) = ("", "", "", "");
-        ResultadosBusca.ItemsSource = null;
-        Status.Text = $"{nome} adicionado. Ele vai para o pendrive ao criar (ou em \"Salvar programas no pendrive\").";
+        (ArquivoInstalador.Text, NomePrograma.Text, ParametrosInstalador.Text) = ("", "", "");
+        Avisar($"{nome} adicionado. O instalador vai para o pendrive ao criar.");
     }
 
     async void SalvarProgramasNoPendrive(object sender, RoutedEventArgs e)
     {
-        if (ListaPendrives.SelectedItem is not Disco d || Pendrive.Existente(d) is not (_, char dados)) { Erro("Escolha um pendrive já gravado pelo MontaWin."); return; }
+        if (DadosDoPendrive is not char dados) { Erro("Escolha um pendrive já gravado pelo Aurora Win."); return; }
         bool baixar = BaixarProgramas.IsChecked == true;
         Ocupado(true, "Salvando os programas no pendrive...");
         try
@@ -289,6 +431,7 @@ public partial class MainWindow : Window
                 })) : [];
             });
             Barra.Value = 100;
+            CarregarProgramas();
             Ocupado(false, "Programas salvos no pendrive." + (falhas.Count > 0 ? $" Não deu para baixar: {string.Join(", ", falhas)} (instalam pela internet)." : ""));
         }
         catch (Exception ex)
@@ -298,15 +441,123 @@ public partial class MainWindow : Window
         }
     }
 
+    // ---------- Perfis (no pendrive) ----------
+
+    void CarregarPerfis()
+    {
+        var dados = DadosDoPendrive;
+        foreach (var b in new[] { BotaoNovoPerfil, BotaoEditarPerfil, BotaoDuplicarPerfil, BotaoApagarPerfil }) b.IsEnabled = dados != null;
+        DicaPerfis.Text = dados != null
+            ? "Cada perfil guarda as escolhas de uma pessoa ou PC (conta, rede, programas...). Com ele, o painel só pede o disco e o SIM."
+            : "Escolha um pendrive já gravado pelo Aurora Win para ver e editar os perfis dele.";
+        var pasta = dados is char d ? $@"{d}:\MontaWin\Perfis" : null;
+        ListaPerfis.ItemsSource = pasta != null && Directory.Exists(pasta)
+            ? Directory.GetFiles(pasta, "*.txt").Select(f => Perfil.Ler(File.ReadAllText(f))).OfType<Perfil>().Select(p => new PerfilItem(p)).ToList()
+            : null;
+    }
+
+    // Outra pessoa começa do zero: sem programas e sem vínculo com PC
+    void NovoPerfil(object sender, RoutedEventArgs e) =>
+        AbrirPerfil(new Perfil("") { Edicao = iso?.Edicoes.FirstOrDefault()?.Nome ?? "Windows 11 Pro", Usuario = "" }, novo: true);
+
+    void EditarPerfil(object sender, RoutedEventArgs e)
+    {
+        if (ListaPerfis.SelectedItem is PerfilItem item) AbrirPerfil(item.Perfil, novo: false);
+        else if (sender is Button) Erro("Escolha um perfil na lista.");
+    }
+
+    void DuplicarPerfil(object sender, RoutedEventArgs e)
+    {
+        if (ListaPerfis.SelectedItem is not PerfilItem item) { Erro("Escolha o perfil que vai servir de modelo."); return; }
+        AbrirPerfil(item.Perfil with { Nome = item.Perfil.Nome + " (cópia)", Pc = null, Serie = null, Modelo = null }, novo: true);
+    }
+
+    async void ApagarPerfil(object sender, RoutedEventArgs e)
+    {
+        if (ListaPerfis.SelectedItem is not PerfilItem item || DadosDoPendrive is not char dados) { Erro("Escolha um perfil na lista."); return; }
+        if (!await Perguntar($"Apagar o perfil {item.Perfil.Nome}?", "Os backups dele continuam no pendrive.", "Apagar", perigo: true)) return;
+        File.Delete(ArquivoPerfil(dados, item.Perfil.Nome));
+        CarregarPerfis();
+        Avisar($"Perfil {item.Perfil.Nome} apagado.");
+    }
+
+    static string ArquivoPerfil(char dados, string nome) => $@"{dados}:\MontaWin\Perfis\{Perfil.NomeSeguro(nome)}.txt";
+
+    void AbrirPerfil(Perfil p, bool novo)
+    {
+        (perfilEditado, perfilNovo) = (p, novo);
+        TituloPerfil.Text = novo ? "Novo perfil" : $"Perfil {p.Nome}";
+        (PerfilNome.Text, PerfilEdicao.Text, PerfilUsuario.Text, PerfilNomePc.Text, PerfilWifi.Text) =
+            (p.Nome, p.Edicao, p.Usuario ?? "", p.NomePc ?? "", p.Wifi ?? "");
+        PerfilInstalacao.SelectedIndex = p.Instalacao == "particao" ? 2 : p.Instalacao.StartsWith("dividir:") ? 1 : 0;
+        PerfilGb.Text = p.Instalacao.StartsWith("dividir:") ? p.Instalacao["dividir:".Length..] : "120";
+        (PerfilOtimizar.IsChecked, PerfilOneDrive.IsChecked, PerfilAlto.IsChecked) = (p.Otimizar, p.RemoverOneDrive, p.AltoDesempenho);
+        (PerfilPonto.IsChecked, PerfilRestaurar.IsChecked, PerfilDrivers.IsChecked) = (p.PontoRestauracao, p.Restaurar, p.BackupDrivers);
+        PerfilSenhas.Text = $"Senha da conta: {(p.Senha != null ? "guardada no perfil" : "perguntada na hora")}." +
+            (p.Wifi != null ? $" Senha do Wi-Fi: {(p.SenhaWifi != null ? "guardada" : "perguntada na hora")}." : "") +
+            (p.Pc != null || p.Serie != null ? $" Vinculado ao PC {p.Modelo ?? p.Serie}." : " Não vinculado a um PC (o painel vincula ao salvar lá).") +
+            " Senhas e licença se guardam pelo painel, no PC.";
+        PerfilProgramas.ItemsSource = Programas.Ler(ListaProgramas.Ler()).Select(x => new ItemLista(x with { Marcado = p.Programas.Contains(x.Nome) }, "")).ToList();
+        CamadaPerfil.Visibility = Visibility.Visible;
+    }
+
+    void CancelarPerfil(object sender, RoutedEventArgs e) => CamadaPerfil.Visibility = Visibility.Collapsed;
+
+    async void SalvarPerfil(object sender, RoutedEventArgs e)
+    {
+        if (perfilEditado is not Perfil antigo || DadosDoPendrive is not char dados) return;
+        var nome = PerfilNome.Text.Trim();
+        if (Perfil.NomeSeguro(nome).Length == 0) { Erro("Dê um nome ao perfil (ex.: João ou PC da recepção)."); return; }
+        var nomePc = PerfilNomePc.Text.Trim();
+        if (nomePc.Length > 0 && !Unattend.NomePcValido(nomePc)) { Erro("Nome do computador: até 15 letras, números ou hífen, sem ser só números."); return; }
+        int gb = 0;
+        if (PerfilInstalacao.SelectedIndex == 1 && (!int.TryParse(PerfilGb.Text, out gb) || gb < 40)) { Erro("Windows + Dados: o tamanho do Windows precisa ser de pelo menos 40 GB."); return; }
+        var usuario = PerfilUsuario.Text.Trim();
+        var wifi = PerfilWifi.Text.Trim();
+        var arquivo = ArquivoPerfil(dados, nome);
+        bool renomeou = !perfilNovo && !Perfil.NomeSeguro(nome).Equals(Perfil.NomeSeguro(antigo.Nome), StringComparison.OrdinalIgnoreCase);
+        if ((perfilNovo || renomeou) && File.Exists(arquivo) && !await Perguntar("Já existe um perfil com esse nome", $"Substituir o perfil {nome}?", "Substituir")) return;
+        var perfil = antigo with
+        {
+            Nome = nome,
+            Edicao = PerfilEdicao.Text.Trim(),
+            Instalacao = PerfilInstalacao.SelectedIndex switch { 1 => $"dividir:{gb}", 2 => "particao", _ => "apagar" },
+            Usuario = usuario.Length > 0 ? usuario : null,
+            Senha = usuario.Length > 0 ? antigo.Senha : null,
+            NomePc = nomePc.Length > 0 ? nomePc.ToUpperInvariant() : null,
+            Wifi = wifi.Length > 0 ? wifi : null,
+            SenhaWifi = wifi == antigo.Wifi ? antigo.SenhaWifi : null, // a senha era da rede antiga
+            Otimizar = PerfilOtimizar.IsChecked == true,
+            RemoverOneDrive = PerfilOneDrive.IsChecked == true,
+            AltoDesempenho = PerfilAlto.IsChecked == true,
+            PontoRestauracao = PerfilPonto.IsChecked == true,
+            Restaurar = PerfilRestaurar.IsChecked == true,
+            BackupDrivers = PerfilDrivers.IsChecked == true,
+            Programas = ((IEnumerable<ItemLista>)PerfilProgramas.ItemsSource).Where(x => x.Marcado).Select(x => x.Nome).ToArray(),
+        };
+        Directory.CreateDirectory(Path.GetDirectoryName(arquivo)!);
+        File.WriteAllText(arquivo, perfil.Texto());
+        if (renomeou) File.Delete(ArquivoPerfil(dados, antigo.Nome));
+        CamadaPerfil.Visibility = Visibility.Collapsed;
+        CarregarPerfis();
+        Avisar($"Perfil {nome} salvo no pendrive.");
+    }
+
+    // ---------- Criar o pendrive ----------
+
+    JanelaProgresso NovaJanelaProgresso(string pendrive) =>
+        new((Brush)Resources["CorDestaque"], (Brush)Resources["CorPainelSolido"], (Brush)Resources["CorBorda"], CorTexto,
+            new BitmapImage(new Uri("pack://application:,,,/icone-app.png")), pendrive);
+
     async void Criar(object sender, RoutedEventArgs e)
     {
         var indices = (ListaEdicoes.ItemsSource as IEnumerable<EdicaoItem>)?.Where(x => x.Marcada).Select(x => x.Indice).ToArray() ?? [];
-        if (iso == null) { Erro("Escolha a ISO do Windows."); return; }
+        if (iso == null) { Erro("Escolha a ISO do Windows (bloco Windows)."); return; }
         if (indices.Length == 0) { Erro("Marque pelo menos uma edição."); return; }
         if (ListaPendrives.SelectedItem is not Disco pendrive) { Erro("Escolha o pendrive."); return; }
         var licenca = Licenca.Text.Trim().Length == 0 ? null : Unattend.ChaveValida(Licenca.Text);
-        if (Licenca.Text.Trim().Length > 0 && licenca == null) { Erro("A licença precisa ter o formato XXXXX-XXXXX-XXXXX-XXXXX-XXXXX."); return; }
-        if (!File.Exists(Implantador)) { Erro($"Não encontrei o Implantador.exe:\n{Implantador}"); return; }
+        if (Licenca.Text.Trim().Length > 0 && licenca == null) { Erro("A licença (na engrenagem) precisa ter o formato XXXXX-XXXXX-XXXXX-XXXXX-XXXXX."); return; }
+        if (!File.Exists(Implantador)) { Erro($"Não encontrei o painel do pendrive (Implantador.exe):\n{Implantador}"); return; }
         var manter = Manter.IsChecked == true ? Pendrive.Existente(pendrive) : null;
         long imagem = new FileInfo(iso.Install).Length;
         long necessario = manter != null ? imagem : ((long)Pendrive.BootMb << 20) + imagem + (1L << 30);
@@ -317,15 +568,22 @@ public partial class MainWindow : Window
                  (manter != null ? " livres. Desmarque \"Manter\" para apagar e recriar o pendrive." : "."));
             return;
         }
-        var pergunta = manter != null
-            ? $"A ISO será adicionada ao pendrive e o painel será atualizado. Imagens e backups que já estão nele ficam.\n\n{pendrive.Descricao.Trim()}\n\nContinuar?"
-            : $"TUDO o que estiver no pendrive será apagado:\n\n{pendrive.Descricao.Trim()}\n\n" +
-              (Pendrive.Existente(pendrive) is (_, char dadosAntigos) && Pendrive.AvisoAoApagar(dadosAntigos) is string aviso ? aviso + "\n\n" : "") + "Continuar?";
-        if (MessageBox.Show(this, pergunta, "MontaWin", MessageBoxButton.YesNo, MessageBoxImage.Warning) != MessageBoxResult.Yes) return;
+        bool confirmou = manter != null
+            ? await Perguntar("Adicionar ao pendrive?", $"A ISO será adicionada e o painel atualizado. Imagens, perfis e backups que já estão nele ficam.\n\n{pendrive.Descricao.Trim()}", "Adicionar e atualizar")
+            : await Perguntar("Apagar e gravar o pendrive?", $"TUDO o que estiver no pendrive será apagado:\n\n{pendrive.Descricao.Trim()}" +
+                (Pendrive.Existente(pendrive) is (_, char dadosAntigos) && Pendrive.AvisoAoApagar(dadosAntigos) is string aviso ? "\n\n" + aviso : ""),
+                "Apagar e gravar", perigo: true);
+        if (!confirmou) return;
 
-        Ocupado(true, "Começando...");
+        // A janela grande sai da frente: a janelinha animada acompanha a gravação e devolve o app no fim
+        var janela = NovaJanelaProgresso(pendrive.Descricao.Trim());
+        janela.Closed += (_, _) => { Show(); Activate(); };
+        Ocupado(true, "Gravando o pendrive...");
+        Hide();
+        janela.Show();
         void Progresso(string? etapa, double pct) => Dispatcher.Invoke(() =>
         {
+            janela.Atualizar(etapa, pct);
             if (etapa != null) Status.Text = etapa;
             Barra.Value = pct;
         });
@@ -341,6 +599,7 @@ public partial class MainWindow : Window
             }
             catch (Exception ex)
             {
+                janela.Close();
                 Ocupado(false, "Não deu para baixar as atualizações automaticamente.");
                 // Versão não reconhecida: diz qual build é e como seguir (sem pesquisa certa para abrir).
                 if (Atualizacoes.Versao(build) == null)
@@ -350,33 +609,33 @@ public partial class MainWindow : Window
                     return;
                 }
                 // Reserva: abre a pesquisa certa no Catalog para baixar na mão e escolher a pasta.
-                if (MessageBox.Show(this,
-                        $"Não consegui baixar as atualizações sozinho:\n{ex.Message}\n\nAbrir o Microsoft Update Catalog já pesquisado na versão certa? " +
-                        "Baixe a \"Cumulative Update\" mais nova (sem \"Preview\"), escolha a pasta em \"Ou use uma pasta\" e crie de novo.\n\n" +
-                        "Ou desmarque \"Baixar e instalar as atualizações\" para criar sem elas.",
-                        "MontaWin", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.Yes)
+                if (await Perguntar("Não consegui baixar as atualizações sozinho", $"{ex.Message}\n\nAbrir o Microsoft Update Catalog já pesquisado na versão certa? " +
+                        "Baixe a \"Cumulative Update\" mais nova (sem \"Preview\"), escolha a pasta no bloco Windows e crie de novo. " +
+                        "Ou desmarque \"Baixar e instalar as atualizações\" para criar sem elas.", "Abrir o Catalog", "Agora não"))
                     Process.Start(new ProcessStartInfo(Atualizacoes.UrlPesquisa(build)) { UseShellExecute = true });
                 return;
             }
         }
         try
         {
-            var fundo = Path.Combine(Path.GetTempPath(), "MontaWin-fundo.png");
-            var desfocado = Path.Combine(Path.GetTempPath(), "MontaWin-fundo-desfocado.png");
+            var fundo = Path.Combine(Path.GetTempPath(), "AuroraWin-fundo.png");
+            var desfocado = Path.Combine(Path.GetTempPath(), "AuroraWin-fundo-desfocado.png");
             SalvarFundo(FundoDoTema, fundo, desfocado: false);
             SalvarFundo(FundoDoTema, desfocado, desfocado: true);
-            var gravacao = new Gravacao(iso, indices, pendrive, Implantador, Rapida.IsChecked == true, manter, atualizacoes, tema,
+            var gravacao = new Gravacao(iso, indices, pendrive, Implantador, config.Rapida, manter, atualizacoes, config.Tema,
                 (fundo, desfocado), BaixarProgramas.IsChecked == true, (ListaProgramas.Ler(), ListaProgramas.PastaInstaladores),
-                NetFx3.IsChecked == true, licenca);
+                NetFx3.IsChecked == true, licenca, config.BootNovo);
             var falhas = await Task.Run(() => Pendrive.Gravar(gravacao, Progresso));
-            Ocupado(false, "Pendrive pronto! Dê boot por ele no PC do cliente.");
-            MessageBox.Show(this, "Pendrive pronto!\n\nDê boot por ele no PC do cliente: o painel MontaWin abre sozinho." +
-                (falhas.Count > 0 ? $"\n\nNão deu para baixar: {string.Join(", ", falhas)}. Esses instalam pela internet no primeiro login." : ""),
-                "MontaWin", MessageBoxButton.OK, MessageBoxImage.Information);
+            Ocupado(false, "Pendrive pronto! Dê boot por ele no PC.");
+            janela.Concluir(true, "Pendrive pronto!", "Dê boot por ele no PC: o painel Aurora Win abre sozinho." +
+                (falhas.Count > 0 ? $"\nNão deu para baixar: {string.Join(", ", falhas)}. Esses instalam pela internet no primeiro login." : ""));
+            CarregarProgramas();
+            CarregarPerfis();
         }
         catch (Exception ex)
         {
             Ocupado(false, "Falhou. Veja a mensagem e tente de novo.");
+            janela.Concluir(false, "Não deu certo", ex.Message.Split('\n')[0]);
             Erro(ex.Message);
         }
     }

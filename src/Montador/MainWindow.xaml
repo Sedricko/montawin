@@ -1,26 +1,43 @@
 <Window x:Class="MontaWin.Montador.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MontaWin" Width="1100" Height="800" MinWidth="640" MinHeight="600"
-        WindowStartupLocation="CenterScreen" Background="#160A44">
-  <!-- Cores do tema (Painel, BordaPainel, Cartao, Borda, Destaque) são trocadas em AplicarTema. -->
+        Title="Aurora Win" Width="1220" Height="840" MinWidth="980" MinHeight="660"
+        WindowStartupLocation="CenterScreen" WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        ResizeMode="CanResizeWithGrip">
+  <!-- Janela solta, sem a moldura do Windows: cantos arredondados, blocos de vidro sobre o fundo do tema.
+       As cores do tema (CorPainel, CorBordaPainel, CorCartao, CorBorda, CorDestaque) são trocadas em AplicarTema. -->
   <Window.Resources>
     <Style x:Key="Cartao" TargetType="Border">
-      <Setter Property="Padding" Value="18" />
-      <Setter Property="Margin" Value="0,0,0,12" />
-      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Padding" Value="20" />
+      <Setter Property="Margin" Value="8" />
+      <Setter Property="CornerRadius" Value="18" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="BorderBrush" Value="{DynamicResource CorBorda}" />
       <Setter Property="Background" Value="{DynamicResource CorCartao}" />
     </Style>
     <Style x:Key="Titulo" TargetType="TextBlock">
-      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontSize" Value="17" />
       <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Margin" Value="0,0,0,10" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style x:Key="Dica" TargetType="TextBlock">
-      <Setter Property="Opacity" Value="0.7" />
+      <Setter Property="Opacity" Value="0.72" />
       <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <!-- Ícone de cada bloco: quadradinho com o degradê do tema e um símbolo -->
+    <Style x:Key="IconeBloco" TargetType="Border">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Margin" Value="0,0,12,0" />
+      <Setter Property="Background" Value="{DynamicResource CorDestaque}" />
+    </Style>
+    <Style x:Key="SimboloBloco" TargetType="TextBlock">
+      <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="Foreground" Value="White" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
     <Style x:Key="Principal" TargetType="Button">
       <Setter Property="Foreground" Value="White" />
@@ -30,7 +47,7 @@
       <Setter Property="Template">
         <Setter.Value>
           <ControlTemplate TargetType="Button">
-            <Border x:Name="Fundo" Background="{DynamicResource CorDestaque}" CornerRadius="10" Padding="28,11">
+            <Border x:Name="Fundo" Background="{DynamicResource CorDestaque}" CornerRadius="12" Padding="30,12">
               <ContentPresenter HorizontalAlignment="Center" />
             </Border>
             <ControlTemplate.Triggers>
@@ -41,234 +58,530 @@
         </Setter.Value>
       </Setter>
     </Style>
+    <!-- Pílula: botões secundários e programas populares -->
+    <Style x:Key="Pilula" TargetType="Button">
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Margin" Value="0,0,6,6" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Fundo" Background="{DynamicResource CorCartao}" BorderBrush="{DynamicResource CorBorda}" BorderThickness="1"
+                    CornerRadius="14" Padding="12,5">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Fundo" Property="BorderBrush" Value="{DynamicResource CorDestaque}" /></Trigger>
+              <Trigger Property="IsEnabled" Value="False"><Setter TargetName="Fundo" Property="Opacity" Value="0.4" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <Style x:Key="BotaoJanela" TargetType="Button">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets" />
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="Button">
+            <Border x:Name="Fundo" Background="Transparent" CornerRadius="10">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Fundo" Property="Background" Value="{DynamicResource CorCartao}" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
+    <!-- Camada escura atrás das janelinhas internas (configurações, perfil, avisos) -->
+    <Style x:Key="Camada" TargetType="Grid">
+      <Setter Property="Background" Value="#73000000" />
+      <Setter Property="Visibility" Value="Collapsed" />
+    </Style>
+    <Style x:Key="Janelinha" TargetType="Border">
+      <Setter Property="Background" Value="{DynamicResource CorPainelSolido}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource CorBordaPainel}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="22" />
+      <Setter Property="Padding" Value="26,22" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+      <Setter Property="Effect"><Setter.Value><DropShadowEffect BlurRadius="50" ShadowDepth="12" Opacity="0.45" /></Setter.Value></Setter>
+    </Style>
   </Window.Resources>
 
-  <Grid>
-    <!-- Fundos no estilo do painel (mesmos desenhos da prévia), esticados para cobrir a janela -->
-    <Viewbox x:Name="FundoOndas" Stretch="UniformToFill">
-      <Canvas Width="1280" Height="720" ClipToBounds="True">
-        <Rectangle Width="1280" Height="720">
-          <Rectangle.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#1A0B52" /><GradientStop Color="#131C6E" Offset="1" /></LinearGradientBrush></Rectangle.Fill>
-        </Rectangle>
-        <Path Data="M560 0 C 700 90 820 40 940 150 S 1150 230 1280 300 L 1280 0 Z" Opacity="0.9">
-          <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#2346B8" /><GradientStop Color="#1E7FE0" Offset="1" /></LinearGradientBrush></Path.Fill>
-        </Path>
-        <Path Data="M780 0 C 900 120 1040 70 1130 200 S 1240 330 1280 360 L 1280 0 Z" Fill="#2B8CF0" Opacity="0.55" />
-        <Path Data="M0 380 C 160 300 330 330 470 300 S 760 220 900 260 S 1150 380 1280 420 L 1280 720 L 0 720 Z" Opacity="0.9">
-          <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#2A0E72" /><GradientStop Color="#1A1366" Offset="1" /></LinearGradientBrush></Path.Fill>
-        </Path>
-        <Path Data="M0 470 C 120 400 260 420 360 460 S 560 520 640 600 S 760 700 800 720 L 0 720 Z" Opacity="0.85">
-          <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#B0157E" /><GradientStop Color="#3A0C5E" Offset="1" /></LinearGradientBrush></Path.Fill>
-        </Path>
-        <Path Data="M0 540 C 90 500 200 490 280 530 S 420 640 470 720 L 0 720 Z">
-          <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#F0288F" /><GradientStop Color="#6A0C78" Offset="1" /></LinearGradientBrush></Path.Fill>
-        </Path>
-      </Canvas>
-    </Viewbox>
-
-    <Viewbox x:Name="FundoBloom" Stretch="UniformToFill" Visibility="Collapsed">
-      <Canvas Width="1280" Height="720" ClipToBounds="True">
-        <Rectangle Width="1280" Height="720">
-          <Rectangle.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#050C24" /><GradientStop Color="#10307A" Offset="1" /></LinearGradientBrush></Rectangle.Fill>
-        </Rectangle>
-        <Ellipse Canvas.Left="290" Canvas.Top="50" Width="700" Height="700" Fill="#3D7BFF" Opacity="0.45">
-          <Ellipse.Effect><BlurEffect Radius="160" /></Ellipse.Effect>
-        </Ellipse>
-        <Canvas Canvas.Left="640" Canvas.Top="420">
-          <Canvas.Effect><BlurEffect Radius="28" /></Canvas.Effect>
-          <Canvas.Resources>
-            <LinearGradientBrush x:Key="Petala" StartPoint="0,0" EndPoint="1,0">
-              <GradientStop Color="#E6E3F2FF" /><GradientStop Color="#BF4C8DFF" Offset="0.45" /><GradientStop Color="#1A1846C4" Offset="1" />
-            </LinearGradientBrush>
-            <Style TargetType="Ellipse">
-              <Setter Property="Width" Value="460" /><Setter Property="Height" Value="160" />
-              <Setter Property="Canvas.Left" Value="-30" /><Setter Property="Canvas.Top" Value="-80" />
-              <Setter Property="RenderTransformOrigin" Value="0.065,0.5" />
-              <Setter Property="Fill" Value="{StaticResource Petala}" />
-            </Style>
-          </Canvas.Resources>
-          <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="-150" /></Ellipse.RenderTransform></Ellipse>
-          <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="-110" /></Ellipse.RenderTransform></Ellipse>
-          <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="-70" /></Ellipse.RenderTransform></Ellipse>
-          <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="-30" /></Ellipse.RenderTransform></Ellipse>
-          <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="10" /></Ellipse.RenderTransform></Ellipse>
-          <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="170" /></Ellipse.RenderTransform></Ellipse>
-          <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="210" /></Ellipse.RenderTransform></Ellipse>
+  <Border Margin="16" CornerRadius="26" Background="#01000000">
+    <Border.Effect><DropShadowEffect BlurRadius="40" ShadowDepth="10" Opacity="0.45" /></Border.Effect>
+    <Grid x:Name="Raiz" SizeChanged="RaizMudou">
+      <!-- Fundos no estilo do painel do boot, esticados para cobrir a janela -->
+      <Viewbox x:Name="FundoOndas" Stretch="UniformToFill">
+        <Canvas Width="1280" Height="720" ClipToBounds="True">
+          <Rectangle Width="1280" Height="720">
+            <Rectangle.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#1A0B52" /><GradientStop Color="#131C6E" Offset="1" /></LinearGradientBrush></Rectangle.Fill>
+          </Rectangle>
+          <Path Data="M560 0 C 700 90 820 40 940 150 S 1150 230 1280 300 L 1280 0 Z" Opacity="0.9">
+            <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#2346B8" /><GradientStop Color="#1E7FE0" Offset="1" /></LinearGradientBrush></Path.Fill>
+          </Path>
+          <Path Data="M780 0 C 900 120 1040 70 1130 200 S 1240 330 1280 360 L 1280 0 Z" Fill="#2B8CF0" Opacity="0.55" />
+          <Path Data="M0 380 C 160 300 330 330 470 300 S 760 220 900 260 S 1150 380 1280 420 L 1280 720 L 0 720 Z" Opacity="0.9">
+            <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#2A0E72" /><GradientStop Color="#1A1366" Offset="1" /></LinearGradientBrush></Path.Fill>
+          </Path>
+          <Path Data="M0 470 C 120 400 260 420 360 460 S 560 520 640 600 S 760 700 800 720 L 0 720 Z" Opacity="0.85">
+            <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,0"><GradientStop Color="#B0157E" /><GradientStop Color="#3A0C5E" Offset="1" /></LinearGradientBrush></Path.Fill>
+          </Path>
+          <Path Data="M0 540 C 90 500 200 490 280 530 S 420 640 470 720 L 0 720 Z">
+            <Path.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#F0288F" /><GradientStop Color="#6A0C78" Offset="1" /></LinearGradientBrush></Path.Fill>
+          </Path>
         </Canvas>
-      </Canvas>
-    </Viewbox>
+      </Viewbox>
 
-    <Viewbox x:Name="FundoPastel" Stretch="UniformToFill" Visibility="Collapsed">
-      <Canvas Width="1280" Height="720" ClipToBounds="True" Background="#E9ECF8">
-        <Canvas>
-          <Canvas.Effect><BlurEffect Radius="72" /></Canvas.Effect>
-          <Polygon Points="720,150 1150,120 1280,520 820,600" Fill="#2E86F0" Opacity="0.8" />
-          <Polygon Points="480,220 900,180 980,560 520,620" Fill="#3E5BEA" Opacity="0.75" />
-          <Polygon Points="300,380 760,300 900,720 200,720" Fill="#7B2CF0" Opacity="0.8" />
-          <Polygon Points="80,560 620,470 760,720 40,720" Fill="#D32EE6" Opacity="0.85" />
-          <Ellipse Canvas.Left="20" Canvas.Top="-100" Width="440" Height="440" Fill="White" Opacity="0.8" />
+      <Viewbox x:Name="FundoBloom" Stretch="UniformToFill" Visibility="Collapsed">
+        <Canvas Width="1280" Height="720" ClipToBounds="True">
+          <Rectangle Width="1280" Height="720">
+            <Rectangle.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#050C24" /><GradientStop Color="#10307A" Offset="1" /></LinearGradientBrush></Rectangle.Fill>
+          </Rectangle>
+          <Ellipse Canvas.Left="290" Canvas.Top="50" Width="700" Height="700" Fill="#3D7BFF" Opacity="0.45">
+            <Ellipse.Effect><BlurEffect Radius="160" /></Ellipse.Effect>
+          </Ellipse>
+          <Canvas Canvas.Left="640" Canvas.Top="420">
+            <Canvas.Effect><BlurEffect Radius="28" /></Canvas.Effect>
+            <Canvas.Resources>
+              <LinearGradientBrush x:Key="Petala" StartPoint="0,0" EndPoint="1,0">
+                <GradientStop Color="#E6E3F2FF" /><GradientStop Color="#BF4C8DFF" Offset="0.45" /><GradientStop Color="#1A1846C4" Offset="1" />
+              </LinearGradientBrush>
+              <Style TargetType="Ellipse">
+                <Setter Property="Width" Value="460" /><Setter Property="Height" Value="160" />
+                <Setter Property="Canvas.Left" Value="-30" /><Setter Property="Canvas.Top" Value="-80" />
+                <Setter Property="RenderTransformOrigin" Value="0.065,0.5" />
+                <Setter Property="Fill" Value="{StaticResource Petala}" />
+              </Style>
+            </Canvas.Resources>
+            <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="-150" /></Ellipse.RenderTransform></Ellipse>
+            <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="-110" /></Ellipse.RenderTransform></Ellipse>
+            <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="-70" /></Ellipse.RenderTransform></Ellipse>
+            <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="-30" /></Ellipse.RenderTransform></Ellipse>
+            <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="10" /></Ellipse.RenderTransform></Ellipse>
+            <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="170" /></Ellipse.RenderTransform></Ellipse>
+            <Ellipse><Ellipse.RenderTransform><RotateTransform Angle="210" /></Ellipse.RenderTransform></Ellipse>
+          </Canvas>
         </Canvas>
-      </Canvas>
-    </Viewbox>
+      </Viewbox>
 
-    <ScrollViewer x:Name="Rolagem" VerticalScrollBarVisibility="Auto">
-      <Border Background="{DynamicResource CorPainel}" BorderBrush="{DynamicResource CorBordaPainel}" BorderThickness="1" CornerRadius="22"
-              MaxWidth="720" Margin="24,32" Padding="30,26" VerticalAlignment="Center">
-        <Border.Effect><DropShadowEffect BlurRadius="60" ShadowDepth="16" Opacity="0.4" /></Border.Effect>
-        <StackPanel>
-          <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
-            <Border Width="46" Height="46" CornerRadius="14" Background="{DynamicResource CorDestaque}" Margin="0,0,14,0">
-              <TextBlock Text="M" Foreground="White" FontSize="24" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-            </Border>
+      <Viewbox x:Name="FundoPastel" Stretch="UniformToFill" Visibility="Collapsed">
+        <Canvas Width="1280" Height="720" ClipToBounds="True" Background="#E9ECF8">
+          <Canvas>
+            <Canvas.Effect><BlurEffect Radius="72" /></Canvas.Effect>
+            <Polygon Points="720,150 1150,120 1280,520 820,600" Fill="#2E86F0" Opacity="0.8" />
+            <Polygon Points="480,220 900,180 980,560 520,620" Fill="#3E5BEA" Opacity="0.75" />
+            <Polygon Points="300,380 760,300 900,720 200,720" Fill="#7B2CF0" Opacity="0.8" />
+            <Polygon Points="80,560 620,470 760,720 40,720" Fill="#D32EE6" Opacity="0.85" />
+            <Ellipse Canvas.Left="20" Canvas.Top="-100" Width="440" Height="440" Fill="White" Opacity="0.8" />
+          </Canvas>
+        </Canvas>
+      </Viewbox>
+
+      <!-- Cristal: vidro claro sobre um brilho furta-cor -->
+      <Viewbox x:Name="FundoCristal" Stretch="UniformToFill" Visibility="Collapsed">
+        <Canvas Width="1280" Height="720" ClipToBounds="True">
+          <Rectangle Width="1280" Height="720">
+            <Rectangle.Fill><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#F7E9FF" /><GradientStop Color="#EAF0FF" Offset="0.5" /><GradientStop Color="#D8F4FF" Offset="1" /></LinearGradientBrush></Rectangle.Fill>
+          </Rectangle>
+          <Canvas>
+            <Canvas.Effect><BlurEffect Radius="90" /></Canvas.Effect>
+            <Ellipse Canvas.Left="-80" Canvas.Top="380" Width="560" Height="460" Fill="#FF7AC0" Opacity="0.75" />
+            <Ellipse Canvas.Left="380" Canvas.Top="-120" Width="520" Height="420" Fill="#9B8CFF" Opacity="0.6" />
+            <Ellipse Canvas.Left="860" Canvas.Top="160" Width="520" Height="520" Fill="#5FD4FF" Opacity="0.7" />
+            <Ellipse Canvas.Left="560" Canvas.Top="480" Width="420" Height="300" Fill="#7AFFC8" Opacity="0.55" />
+          </Canvas>
+        </Canvas>
+      </Viewbox>
+
+      <DockPanel>
+        <!-- Barra de título própria: arrasta a janela, engrenagem, minimizar e fechar -->
+        <Grid DockPanel.Dock="Top" Height="76" Margin="24,8,14,0" Background="Transparent" MouseLeftButtonDown="ArrastarJanela">
+          <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Image Source="icone-app.png" Width="42" Height="42" Margin="0,0,14,0" />
             <StackPanel VerticalAlignment="Center">
-              <TextBlock Text="MontaWin" FontSize="26" FontWeight="SemiBold" />
-              <TextBlock Style="{StaticResource Dica}" Text="Cria o pendrive de implantação: o PC dá boot e abre direto o painel MontaWin." />
+              <TextBlock Text="Aurora Win" FontSize="24" FontWeight="SemiBold" />
+              <TextBlock Style="{StaticResource Dica}" Text="Grava o pendrive: o PC dá boot e abre direto o painel de formatação." />
             </StackPanel>
           </StackPanel>
+          <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <Button x:Name="BotaoConfig" Style="{StaticResource Pilula}" Margin="0,0,10,0" Click="AbrirConfig" ToolTip="Configurações">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE713;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="Configurações" />
+              </StackPanel>
+            </Button>
+            <Button Style="{StaticResource BotaoJanela}" Content="&#xE921;" Click="Minimizar" ToolTip="Minimizar" />
+            <Button Style="{StaticResource BotaoJanela}" Content="&#xE8BB;" Click="Fechar" ToolTip="Fechar" />
+          </StackPanel>
+        </Grid>
 
-          <Border Style="{StaticResource Cartao}">
-            <StackPanel>
-              <TextBlock Style="{StaticResource Titulo}" Text="1 · Imagem do Windows" />
-              <DockPanel>
-                <Button x:Name="BotaoIso" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher ISO..." Click="EscolherIso" />
-                <TextBox x:Name="CaminhoIso" IsReadOnly="True" VerticalContentAlignment="Center" />
-              </DockPanel>
-              <TextBlock x:Name="TituloEdicoes" Text="Edições que vão para o pendrive (escolhidas no painel na hora de instalar)"
-                         Style="{StaticResource Dica}" Margin="0,14,0,6" Visibility="Collapsed" />
-              <ItemsControl x:Name="ListaEdicoes" Margin="0,0,0,12">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate>
-                    <CheckBox Content="{Binding Nome}" IsChecked="{Binding Marcada}" Margin="0,2" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-              <CheckBox x:Name="NetFx3" IsChecked="True" Margin="0,0,0,8">
-                <TextBlock TextWrapping="Wrap" Text="Ativar o .NET Framework 3.5 (muitos programas antigos pedem; vem da própria ISO)" />
-              </CheckBox>
-              <CheckBox x:Name="AtualizarAuto" IsChecked="True" Margin="0,0,0,8">
-                <TextBlock TextWrapping="Wrap" Text="Baixar e instalar as atualizações do mês (automático; cerca de 5 GB na primeira vez, depois reaproveita)" />
-              </CheckBox>
-              <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,6"
-                         Text="Ou use uma pasta com os arquivos .msu já baixados do Microsoft Update Catalog (da mesma versão da ISO):" />
-              <DockPanel>
-                <Button x:Name="BotaoAtualizacoes" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher pasta..." Click="EscolherAtualizacoes" />
-                <TextBox x:Name="PastaAtualizacoes" IsReadOnly="True" VerticalContentAlignment="Center" />
-              </DockPanel>
-              <TextBlock Style="{StaticResource Dica}" Margin="0,14,0,6"
-                         Text="Sua licença do Windows (opcional): o painel oferece ativar com ela. Precisa ser da mesma edição (Home ou Pro). Em branco, a instalação segue normal." />
-              <TextBox x:Name="Licenca" VerticalContentAlignment="Center" MaxLength="29" CharacterCasing="Upper" ToolTip="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" />
+        <!-- Bloco de baixo: criar o pendrive -->
+        <Border DockPanel.Dock="Bottom" Style="{StaticResource Cartao}" Margin="24,4,24,22" Padding="20,16">
+          <Grid>
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="Auto" />
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource IconeBloco}" VerticalAlignment="Center"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE896;" /></Border>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+              <TextBlock x:Name="Status" Text="Escolha a ISO e o pendrive." TextWrapping="Wrap" FontWeight="SemiBold" />
+              <ProgressBar x:Name="Barra" Height="6" Margin="0,8,0,0" Maximum="100" Foreground="{DynamicResource CorDestaque}" Background="{DynamicResource CorCartao}" BorderThickness="0" />
             </StackPanel>
-          </Border>
+            <Button x:Name="BotaoCriar" Grid.Column="2" Style="{StaticResource Principal}" Click="Criar">
+              <StackPanel Orientation="Horizontal">
+                <TextBlock Text="&#xE88E;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets" VerticalAlignment="Center" Margin="0,0,10,0" />
+                <TextBlock Text="Criar pendrive" />
+              </StackPanel>
+            </Button>
+          </Grid>
+        </Border>
 
-          <Border Style="{StaticResource Cartao}">
+        <ScrollViewer x:Name="Rolagem" VerticalScrollBarVisibility="Auto" Margin="16,0,16,0">
+          <Grid Margin="0,4,0,4">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="*" />
+              <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
             <StackPanel>
-              <TextBlock Style="{StaticResource Titulo}" Text="2 · Pendrive" />
-              <DockPanel>
-                <Button x:Name="BotaoAtualizar" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Atualizar" Click="Atualizar" />
-                <ComboBox x:Name="ListaPendrives" DisplayMemberPath="Descricao" SelectionChanged="PendriveEscolhido" />
-              </DockPanel>
-              <CheckBox x:Name="Manter" Margin="0,10,0,0" Visibility="Collapsed" IsChecked="True">
-                <TextBlock TextWrapping="Wrap" Text="Manter o que já está no pendrive: só adiciona esta ISO e atualiza o painel (imagens e backups ficam)" />
-              </CheckBox>
-              <TextBlock Style="{StaticResource Dica}" Margin="0,8,0,0"
-                         Text="Use um pendrive de 16 GB ou mais. Na primeira vez, tudo o que estiver nele é apagado. Só aparecem discos USB." />
-            </StackPanel>
-          </Border>
-
-          <Border Style="{StaticResource Cartao}">
-            <StackPanel>
-              <TextBlock Style="{StaticResource Titulo}" Text="3 · Programas" />
-              <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,8"
-                         Text="Lista oferecida no painel para instalar no Windows novo. No painel nenhum vem marcado: você escolhe em cada PC." />
-              <ListBox x:Name="ListaProgramasUi" Height="160" DisplayMemberPath="Texto" />
-              <Button x:Name="BotaoRemover" Content="Remover da lista" HorizontalAlignment="Right" Margin="0,8,0,0" Padding="14,6" Click="RemoverPrograma" />
-
-              <TextBlock FontWeight="SemiBold" Margin="0,12,0,6" Text="Adicionar pela internet (winget)" />
-              <DockPanel>
-                <Button x:Name="BotaoProcurar" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Procurar" Click="ProcurarPrograma" />
-                <TextBox x:Name="BuscaPrograma" VerticalContentAlignment="Center" ToolTip="Nome do programa, ex.: anydesk" KeyDown="BuscaTecla" />
-              </DockPanel>
-              <ComboBox x:Name="ResultadosBusca" Margin="0,8,0,0" DisplayMemberPath="Texto" SelectionChanged="ResultadoEscolhido" />
-
-              <TextBlock FontWeight="SemiBold" Margin="0,12,0,6" Text="Ou um instalador que você já tem (instala sem internet)" />
-              <DockPanel>
-                <Button x:Name="BotaoArquivo" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher arquivo..." Click="EscolherInstalador" />
-                <TextBox x:Name="ArquivoInstalador" IsReadOnly="True" VerticalContentAlignment="Center" />
-              </DockPanel>
-              <Grid Margin="0,8,0,0">
-                <Grid.ColumnDefinitions>
-                  <ColumnDefinition Width="*" />
-                  <ColumnDefinition Width="12" />
-                  <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
+              <!-- Windows -->
+              <Border Style="{StaticResource Cartao}">
                 <StackPanel>
-                  <TextBlock Style="{StaticResource Dica}" Text="Nome no painel" Margin="0,0,0,4" />
-                  <TextBox x:Name="NomePrograma" VerticalContentAlignment="Center" />
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <Border Style="{StaticResource IconeBloco}"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE7F8;" /></Border>
+                    <TextBlock Style="{StaticResource Titulo}" Text="Windows" />
+                  </StackPanel>
+                  <DockPanel>
+                    <Button x:Name="BotaoIso" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher ISO..." Click="EscolherIso" />
+                    <TextBox x:Name="CaminhoIso" IsReadOnly="True" VerticalContentAlignment="Center" />
+                  </DockPanel>
+                  <TextBlock x:Name="InfoIso" Style="{StaticResource Dica}" Margin="0,8,0,0" Text="Use uma ISO oficial do Windows 10 ou 11." />
+                  <TextBlock x:Name="TituloEdicoes" Text="Edições que vão para o pendrive (escolhidas no painel na hora de instalar)"
+                             Style="{StaticResource Dica}" Margin="0,12,0,6" Visibility="Collapsed" />
+                  <ItemsControl x:Name="ListaEdicoes" Margin="0,0,0,8">
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate><CheckBox Content="{Binding Nome}" IsChecked="{Binding Marcada}" Margin="0,2" /></DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                  <CheckBox x:Name="NetFx3" IsChecked="True" Margin="0,4,0,6">
+                    <TextBlock TextWrapping="Wrap" Text="Ativar o .NET Framework 3.5 (programas antigos pedem; vem da própria ISO)" />
+                  </CheckBox>
+                  <CheckBox x:Name="AtualizarAuto" IsChecked="True" Margin="0,0,0,6">
+                    <TextBlock TextWrapping="Wrap" Text="Baixar e instalar as atualizações do mês (uns 5 GB na primeira vez, depois reaproveita)" />
+                  </CheckBox>
+                  <TextBlock Style="{StaticResource Dica}" Margin="0,2,0,6" Text="Ou uma pasta com os .msu já baixados do Microsoft Update Catalog:" />
+                  <DockPanel>
+                    <Button x:Name="BotaoAtualizacoes" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher pasta..." Click="EscolherAtualizacoes" />
+                    <TextBox x:Name="PastaAtualizacoes" IsReadOnly="True" VerticalContentAlignment="Center" />
+                  </DockPanel>
                 </StackPanel>
-                <StackPanel Grid.Column="2">
-                  <TextBlock Style="{StaticResource Dica}" Text="Parâmetros silenciosos (só para arquivo)" Margin="0,0,0,4" />
-                  <TextBox x:Name="ParametrosInstalador" VerticalContentAlignment="Center" />
+              </Border>
+
+              <!-- Pendrive -->
+              <Border Style="{StaticResource Cartao}">
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                    <Border Style="{StaticResource IconeBloco}"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE88E;" /></Border>
+                    <TextBlock Style="{StaticResource Titulo}" Text="Pendrive" />
+                  </StackPanel>
+                  <DockPanel>
+                    <Button x:Name="BotaoAtualizar" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Atualizar" Click="Atualizar" />
+                    <ComboBox x:Name="ListaPendrives" DisplayMemberPath="Descricao" SelectionChanged="PendriveEscolhido" />
+                  </DockPanel>
+                  <CheckBox x:Name="Manter" Margin="0,10,0,0" Visibility="Collapsed" IsChecked="True">
+                    <TextBlock TextWrapping="Wrap" Text="Manter o que já está no pendrive: só adiciona esta ISO e atualiza o painel (imagens, perfis e backups ficam)" />
+                  </CheckBox>
+                  <TextBlock Style="{StaticResource Dica}" Margin="0,8,0,0"
+                             Text="Pendrive de 16 GB ou mais. Na primeira vez, tudo nele é apagado. Só aparecem discos USB." />
                 </StackPanel>
-              </Grid>
-              <TextBlock Style="{StaticResource Dica}" Margin="0,6,0,0"
-                         Text="Para .exe, veja no site do programa o parâmetro silencioso (os mais comuns: /S, /silent, /quiet, /VERYSILENT). Para .msi já vem certo." />
-              <Button x:Name="BotaoAdicionar" Content="Adicionar à lista" HorizontalAlignment="Left" Margin="0,10,0,0" Padding="14,6" Click="AdicionarPrograma" />
+              </Border>
 
-              <CheckBox x:Name="BaixarProgramas" IsChecked="True" Margin="0,14,0,0">
-                <TextBlock TextWrapping="Wrap" Text="Baixar os programas do winget para o pendrive (no PC eles instalam sem precisar de internet)" />
-              </CheckBox>
-              <Button x:Name="BotaoSalvarProgramas" Content="Salvar programas no pendrive" HorizontalAlignment="Left" Margin="0,10,0,0" Padding="14,6"
-                      Click="SalvarProgramasNoPendrive" ToolTip="Atualiza só a lista e os instaladores de um pendrive MontaWin já pronto, sem gravar tudo de novo" />
-            </StackPanel>
-          </Border>
-
-          <Border Style="{StaticResource Cartao}">
-            <StackPanel>
-              <TextBlock Style="{StaticResource Titulo}" Text="4 · Visual do painel" />
-              <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,10" Text="O tema que você escolher aqui é o que aparece no PC quando ele der boot pelo pendrive." />
-              <UniformGrid x:Name="Temas" Columns="3">
-                <RadioButton GroupName="Tema" Tag="ondas" IsChecked="True" Checked="TemaEscolhido" Margin="0,0,8,0">
-                  <StackPanel>
-                    <Border Height="54" Width="110" CornerRadius="8" HorizontalAlignment="Left">
-                      <Border.Background><LinearGradientBrush StartPoint="0,1" EndPoint="1,0"><GradientStop Color="#F0288F" /><GradientStop Color="#2A0E72" Offset="0.5" /><GradientStop Color="#1E7FE0" Offset="1" /></LinearGradientBrush></Border.Background>
-                    </Border>
-                    <TextBlock Text="Ondas" Margin="0,6,0,0" />
+              <!-- Perfis (ficam no pendrive) -->
+              <Border Style="{StaticResource Cartao}">
+                <StackPanel>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <Border Style="{StaticResource IconeBloco}"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE77B;" /></Border>
+                    <TextBlock Style="{StaticResource Titulo}" Text="Perfis" />
                   </StackPanel>
-                </RadioButton>
-                <RadioButton GroupName="Tema" Tag="bloom" Checked="TemaEscolhido" Margin="0,0,8,0">
-                  <StackPanel>
-                    <Border Height="54" Width="110" CornerRadius="8" HorizontalAlignment="Left">
-                      <Border.Background><RadialGradientBrush Center="0.5,0.65" GradientOrigin="0.5,0.65"><GradientStop Color="#9FC4FF" /><GradientStop Color="#2A5BD8" Offset="0.5" /><GradientStop Color="#050C24" Offset="1" /></RadialGradientBrush></Border.Background>
-                    </Border>
-                    <TextBlock Text="Bloom" Margin="0,6,0,0" />
-                  </StackPanel>
-                </RadioButton>
-                <RadioButton GroupName="Tema" Tag="pastel" Checked="TemaEscolhido">
-                  <StackPanel>
-                    <Border Height="54" Width="110" CornerRadius="8" HorizontalAlignment="Left">
-                      <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#F4F5FC" /><GradientStop Color="#7B8BF0" Offset="0.55" /><GradientStop Color="#D32EE6" Offset="1" /></LinearGradientBrush></Border.Background>
-                    </Border>
-                    <TextBlock Text="Pastel" Margin="0,6,0,0" />
-                  </StackPanel>
-                </RadioButton>
-              </UniformGrid>
+                  <TextBlock x:Name="DicaPerfis" Style="{StaticResource Dica}" Margin="0,0,0,8"
+                             Text="Cada perfil guarda as escolhas de uma pessoa ou PC (conta, rede, programas...). Ficam no pendrive." />
+                  <ListBox x:Name="ListaPerfis" Height="120" DisplayMemberPath="Texto" MouseDoubleClick="EditarPerfil" />
+                  <WrapPanel Margin="0,10,0,0">
+                    <Button x:Name="BotaoNovoPerfil" Style="{StaticResource Pilula}" Content="+ Novo" Click="NovoPerfil" />
+                    <Button x:Name="BotaoEditarPerfil" Style="{StaticResource Pilula}" Content="Editar" Click="EditarPerfil" />
+                    <Button x:Name="BotaoDuplicarPerfil" Style="{StaticResource Pilula}" Content="Duplicar" Click="DuplicarPerfil" />
+                    <Button x:Name="BotaoApagarPerfil" Style="{StaticResource Pilula}" Content="Apagar" Click="ApagarPerfil" />
+                  </WrapPanel>
+                </StackPanel>
+              </Border>
             </StackPanel>
-          </Border>
 
-          <Border Style="{StaticResource Cartao}">
-            <StackPanel>
-              <TextBlock Style="{StaticResource Titulo}" Text="5 · Criar" />
-              <CheckBox x:Name="Rapida" Margin="0,0,0,14">
-                <TextBlock TextWrapping="Wrap" Text="Instalação mais rápida (imagem ~30% maior; ideal para pendrive USB 3.0 ou SSD externo)" />
-              </CheckBox>
+            <!-- Programas -->
+            <Border Grid.Column="1" Style="{StaticResource Cartao}" VerticalAlignment="Top">
+              <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                  <Border Style="{StaticResource IconeBloco}"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE71D;" /></Border>
+                  <TextBlock Style="{StaticResource Titulo}" Text="Programas" />
+                </StackPanel>
+                <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,8"
+                           Text="Marque os que já vêm escolhidos no painel (no PC dá para mudar). O selo diz de onde instala." />
+                <ListBox x:Name="ListaProgramasUi" Height="230" SelectionMode="Extended" HorizontalContentAlignment="Stretch">
+                  <ListBox.ItemTemplate>
+                    <DataTemplate>
+                      <Grid Margin="0,2">
+                        <Grid.ColumnDefinitions>
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="Auto" />
+                          <ColumnDefinition Width="*" />
+                          <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <CheckBox IsChecked="{Binding Marcado}" Click="MarcarPrograma" VerticalAlignment="Center" MinWidth="0" Margin="0,0,4,0"
+                                  ToolTip="Vem marcado no painel" />
+                        <Border Grid.Column="1" Width="28" Height="28" CornerRadius="8" Background="{DynamicResource CorDestaque}" Margin="0,0,10,0">
+                          <TextBlock Text="{Binding Inicial}" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                          <TextBlock Text="{Binding Nome}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding Detalhe}" Opacity="0.6" FontSize="11" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <Border Grid.Column="3" CornerRadius="9" Padding="8,2" Margin="8,0,0,0" VerticalAlignment="Center"
+                                Background="{DynamicResource CorCartao}" BorderBrush="{DynamicResource CorBorda}" BorderThickness="1">
+                          <TextBlock Text="{Binding Selo}" FontSize="11" />
+                        </Border>
+                      </Grid>
+                    </DataTemplate>
+                  </ListBox.ItemTemplate>
+                </ListBox>
+                <DockPanel Margin="0,8,0,0">
+                  <Button x:Name="BotaoRemover" DockPanel.Dock="Right" Style="{StaticResource Pilula}" Margin="0" Content="Remover selecionados" Click="RemoverPrograma" />
+                  <TextBlock Style="{StaticResource Dica}" VerticalAlignment="Center" Text="Ctrl ou Shift + clique seleciona vários." />
+                </DockPanel>
 
-              <Button x:Name="BotaoCriar" Style="{StaticResource Principal}" Content="Criar pendrive" HorizontalAlignment="Left" Click="Criar" />
-              <ProgressBar x:Name="Barra" Height="6" Margin="0,16,0,6" Maximum="100" Foreground="{DynamicResource CorDestaque}" />
-              <TextBlock x:Name="Status" Style="{StaticResource Dica}" Text="Escolha a ISO e o pendrive." />
+                <TextBlock FontWeight="SemiBold" Margin="0,14,0,6" Text="Populares (um clique adiciona)" />
+                <WrapPanel x:Name="PainelPopulares" />
+
+                <TextBlock FontWeight="SemiBold" Margin="0,10,0,6" Text="Procurar no winget" />
+                <DockPanel>
+                  <Button x:Name="BotaoProcurar" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Procurar" Click="ProcurarPrograma" />
+                  <TextBox x:Name="BuscaPrograma" VerticalContentAlignment="Center" ToolTip="Nome do programa, ex.: anydesk" KeyDown="BuscaTecla" />
+                </DockPanel>
+                <DockPanel Margin="0,8,0,0">
+                  <Button x:Name="BotaoAdicionar" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Adicionar" Click="AdicionarBusca" />
+                  <ComboBox x:Name="ResultadosBusca" DisplayMemberPath="Texto" />
+                </DockPanel>
+
+                <Expander Margin="0,12,0,0" Header="Um instalador que você já tem (instala sem internet)">
+                  <StackPanel Margin="0,8,0,0">
+                    <DockPanel>
+                      <Button x:Name="BotaoArquivo" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher arquivo..." Click="EscolherInstalador" />
+                      <TextBox x:Name="ArquivoInstalador" IsReadOnly="True" VerticalContentAlignment="Center" />
+                    </DockPanel>
+                    <Grid Margin="0,8,0,0">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <StackPanel>
+                        <TextBlock Style="{StaticResource Dica}" Text="Nome no painel" Margin="0,0,0,4" />
+                        <TextBox x:Name="NomePrograma" VerticalContentAlignment="Center" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="2">
+                        <TextBlock Style="{StaticResource Dica}" Text="Parâmetros silenciosos" Margin="0,0,0,4" />
+                        <TextBox x:Name="ParametrosInstalador" VerticalContentAlignment="Center" />
+                      </StackPanel>
+                    </Grid>
+                    <TextBlock Style="{StaticResource Dica}" Margin="0,6,0,0"
+                               Text="Para .exe, veja no site do programa (os mais comuns: /S, /silent, /quiet, /VERYSILENT). Para .msi já vem certo." />
+                    <Button x:Name="BotaoAdicionarArquivo" Style="{StaticResource Pilula}" HorizontalAlignment="Left" Margin="0,8,0,0" Content="Adicionar à lista" Click="AdicionarArquivo" />
+                  </StackPanel>
+                </Expander>
+
+                <CheckBox x:Name="BaixarProgramas" IsChecked="True" Margin="0,14,0,0">
+                  <TextBlock TextWrapping="Wrap" Text="Baixar os programas para o pendrive (no PC instalam sem internet)" />
+                </CheckBox>
+                <Button x:Name="BotaoSalvarProgramas" Style="{StaticResource Pilula}" HorizontalAlignment="Left" Margin="0,10,0,0" Content="Salvar programas no pendrive"
+                        Click="SalvarProgramasNoPendrive" ToolTip="Atualiza só a lista e os instaladores de um pendrive já pronto, sem gravar tudo de novo" />
+              </StackPanel>
+            </Border>
+          </Grid>
+        </ScrollViewer>
+      </DockPanel>
+
+      <!-- Configurações (engrenagem) -->
+      <Grid x:Name="CamadaConfig" Style="{StaticResource Camada}">
+        <Border Style="{StaticResource Janelinha}" Width="640">
+          <StackPanel>
+            <DockPanel Margin="0,0,0,14">
+              <Button DockPanel.Dock="Right" Style="{StaticResource BotaoJanela}" Content="&#xE8BB;" Click="FecharConfig" />
+              <TextBlock Style="{StaticResource Titulo}" FontSize="20" Text="Configurações" />
+            </DockPanel>
+            <TextBlock FontWeight="SemiBold" Text="Tema" Margin="0,0,0,4" />
+            <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,10" Text="Vale para este app e para o painel do pendrive (na próxima gravação)." />
+            <UniformGrid x:Name="Temas" Columns="4">
+              <RadioButton GroupName="Tema" Tag="ondas" Checked="TemaEscolhido" Margin="0,0,8,0">
+                <StackPanel>
+                  <Border Height="54" Width="104" CornerRadius="10" HorizontalAlignment="Left">
+                    <Border.Background><LinearGradientBrush StartPoint="0,1" EndPoint="1,0"><GradientStop Color="#F0288F" /><GradientStop Color="#2A0E72" Offset="0.5" /><GradientStop Color="#1E7FE0" Offset="1" /></LinearGradientBrush></Border.Background>
+                  </Border>
+                  <TextBlock Text="Aurora" Margin="0,6,0,0" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton GroupName="Tema" Tag="bloom" Checked="TemaEscolhido" Margin="0,0,8,0">
+                <StackPanel>
+                  <Border Height="54" Width="104" CornerRadius="10" HorizontalAlignment="Left">
+                    <Border.Background><RadialGradientBrush Center="0.5,0.65" GradientOrigin="0.5,0.65"><GradientStop Color="#9FC4FF" /><GradientStop Color="#2A5BD8" Offset="0.5" /><GradientStop Color="#050C24" Offset="1" /></RadialGradientBrush></Border.Background>
+                  </Border>
+                  <TextBlock Text="Galáxia" Margin="0,6,0,0" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton GroupName="Tema" Tag="pastel" Checked="TemaEscolhido" Margin="0,0,8,0">
+                <StackPanel>
+                  <Border Height="54" Width="104" CornerRadius="10" HorizontalAlignment="Left">
+                    <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#F4F5FC" /><GradientStop Color="#7B8BF0" Offset="0.55" /><GradientStop Color="#D32EE6" Offset="1" /></LinearGradientBrush></Border.Background>
+                  </Border>
+                  <TextBlock Text="Alvorada" Margin="0,6,0,0" />
+                </StackPanel>
+              </RadioButton>
+              <RadioButton GroupName="Tema" Tag="cristal" Checked="TemaEscolhido">
+                <StackPanel>
+                  <Border Height="54" Width="104" CornerRadius="10" HorizontalAlignment="Left">
+                    <Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#FF7AC0" /><GradientStop Color="#9B8CFF" Offset="0.35" /><GradientStop Color="#5FD4FF" Offset="0.7" /><GradientStop Color="#7AFFC8" Offset="1" /></LinearGradientBrush></Border.Background>
+                  </Border>
+                  <TextBlock Text="Cristal" Margin="0,6,0,0" />
+                </StackPanel>
+              </RadioButton>
+            </UniformGrid>
+
+            <TextBlock FontWeight="SemiBold" Text="Sua licença do Windows (opcional)" Margin="0,18,0,4" />
+            <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,6" Text="O painel oferece ativar com ela. Precisa ser da mesma edição (Home ou Pro). Em branco, a instalação segue normal." />
+            <TextBox x:Name="Licenca" VerticalContentAlignment="Center" MaxLength="29" CharacterCasing="Upper" ToolTip="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX" />
+
+            <TextBlock FontWeight="SemiBold" Text="Certificado do boot (Secure Boot)" Margin="0,18,0,4" />
+            <RadioButton x:Name="BootCompativel" GroupName="Boot" IsChecked="True" Margin="0,2">
+              <TextBlock TextWrapping="Wrap" Text="Compatível (2011): dá boot em todos os PCs de hoje. Recomendado." />
+            </RadioButton>
+            <RadioButton x:Name="BootNovo" GroupName="Boot" Margin="0,2">
+              <TextBlock TextWrapping="Wrap" Text="Novo (2023): para PCs que já receberam o certificado novo da Microsoft. PCs sem ele não dão boot. Precisa de uma ISO atualizada." />
+            </RadioButton>
+
+            <TextBlock FontWeight="SemiBold" Text="Gravação" Margin="0,18,0,4" />
+            <CheckBox x:Name="Rapida">
+              <TextBlock TextWrapping="Wrap" Text="Instalação mais rápida (imagem ~30% maior; ideal para pendrive USB 3.0 ou SSD externo)" />
+            </CheckBox>
+
+            <Button Style="{StaticResource Principal}" HorizontalAlignment="Right" Margin="0,22,0,0" Content="Pronto" Click="FecharConfig" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- Editar perfil -->
+      <Grid x:Name="CamadaPerfil" Style="{StaticResource Camada}">
+        <Border Style="{StaticResource Janelinha}" Width="720" MaxHeight="760">
+          <DockPanel>
+            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,12">
+              <Button DockPanel.Dock="Right" Style="{StaticResource BotaoJanela}" Content="&#xE8BB;" Click="CancelarPerfil" />
+              <TextBlock x:Name="TituloPerfil" Style="{StaticResource Titulo}" FontSize="20" Text="Perfil" />
+            </DockPanel>
+            <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+              <Button Style="{StaticResource Pilula}" Content="Cancelar" Click="CancelarPerfil" Margin="0,0,10,0" />
+              <Button Style="{StaticResource Principal}" Content="Salvar perfil" Click="SalvarPerfil" />
             </StackPanel>
-          </Border>
-        </StackPanel>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+              <StackPanel Margin="0,0,8,0">
+                <Grid>
+                  <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                  </Grid.ColumnDefinitions>
+                  <Grid.RowDefinitions>
+                    <RowDefinition /><RowDefinition /><RowDefinition />
+                  </Grid.RowDefinitions>
+                  <StackPanel Margin="0,0,0,10">
+                    <TextBlock Style="{StaticResource Dica}" Text="Nome do perfil (pessoa ou PC)" Margin="0,0,0,4" />
+                    <TextBox x:Name="PerfilNome" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="2" Margin="0,0,0,10">
+                    <TextBlock Style="{StaticResource Dica}" Text="Edição do Windows (como aparece no painel)" Margin="0,0,0,4" />
+                    <TextBox x:Name="PerfilEdicao" />
+                  </StackPanel>
+                  <StackPanel Grid.Row="1" Margin="0,0,0,10">
+                    <TextBlock Style="{StaticResource Dica}" Text="Conta local (em branco: telas da Microsoft)" Margin="0,0,0,4" />
+                    <TextBox x:Name="PerfilUsuario" />
+                  </StackPanel>
+                  <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,0,0,10">
+                    <TextBlock Style="{StaticResource Dica}" Text="Nome do computador (em branco: o Windows escolhe)" Margin="0,0,0,4" />
+                    <TextBox x:Name="PerfilNomePc" CharacterCasing="Upper" MaxLength="15" />
+                  </StackPanel>
+                  <StackPanel Grid.Row="2" Margin="0,0,0,10">
+                    <TextBlock Style="{StaticResource Dica}" Text="Rede Wi-Fi (em branco: cabo)" Margin="0,0,0,4" />
+                    <TextBox x:Name="PerfilWifi" />
+                  </StackPanel>
+                  <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,10">
+                    <TextBlock Style="{StaticResource Dica}" Text="Como instalar" Margin="0,0,0,4" />
+                    <DockPanel>
+                      <TextBox x:Name="PerfilGb" DockPanel.Dock="Right" Width="64" Margin="8,0,0,0" ToolTip="Tamanho do Windows em GB (só para Windows + Dados)" />
+                      <ComboBox x:Name="PerfilInstalacao" SelectedIndex="0">
+                        <ComboBoxItem Content="Apagar o disco inteiro" />
+                        <ComboBoxItem Content="Windows + Dados (GB ao lado)" />
+                        <ComboBoxItem Content="Partição existente" />
+                      </ComboBox>
+                    </DockPanel>
+                  </StackPanel>
+                </Grid>
+                <TextBlock x:Name="PerfilSenhas" Style="{StaticResource Dica}" Margin="0,0,0,10" />
+                <WrapPanel>
+                  <CheckBox x:Name="PerfilOtimizar" Content="Otimizar o Windows" Margin="0,0,18,6" />
+                  <CheckBox x:Name="PerfilOneDrive" Content="Remover o OneDrive" Margin="0,0,18,6" />
+                  <CheckBox x:Name="PerfilAlto" Content="Alto desempenho" Margin="0,0,18,6" />
+                  <CheckBox x:Name="PerfilPonto" Content="Ponto de restauração" Margin="0,0,18,6" />
+                  <CheckBox x:Name="PerfilRestaurar" Content="Restaurar o backup de arquivos" Margin="0,0,18,6" />
+                  <CheckBox x:Name="PerfilDrivers" Content="Backup de drivers antes de formatar" Margin="0,0,18,6" />
+                </WrapPanel>
+                <TextBlock FontWeight="SemiBold" Margin="0,12,0,6" Text="Programas desta pessoa" />
+                <ItemsControl x:Name="PerfilProgramas">
+                  <ItemsControl.ItemsPanel><ItemsPanelTemplate><UniformGrid Columns="2" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate><CheckBox Content="{Binding Nome}" IsChecked="{Binding Marcado}" Margin="0,2" /></DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </ScrollViewer>
+          </DockPanel>
+        </Border>
+      </Grid>
+
+      <!-- Aviso / pergunta no visual do app (no lugar das caixas do Windows) -->
+      <Grid x:Name="CamadaDialogo" Style="{StaticResource Camada}">
+        <Border Style="{StaticResource Janelinha}" Width="520">
+          <StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+              <Border x:Name="IconeDialogo" Style="{StaticResource IconeBloco}"><TextBlock x:Name="SimboloDialogo" Style="{StaticResource SimboloBloco}" Text="&#xE946;" /></Border>
+              <TextBlock x:Name="TituloDialogo" Style="{StaticResource Titulo}" FontSize="19" TextWrapping="Wrap" />
+            </StackPanel>
+            <TextBlock x:Name="TextoDialogo" TextWrapping="Wrap" LineHeight="21" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
+              <Button x:Name="BotaoDialogoNao" Style="{StaticResource Pilula}" Margin="0,0,10,0" Click="DialogoNao" />
+              <Button x:Name="BotaoDialogoSim" Style="{StaticResource Principal}" Click="DialogoSim" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <!-- Avisinho que some sozinho -->
+      <Border x:Name="Aviso" VerticalAlignment="Bottom" HorizontalAlignment="Center" Margin="0,0,0,110" Padding="18,10" CornerRadius="16"
+              Background="{DynamicResource CorPainelSolido}" BorderBrush="{DynamicResource CorBordaPainel}" BorderThickness="1" Visibility="Collapsed">
+        <Border.Effect><DropShadowEffect BlurRadius="30" ShadowDepth="6" Opacity="0.35" /></Border.Effect>
+        <TextBlock x:Name="TextoAviso" TextWrapping="Wrap" MaxWidth="520" />
       </Border>
-    </ScrollViewer>
-  </Grid>
+    </Grid>
+  </Border>
 </Window>

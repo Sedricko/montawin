@@ -29,11 +29,12 @@
   <ItemGroup>
     <EmbeddedResource Include="$(PainelExe)" LogicalName="Implantador.exe" Condition="Exists('$(PainelExe)')" />
     <EmbeddedResource Include="icone-painel.png" LogicalName="icone.png" />
+    <Resource Include="icone-app.png" />
   </ItemGroup>
 
   <!-- Mesma leitura de discos, .wim e execução de comandos do Implantador -->
   <ItemGroup>
-    <Compile Include="..\Implantador\Comandos.cs;..\Implantador\Discos.cs;..\Implantador\Programas.cs;..\Implantador\Saude.cs;..\Implantador\Wim.cs;..\Implantador\Unattend.cs" LinkBase="Compartilhado" />
+    <Compile Include="..\Implantador\Comandos.cs;..\Implantador\Discos.cs;..\Implantador\Programas.cs;..\Implantador\Saude.cs;..\Implantador\Wim.cs;..\Implantador\Unattend.cs;..\Implantador\Perfil.cs" LinkBase="Compartilhado" />
   </ItemGroup>
 
 </Project>

@@ -15,7 +15,7 @@ public partial class App : Application
             File.WriteAllText(Path.Combine(args[captura + 1], "erro.txt"), e.Exception.ToString());
             Shutdown(1);
         }
-        else MessageBox.Show(e.Exception.Message, "MontaWin", MessageBoxButton.OK, MessageBoxImage.Error);
+        else MessageBox.Show(e.Exception.Message, "Aurora Win", MessageBoxButton.OK, MessageBoxImage.Error);
         e.Handled = true;
     };
 }
