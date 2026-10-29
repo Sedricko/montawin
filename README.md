@@ -131,6 +131,7 @@ dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSin
   - **Serve para:** reformatar sem pendrive, voltar ao estado "recém-instalado" (a imagem pode ser atualizada depois), reinstalar remotamente pelo caminho "ao lado" e socorrer um PC que não liga.
   - **Versão pequena (ideia):** a partição guarda só o Windows PE + painel (uns 1 a 2 GB) e o Windows é **baixado na hora**, por cabo (o WinPE não tem Wi-Fi), de um endereço seu ou da ISO oficial; ou baixado antes, com o Windows ligado, usando o Wi-Fi do cliente. A imagem ocupa espaço só durante a instalação e depois é apagada. A ISO da Microsoft não tem link fixo, então o mais seguro é hospedar a sua imagem. Fica para depois do teste atual.
   - **Cuidados:** exige o PIN e a confirmação SIM (apaga o disco); a imagem fica velha com o tempo (oferecer atualizar); o espaço ocupado; ferramentas de disco e o "Redefinir este PC" do Windows podem mexer na partição; BitLocker e Secure Boot precisam de teste.
+- **Instalação 100% silenciosa dos programas por usuário:** no teste da VM o Discord abriu o aviso do Controle de Conta de Usuário ("Discord System Helper") durante a instalação do primeiro login. Investigar pelo `MontaWin-programas.log` se o instalador pede elevação por conta própria; sem mexer no UAC, opções: instalar esse tipo de programa pelo escopo da máquina quando existir, ou avisar no resumo que ele pode pedir confirmação.
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos
