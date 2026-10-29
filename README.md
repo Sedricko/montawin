@@ -121,6 +121,10 @@ dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSin
   - Cancelar até a hora de reiniciar; log completo e relatório no fim. A autorização é sempre dada na hora, nunca guardada no perfil.
   - Primeiro passo (menos risco): **pós-instalação remota** num Windows já instalado (programas do perfil, otimização, nome do PC, ponto de restauração e relatório), sem apagar nada. Testar muito numa VM antes de qualquer cliente real.
   - Limites: precisa de espaço livre e de a C: poder ser encolhida; o espaço do Windows antigo, depois de apagado, vira uma partição de dados; o arquivo baixado pode ser barrado por antivírus/SmartScreen (o ideal é assiná-lo).
+- **Qual Windows inicia por padrão, e qual é temporário** — projeto (vale para o multi boot e para a instalação ao lado):
+  - O **Resumo** passa a dizer "Inicia por padrão: Windows 11 Pro (C:)" e, no multi boot, a pessoa escolhe qual é o padrão e por quantos segundos o menu aparece (ou nenhum). Hoje, pelo código, o padrão é o último Windows instalado, sem ser uma escolha.
+  - Cada Windows pode ser marcado como **temporário (N dias)**: ele some do menu de boot e a partição é removida depois do prazo, com o aviso, o botão "Manter" e as proteções descritas na instalação remota. O Windows de padrão nunca é o temporário.
+  - Mudar o padrão depois, sem reinstalar: pelo prompt do pendrive ou por um botão no Aurora Win (`bcdedit /default`).
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos
