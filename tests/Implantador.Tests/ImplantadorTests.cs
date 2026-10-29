@@ -285,7 +285,7 @@ public class ImplantadorTests
         Assert.Contains("if not exist \"%FEITOS%\\Google.Chrome\" \"%WINGET%\" install --id Google.Chrome -e --source winget %ESCOPO% --silent --accept-package-agreements --accept-source-agreements && type nul>\"%FEITOS%\\Google.Chrome\"\r\n", script);
         Assert.Contains("install --id RARLab.WinRAR -e --source winget", script);
         // Loja só no primeiro login (precisa do usuário), com a origem certa
-        Assert.Contains("if \"%MODO%\"==\"usuario\" if not exist \"%FEITOS%\\9NCBCSZSJRSB\" \"%WINGET%\" install --id 9NCBCSZSJRSB -e --source msstore", script);
+        Assert.Contains("for %%t in (1 2 3) do if not exist \"%FEITOS%\\9NCBCSZSJRSB\" (\"%WINGET%\" install --id 9NCBCSZSJRSB -e --source msstore", script);
         Assert.False(Programas.DaLoja("Google.Chrome"));
         // Antes do login: winget do Windows, só com internet e só para todos os usuários
         Assert.Contains("curl.exe -s -m 10 -o nul https://cdn.winget.microsoft.com/cache/source.msix && goto temrede", script);

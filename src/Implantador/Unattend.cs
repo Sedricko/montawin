@@ -236,7 +236,7 @@ public static class Unattend
         // falhar ("certificate did not match") e aí o winget para pedindo --source, sem instalar nada.
         foreach (var id in idsWinget.Distinct())
             s.Append(Programas.DaLoja(id)
-                ? $"if \"%MODO%\"==\"usuario\" if not exist {Feito(id)} \"%WINGET%\" install --id {id} -e --source msstore {Silencioso} && type nul>{Feito(id)}\r\n"
+                ? $"if \"%MODO%\"==\"usuario\" for %%t in (1 2 3) do if not exist {Feito(id)} (\"%WINGET%\" install --id {id} -e --source msstore {Silencioso} && type nul>{Feito(id)} || ping -n 31 127.0.0.1 >nul)\r\n" // a Loja recém-instalada costuma falhar na 1ª vez: até 3 tentativas
                 : $"if not exist {Feito(id)} \"%WINGET%\" install --id {id} -e --source winget %ESCOPO% {Silencioso} && type nul>{Feito(id)}\r\n");
         s.Append("""
             :fim
