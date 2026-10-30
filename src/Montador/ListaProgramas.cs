@@ -166,11 +166,11 @@ public static class ListaProgramas
 
     static string NomeDaLinha(string linha) => linha.Trim().TrimStart('-', '+').Split('=', 2)[0].Trim();
 
-    /// <summary>Acrescenta "Nome = valor" (substitui se já existir um programa com esse nome).</summary>
+    /// <summary>Acrescenta "+ Nome = valor" (substitui se já existir). O programa que o técnico adiciona (popular, busca ou arquivo) já entra marcado: ele escolheu, não precisa marcar de novo.</summary>
     public static string Adicionar(string texto, string nome, string valor)
     {
         nome = nome.Replace("=", "-").Trim();
-        return Remover(texto, nome).TrimEnd() + Environment.NewLine + $"{nome} = {valor}" + Environment.NewLine;
+        return Remover(texto, nome).TrimEnd() + Environment.NewLine + $"+ {nome} = {valor}" + Environment.NewLine;
     }
 
     /// <summary>Marca (+) ou desmarca a linha do programa: marcado = já vem escolhido no painel.</summary>
