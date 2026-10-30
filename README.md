@@ -90,6 +90,19 @@ dotnet publish src/Implantador -c Release -r win-x64 -o publicar
 dotnet publish src/Montador -c Release -r win-x64 --self-contained -p:PublishSingleFile=true -p:PainelExe=%CD%\publicar\Implantador.exe -o publicar
 ```
 
+## Plano de aplicação (próximos níveis)
+
+Ordem pensada para cada etapa só depender da anterior e poder ser testada na VM antes de seguir:
+
+0. **Fechar a versão atual (antes de tudo):** regravar o pendrive com a última versão (Manter), repetir o teste na VM e conferir Spotify/WhatsApp (Loja), o relatório e o menu Iniciar em lista. Pendente: Microsoft 365 pelo Office Deployment Tool; aviso do UAC do Discord (só investigar).
+1. **Pós-instalação remota (Caminho A):** com o Windows do cliente já ligado, aplicar perfil, programas e ajustes por acesso remoto, sem formatar. É o menor risco e a base da etapa 3.
+2. **Prova técnica do Aurora Recovery:** testar na VM a partição pequena com Windows PE + painel iniciando pela memória (ramdisk), acionada com `bcdedit /bootsequence`; confirmar BitLocker e Secure Boot.
+3. **Instalação ao lado do Windows antigo:** reduzir o C:, aplicar a imagem em uma nova partição, boot novo como padrão e o antigo escondido do menu, com PIN, autorização na hora e segundo SIM para apagar o antigo depois do prazo.
+4. **Windows baixado dentro do Aurora Recovery:** imagem hospedada por você (cabo no WinPE; Wi-Fi só com o Windows ligado), conferida por SHA-256 e apagada depois de aplicar.
+5. **Qualidade:** imagem otimizada uma vez, atualização de versões dos programas, pendrive atualizável sem ISO, vários Windows (7/8.1/10/11), restaurar por programa, senhas criptografadas com PIN.
+
+Estado: as etapas 1 a 5 ainda **não foram escritas** (só o projeto, nas seções abaixo). A instalação por pendrive é a única pronta.
+
 ## Próximas atualizações
 
 - **Desempenho:** otimizar a imagem uma vez no app (em vez de remover os apps a cada formatação), sem tirar a opção "Windows como a Microsoft entrega".
