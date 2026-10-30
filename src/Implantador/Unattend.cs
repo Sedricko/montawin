@@ -18,7 +18,7 @@ public static class Unattend
     public const string ScriptAntesDoLogin = @"Windows\Setup\Scripts\AuroraWin-antes-do-login.cmd";
     public const string PerfilWifi = @"Windows\Setup\Scripts\AuroraWin-wifi.xml";
     /// <summary>Cópia do backup de drivers dentro do Windows novo, para a segunda tentativa da conferência.</summary>
-    public const string PastaDriversReserva = @"MontaWin\Drivers";
+    public const string PastaDriversReserva = @"AuroraWin\Drivers";
     public const string ScriptConferencia = @"Windows\Setup\Scripts\AuroraWin-conferencia.ps1";
     public const string ChamadaConferencia = $"powershell -NoProfile -ExecutionPolicy Bypass -File %SystemDrive%\\{ScriptConferencia}";
     public const string ChamadaSetupComplete = $"call %SystemDrive%\\{ScriptAntesDoLogin}\r\n";
