@@ -101,6 +101,22 @@ public partial class MainWindow : Window
 
     // ---------- Tema e configurações (engrenagem) ----------
 
+    // Três abas em vez de uma tela que rola: cada página cabe na janela
+    void AbaEscolhida(object sender, RoutedEventArgs e)
+    {
+        if (PaginaIso == null) return; // o Checked inicial dispara durante o InitializeComponent
+        var alvo = (string)((RadioButton)sender).Tag;
+        foreach (var pagina in new[] { PaginaIso, PaginaProgramas, PaginaPerfis }) pagina.Visibility = pagina.Name == alvo ? Visibility.Visible : Visibility.Collapsed;
+        AtualizarResumo();
+    }
+
+    void AtualizarResumo()
+    {
+        var marcados = (ListaProgramasUi.ItemsSource as IEnumerable<ItemLista>)?.Count(x => x.Marcado) ?? 0;
+        ResumoAbas.Text = $"ISO: {(string.IsNullOrWhiteSpace(CaminhoIso.Text) ? "não escolhida" : System.IO.Path.GetFileName(CaminhoIso.Text))}\n" +
+                          $"Programas marcados: {marcados}\nPerfis no pendrive: {ListaPerfis.Items.Count}";
+    }
+
     void TemaEscolhido(object sender, RoutedEventArgs e)
     {
         config.Tema = (string)((RadioButton)sender).Tag;
@@ -190,13 +206,8 @@ public partial class MainWindow : Window
             r.IsChecked = true;
             var conteudo = (FrameworkElement)Content;
             void Foto(string nome) { UpdateLayout(); Salvar(conteudo, Path.Combine(pasta, $"montador-{config.Tema}-{nome}.png"), (int)conteudo.ActualWidth, (int)conteudo.ActualHeight); }
-            Rolagem.ScrollToTop();
-            for (int pagina = 1; pagina <= 3; pagina++)
-            {
-                Foto(pagina.ToString());
-                if (Rolagem.VerticalOffset >= Rolagem.ScrollableHeight - 1) break;
-                Rolagem.ScrollToVerticalOffset(Rolagem.VerticalOffset + Rolagem.ViewportHeight * 0.9);
-            }
+            foreach (var aba in new[] { AbaIso, AbaProgramas, AbaPerfis }) { aba.IsChecked = true; Foto(((string)aba.Tag)[6..].ToLowerInvariant()); }
+            AbaIso.IsChecked = true;
             CamadaConfig.Visibility = Visibility.Visible; Foto("configuracoes"); CamadaConfig.Visibility = Visibility.Collapsed;
             AbrirPerfil(((PerfilItem)ListaPerfis.Items[0]).Perfil, novo: false); Foto("perfil"); CamadaPerfil.Visibility = Visibility.Collapsed;
             _ = Perguntar("Apagar e gravar o pendrive?", "TUDO o que estiver no pendrive será apagado:\nDisco 2  Kingston DataTraveler Max  256 GB",
@@ -332,6 +343,7 @@ public partial class MainWindow : Window
             iso = null;
             iso = await Task.Run(() => Pendrive.AbrirIso(dialogo.FileName));
             CaminhoIso.Text = iso.Iso;
+            AtualizarResumo();
             ListaEdicoes.ItemsSource = iso.Edicoes.Select(x => new EdicaoItem(x.Indice, x.Nome)).ToList();
             TituloEdicoes.Visibility = Visibility.Visible;
             var versao = Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0);

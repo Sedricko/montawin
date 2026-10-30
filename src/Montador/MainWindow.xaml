@@ -59,6 +59,23 @@
       </Setter>
     </Style>
     <!-- Pílula: botões secundários e programas populares -->
+    <Style x:Key="Aba" TargetType="RadioButton">
+      <Setter Property="Cursor" Value="Hand" />
+      <Setter Property="Margin" Value="0,0,10,0" />
+      <Setter Property="Template">
+        <Setter.Value>
+          <ControlTemplate TargetType="RadioButton">
+            <Border x:Name="Fundo" Background="{DynamicResource CorCartao}" BorderBrush="{DynamicResource CorBorda}" BorderThickness="1" CornerRadius="18" Padding="20,9">
+              <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+            </Border>
+            <ControlTemplate.Triggers>
+              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Fundo" Property="BorderBrush" Value="{DynamicResource CorDestaque}" /></Trigger>
+              <Trigger Property="IsChecked" Value="True"><Setter TargetName="Fundo" Property="Background" Value="{DynamicResource CorDestaque}" /><Setter Property="Foreground" Value="White" /></Trigger>
+            </ControlTemplate.Triggers>
+          </ControlTemplate>
+        </Setter.Value>
+      </Setter>
+    </Style>
     <Style x:Key="Pilula" TargetType="Button">
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Margin" Value="0,0,6,6" />
@@ -243,13 +260,17 @@
           </Grid>
         </Border>
 
-        <ScrollViewer x:Name="Rolagem" VerticalScrollBarVisibility="Auto" Margin="16,0,16,0">
-          <Grid Margin="0,4,0,4">
-            <Grid.ColumnDefinitions>
-              <ColumnDefinition Width="*" />
-              <ColumnDefinition Width="*" />
-            </Grid.ColumnDefinitions>
+        <Grid Margin="16,0,16,0">
+          <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+          <StackPanel Orientation="Horizontal" Margin="8,0,0,10">
+            <RadioButton x:Name="AbaIso" Style="{StaticResource Aba}" Content="1 · Windows e pendrive" Tag="PaginaIso" IsChecked="True" Checked="AbaEscolhida" />
+            <RadioButton x:Name="AbaProgramas" Style="{StaticResource Aba}" Content="2 · Programas" Tag="PaginaProgramas" Checked="AbaEscolhida" />
+            <RadioButton x:Name="AbaPerfis" Style="{StaticResource Aba}" Content="3 · Perfis" Tag="PaginaPerfis" Checked="AbaEscolhida" />
+          </StackPanel>
 
+          <!-- 1 · Windows e pendrive -->
+          <Grid x:Name="PaginaIso" Grid.Row="1">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
             <StackPanel>
               <!-- Windows -->
               <Border Style="{StaticResource Cartao}">
@@ -284,6 +305,9 @@
                 </StackPanel>
               </Border>
 
+              
+            </StackPanel>
+            <StackPanel Grid.Column="1">
               <!-- Pendrive -->
               <Border Style="{StaticResource Cartao}">
                 <StackPanel>
@@ -307,36 +331,33 @@
                 </StackPanel>
               </Border>
 
-              <!-- Perfis (ficam no pendrive) -->
+              
               <Border Style="{StaticResource Cartao}">
                 <StackPanel>
                   <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                    <Border Style="{StaticResource IconeBloco}"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE77B;" /></Border>
-                    <TextBlock Style="{StaticResource Titulo}" Text="Perfis" />
+                    <Border Style="{StaticResource IconeBloco}"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE9D9;" /></Border>
+                    <TextBlock Style="{StaticResource Titulo}" Text="Resumo" />
                   </StackPanel>
-                  <TextBlock x:Name="DicaPerfis" Style="{StaticResource Dica}" Margin="0,0,0,8"
-                             Text="Cada perfil guarda as escolhas de uma pessoa ou PC (conta, rede, programas...). Ficam no pendrive." />
-                  <ListBox x:Name="ListaPerfis" Height="120" DisplayMemberPath="Texto" MouseDoubleClick="EditarPerfil" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
-                  <WrapPanel Margin="0,10,0,0">
-                    <Button x:Name="BotaoNovoPerfil" Style="{StaticResource Pilula}" Content="+ Novo" Click="NovoPerfil" />
-                    <Button x:Name="BotaoEditarPerfil" Style="{StaticResource Pilula}" Content="Editar" Click="EditarPerfil" />
-                    <Button x:Name="BotaoDuplicarPerfil" Style="{StaticResource Pilula}" Content="Duplicar" Click="DuplicarPerfil" />
-                    <Button x:Name="BotaoApagarPerfil" Style="{StaticResource Pilula}" Content="Apagar" Click="ApagarPerfil" />
-                  </WrapPanel>
+                  <TextBlock x:Name="ResumoAbas" Style="{StaticResource Dica}" Text="" />
                 </StackPanel>
               </Border>
             </StackPanel>
+          </Grid>
 
-            <!-- Programas -->
-            <Border Grid.Column="1" Style="{StaticResource Cartao}" VerticalAlignment="Top">
-              <StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+          <!-- 2 · Programas -->
+          <Grid x:Name="PaginaProgramas" Grid.Row="1" Visibility="Collapsed">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+            <Border Style="{StaticResource Cartao}">
+              <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8" Grid.Row="0">
                   <Border Style="{StaticResource IconeBloco}"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE71D;" /></Border>
                   <TextBlock Style="{StaticResource Titulo}" Text="Programas" />
                 </StackPanel>
                 <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,8"
                            Text="Marque os que já vêm escolhidos no painel (no PC dá para mudar). O selo diz de onde instala." />
-                <ListBox x:Name="ListaProgramasUi" Height="230" SelectionMode="Extended" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                
+                <ListBox Grid.Row="2" x:Name="ListaProgramasUi" SelectionMode="Extended" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                   <ListBox.ItemTemplate>
                     <DataTemplate>
                       <Grid Margin="0,2">
@@ -367,11 +388,15 @@
                     </DataTemplate>
                   </ListBox.ItemTemplate>
                 </ListBox>
-                <DockPanel Margin="0,8,0,0">
+                
+                <DockPanel Grid.Row="3" Margin="0,8,0,0">
                   <Button x:Name="BotaoRemover" DockPanel.Dock="Right" Style="{StaticResource Pilula}" Margin="0" Content="Remover selecionados" Click="RemoverPrograma" />
                   <TextBlock Style="{StaticResource Dica}" VerticalAlignment="Center" Text="Ctrl ou Shift + clique seleciona vários." />
                 </DockPanel>
-
+              </Grid>
+            </Border>
+            <Border Grid.Column="1" Style="{StaticResource Cartao}" VerticalAlignment="Top">
+              <StackPanel>
                 <TextBlock FontWeight="SemiBold" Margin="0,14,0,6" Text="Populares (um clique adiciona)" />
                 <WrapPanel x:Name="PainelPopulares" />
 
@@ -417,10 +442,34 @@
                 </CheckBox>
                 <Button x:Name="BotaoSalvarProgramas" Style="{StaticResource Pilula}" HorizontalAlignment="Left" Margin="0,10,0,0" Content="Salvar programas no pendrive"
                         Click="SalvarProgramasNoPendrive" ToolTip="Atualiza só a lista e os instaladores de um pendrive já pronto, sem gravar tudo de novo" />
+              
               </StackPanel>
             </Border>
           </Grid>
-        </ScrollViewer>
+
+          <!-- 3 · Perfis -->
+          <Grid x:Name="PaginaPerfis" Grid.Row="1" Visibility="Collapsed">
+            <!-- Perfis (ficam no pendrive) -->
+              <Border Style="{StaticResource Cartao}" VerticalAlignment="Stretch">
+                <Grid><Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                  <StackPanel Orientation="Horizontal" Margin="0,0,0,8" Grid.Row="0">
+                    <Border Style="{StaticResource IconeBloco}"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE77B;" /></Border>
+                    <TextBlock Style="{StaticResource Titulo}" Text="Perfis" />
+                  </StackPanel>
+                  <TextBlock Grid.Row="1" x:Name="DicaPerfis" Style="{StaticResource Dica}" Margin="0,0,0,8"
+                             Text="Cada perfil guarda as escolhas de uma pessoa ou PC (conta, rede, programas...). Ficam no pendrive." />
+                  <ListBox Grid.Row="2" x:Name="ListaPerfis"  DisplayMemberPath="Texto" MouseDoubleClick="EditarPerfil" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
+                  <WrapPanel Grid.Row="3" Margin="0,10,0,0">
+                    <Button x:Name="BotaoNovoPerfil" Style="{StaticResource Pilula}" Content="+ Novo" Click="NovoPerfil" />
+                    <Button x:Name="BotaoEditarPerfil" Style="{StaticResource Pilula}" Content="Editar" Click="EditarPerfil" />
+                    <Button x:Name="BotaoDuplicarPerfil" Style="{StaticResource Pilula}" Content="Duplicar" Click="DuplicarPerfil" />
+                    <Button x:Name="BotaoApagarPerfil" Style="{StaticResource Pilula}" Content="Apagar" Click="ApagarPerfil" />
+                  </WrapPanel>
+                </Grid>
+              </Border>
+            
+          </Grid>
+        </Grid>
       </DockPanel>
 
       <!-- Configurações (engrenagem) -->
