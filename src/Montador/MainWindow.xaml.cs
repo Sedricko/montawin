@@ -663,11 +663,12 @@ public partial class MainWindow : Window
         (PerfilNome.Text, PerfilEdicao.Text, PerfilUsuario.Text, PerfilNomePc.Text, PerfilWifi.Text) =
             (p.Nome, p.Edicao, p.Usuario ?? "", p.NomePc ?? "", p.Wifi ?? "");
         PerfilInstalacao.SelectedIndex = p.Instalacao == "particao" ? 2 : p.Instalacao.StartsWith("dividir:") ? 1 : 0;
+        PerfilSenhaWifi.Password = p.SenhaWifi ?? "";
+        RedesEncontradas.ItemsSource = null;
         PerfilGb.Text = p.Instalacao.StartsWith("dividir:") ? p.Instalacao["dividir:".Length..] : "120";
         (PerfilOtimizar.IsChecked, PerfilOneDrive.IsChecked, PerfilAlto.IsChecked) = (p.Otimizar, p.RemoverOneDrive, p.AltoDesempenho);
         (PerfilPonto.IsChecked, PerfilRestaurar.IsChecked, PerfilDrivers.IsChecked) = (p.PontoRestauracao, p.Restaurar, p.BackupDrivers);
         PerfilSenhas.Text = $"Senha da conta: {(p.Senha != null ? "guardada no perfil" : "perguntada na hora")}." +
-            (p.Wifi != null ? $" Senha do Wi-Fi: {(p.SenhaWifi != null ? "guardada" : "perguntada na hora")}." : "") +
             (p.Pc != null || p.Serie != null ? $" Vinculado ao PC {p.Modelo ?? p.Serie}." : " Não vinculado a um PC (o painel vincula ao salvar lá).") +
             " Senhas e licença se guardam pelo painel, no PC.";
         var itensPerfil = Programas.Ler(ListaProgramas.Ler()).Select(x => new ItemLista(x with { Marcado = p.Programas.Contains(x.Nome) }, "")).ToList();
@@ -676,6 +677,37 @@ public partial class MainWindow : Window
             itensPerfil.Add(new ItemLista(ListaProgramas.Resolver(p, nome) ?? new Programa(nome, [], true), ""));
         PerfilProgramas.ItemsSource = itensPerfil;
         CamadaPerfil.Visibility = Visibility.Visible;
+    }
+
+    // Redes Wi-Fi ao alcance deste PC e as já salvas nele: só os nomes (a senha de uma rede salva o Windows guarda criptografada e eu não leio)
+    async void ListarRedes(object sender, RoutedEventArgs e)
+    {
+        Ocupado(true, "Procurando redes Wi-Fi...");
+        List<string> redes;
+        try
+        {
+            redes = await Task.Run(() =>
+            {
+                Comandos.Executar("netsh", "wlan show networks");
+                var alcance = Comandos.UltimaSaidaCompleta.Split(['\r', '\n'])
+                    .Select(l => System.Text.RegularExpressions.Regex.Match(l.Trim(), @"^SSID \d+\s*:\s*(.+)$"))
+                    .Where(m => m.Success).Select(m => m.Groups[1].Value.Trim()).Where(n => n.Length > 0);
+                Comandos.Executar("netsh", "wlan show profiles");
+                var salvas = Comandos.UltimaSaidaCompleta.Split(['\r', '\n'])
+                    .Select(l => System.Text.RegularExpressions.Regex.Match(l, @"^\s*[^:]*(?:Perfil|Profile)[^:]*:\s*(.+?)\s*$"))
+                    .Where(m => m.Success).Select(m => m.Groups[1].Value);
+                return alcance.Concat(salvas).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            });
+        }
+        catch (Exception ex) { Ocupado(false, "Não deu para procurar as redes."); Erro($"Não consegui listar as redes Wi-Fi:\n{ex.Message}"); return; }
+        RedesEncontradas.ItemsSource = redes;
+        Ocupado(false, redes.Count > 0 ? $"{redes.Count} redes: escolha uma na lista do perfil." : "Nenhuma rede Wi-Fi encontrada neste PC (sem placa Wi-Fi ou desligada).");
+        if (redes.Count > 0) RedesEncontradas.IsDropDownOpen = true;
+    }
+
+    void RedeEscolhida(object sender, SelectionChangedEventArgs e)
+    {
+        if (RedesEncontradas.SelectedItem is string rede) PerfilWifi.Text = rede;
     }
 
     void CancelarPerfil(object sender, RoutedEventArgs e) => CamadaPerfil.Visibility = Visibility.Collapsed;
@@ -703,7 +735,7 @@ public partial class MainWindow : Window
             Senha = usuario.Length > 0 ? antigo.Senha : null,
             NomePc = nomePc.Length > 0 ? nomePc.ToUpperInvariant() : null,
             Wifi = wifi.Length > 0 ? wifi : null,
-            SenhaWifi = wifi == antigo.Wifi ? antigo.SenhaWifi : null, // a senha era da rede antiga
+            SenhaWifi = wifi.Length > 0 && PerfilSenhaWifi.Password.Length > 0 ? PerfilSenhaWifi.Password : null, // em branco: o painel pergunta na hora
             Otimizar = PerfilOtimizar.IsChecked == true,
             RemoverOneDrive = PerfilOneDrive.IsChecked == true,
             AltoDesempenho = PerfilAlto.IsChecked == true,

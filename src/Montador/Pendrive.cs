@@ -330,12 +330,19 @@ public static class Pendrive
         if (!File.Exists(Path.Combine(ex, "bootmgfw_EX.efi")))
             throw new Exception("Esta ISO não traz o boot com o certificado novo (2023). Use uma ISO mais nova da Microsoft, " +
                                 "ou volte o certificado do boot para \"Compatível (2011)\" na engrenagem.");
-        File.Copy(Path.Combine(ex, "bootmgfw_EX.efi"), $@"{boot}:\efi\boot\bootx64.efi", overwrite: true);
-        if (File.Exists(Path.Combine(ex, "bootmgr_EX.efi"))) File.Copy(Path.Combine(ex, "bootmgr_EX.efi"), $@"{boot}:\bootmgr.efi", overwrite: true);
+        Substituir(Path.Combine(ex, "bootmgfw_EX.efi"), $@"{boot}:\efi\boot\bootx64.efi");
+        if (File.Exists(Path.Combine(ex, "bootmgr_EX.efi"))) Substituir(Path.Combine(ex, "bootmgr_EX.efi"), $@"{boot}:\bootmgr.efi");
         var fontes = Path.Combine(mount, "Windows", "Boot", "Fonts_EX");
         if (Directory.Exists(fontes))
             foreach (var fonte in Directory.GetFiles(fontes, "*_EX.ttf"))
-                File.Copy(fonte, $@"{boot}:\efi\microsoft\boot\fonts\{Path.GetFileName(fonte).Replace("_EX", "")}", overwrite: true);
+                Substituir(fonte, $@"{boot}:\efi\microsoft\boot\fonts\{Path.GetFileName(fonte).Replace("_EX", "")}");
+    }
+
+    // Os arquivos de boot que o robocopy trouxe da ISO são somente leitura: sem tirar o atributo, o File.Copy dá "Access denied"
+    static void Substituir(string origem, string destino)
+    {
+        if (File.Exists(destino)) File.SetAttributes(destino, FileAttributes.Normal);
+        File.Copy(origem, destino, overwrite: true);
     }
 
     /// <summary>
@@ -370,7 +377,7 @@ public static class Pendrive
         {
             var alvo = Path.Combine(destino, Path.GetRelativePath(origem, arquivo));
             Directory.CreateDirectory(Path.GetDirectoryName(alvo)!);
-            File.Copy(arquivo, alvo, overwrite: true);
+            Substituir(arquivo, alvo);
         }
     }
 

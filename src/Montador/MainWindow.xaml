@@ -547,6 +547,11 @@
                   <StackPanel Grid.Row="2" Margin="0,0,0,10">
                     <TextBlock Style="{StaticResource Dica}" Text="Rede Wi-Fi (em branco: cabo)" Margin="0,0,0,4" />
                     <TextBox x:Name="PerfilWifi" />
+                    <DockPanel Margin="0,8,0,0">
+                      <Button x:Name="BotaoRedes" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Procurar redes" Click="ListarRedes" ToolTip="Mostra as redes Wi-Fi ao alcance deste PC e as salvas nele (só os nomes)" />
+                      <ComboBox x:Name="RedesEncontradas" DisplayMemberPath="." SelectionChanged="RedeEscolhida" />
+                    </DockPanel>
+                    <PasswordBox x:Name="PerfilSenhaWifi" Margin="0,8,0,0" ToolTip="Senha do Wi-Fi guardada neste perfil, no pendrive (em branco: o painel pergunta na hora)" />
                   </StackPanel>
                   <StackPanel Grid.Row="2" Grid.Column="2" Margin="0,0,0,10">
                     <TextBlock Style="{StaticResource Dica}" Text="Como instalar" Margin="0,0,0,4" />
