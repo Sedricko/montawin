@@ -147,6 +147,7 @@ Estado: as etapas 1 a 5 ainda **não foram escritas** (só o projeto, nas seçõ
 - **Instalação 100% silenciosa dos programas por usuário:** no teste da VM o Discord abriu o aviso do Controle de Conta de Usuário ("Discord System Helper") durante a instalação do primeiro login. Investigar pelo `MontaWin-programas.log` se o instalador pede elevação por conta própria; sem mexer no UAC, opções: instalar esse tipo de programa pelo escopo da máquina quando existir, ou avisar no resumo que ele pode pedir confirmação.
 - **Microsoft 365 pelo winget:** no teste o winget recusou ("hash do instalador não corresponde": a Microsoft atualiza o `setup.exe` sem atualizar o manifesto). Dar outra saída: baixar o Office Deployment Tool oficial e instalar por ele.
 - **Menu Iniciar em lista:** testado no Windows 11 build 26300 comparando o registro com o Iniciar em Lista e em Categoria: não há valor simples para isso (só blocos binários do próprio Windows). Fica fora do instalador; o Iniciar segue como o Windows entrega.
+- **Três temas (Branco, Escuro e Aurora):** prévia aprovada; troca os 4 atuais, no app e no painel. O ícone do pendrive (`unidade-*.ico`, o do instalador Aurora Win) tem de acompanhar o tema escolhido, e o autorun/nome continuam os do Aurora Win.
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos
