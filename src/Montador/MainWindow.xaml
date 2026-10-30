@@ -316,7 +316,7 @@
                   <Border Style="{StaticResource IconeBloco}"><TextBlock Style="{StaticResource SimboloBloco}" Text="&#xE71D;" /></Border>
                   <TextBlock Style="{StaticResource Titulo}" Text="Programas" />
                 </StackPanel>
-                <TextBlock Style="{StaticResource Dica}" Margin="0,0,0,8"
+                <TextBlock Grid.Row="1" Style="{StaticResource Dica}" Margin="0,0,0,8"
                            Text="Marque os que já vêm escolhidos no painel (no PC dá para mudar). O selo diz de onde instala." />
                 
                 <ListBox Grid.Row="2" x:Name="ListaProgramasUi" SelectionMode="Extended" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">

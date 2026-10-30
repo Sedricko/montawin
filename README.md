@@ -147,6 +147,7 @@ Estado: as etapas 1 a 5 ainda **não foram escritas** (só o projeto, nas seçõ
 - **Instalação 100% silenciosa dos programas por usuário:** no teste da VM o Discord abriu o aviso do Controle de Conta de Usuário ("Discord System Helper") durante a instalação do primeiro login. Investigar pelo `MontaWin-programas.log` se o instalador pede elevação por conta própria; sem mexer no UAC, opções: instalar esse tipo de programa pelo escopo da máquina quando existir, ou avisar no resumo que ele pode pedir confirmação.
 - **Microsoft 365 pelo winget:** no teste o winget recusou ("hash do instalador não corresponde": a Microsoft atualiza o `setup.exe` sem atualizar o manifesto). Dar outra saída: baixar o Office Deployment Tool oficial e instalar por ele.
 - **Menu Iniciar em lista:** testado no Windows 11 build 26300 comparando o registro com o Iniciar em Lista e em Categoria: não há valor simples para isso (só blocos binários do próprio Windows). Fica fora do instalador; o Iniciar segue como o Windows entrega.
+- **Ícones que ainda aparecem como letra** (visto no app: VLC, WhatsApp, CPU-Z, mesmo já corrigidos antes): descobrir por que o ícone não baixa (site, rede ou instalador) e guardar no pendrive para não depender da internet na hora; ícone genérico continua proibido, só a letra quando o ícone realmente não existe.
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos
