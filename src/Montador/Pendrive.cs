@@ -6,7 +6,7 @@ public record IsoAberta(string Iso, char Letra, string Install, List<Edicao> Edi
 
 /// <param name="Rapida">Compressão rápida: imagem ~30% maior, mas a instalação descomprime mais depressa.</param>
 /// <param name="Manter">Letras de um pendrive MontaWin existente: só adiciona a ISO e atualiza o painel, sem apagar.</param>
-/// <param name="Tema">Visual do painel no boot: ondas, bloom ou pastel (gravado em MontaWin\tema.txt).</param>
+/// <param name="Tema">Visual do painel no boot: ondas (Aurora), bloom (Escuro) ou pastel (Branco) (gravado em MontaWin\tema.txt).</param>
 /// <param name="Fundos">Imagens do fundo do tema (normal e desfocada) já desenhadas pelo Montador, para o painel gráfico.</param>
 /// <param name="BaixarProgramas">Baixa os programas da lista para o pendrive: no primeiro login instalam sem internet.</param>
 /// <param name="NetFx3">Ativa o .NET Framework 3.5 em cada edição (vem da própria ISO; muitos programas antigos pedem).</param>
@@ -327,7 +327,7 @@ public static class Pendrive
     {
         // O instalador da Microsoft não serve aqui (o pendrive abre o painel): some do pendrive para não confundir
         foreach (var velho in new[] { $@"{boot}:\setup.exe" }) if (File.Exists(velho)) File.Delete(velho);
-        var cor = tema switch { "pastel" => "claro", "cristal" => "cristal", _ => "escuro" };
+        var cor = tema switch { "pastel" or "cristal" => "claro", _ => "escuro" };
         foreach (var (letra, nome, rotulo) in new[] { (boot, "Aurora Win", "AURORA WIN"), (dados, "Aurora Win · dados", "AURORA DADOS") })
         {
             var inf = $@"{letra}:\autorun.inf";

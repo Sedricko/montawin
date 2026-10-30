@@ -56,8 +56,8 @@ public interface ISaida
 /// </summary>
 public static class Tui
 {
-    // Nomes por dentro (tema.txt) ficam os antigos, para os pendrives já gravados: Ondas = Aurora, Bloom = Galáxia, Pastel = Alvorada
-    public static readonly string[] Temas = ["ondas", "bloom", "pastel", "cristal"];
+    // Nomes por dentro (tema.txt) ficam os antigos, para os pendrives já gravados: Ondas = Aurora, Bloom = Escuro, Pastel = Branco
+    public static readonly string[] Temas = ["ondas", "bloom", "pastel"];
     public static string Tema { get; private set; } = "ondas";
     public static string InfoSistema = "";
     static ISaida saida = new TelaTexto();
@@ -463,7 +463,7 @@ sealed class TelaTexto : ISaida
         (borda, destaque) = tema switch
         {
             "bloom" => (ConsoleColor.DarkCyan, ConsoleColor.Cyan),
-            "pastel" or "cristal" => (ConsoleColor.DarkBlue, ConsoleColor.Blue),
+            "pastel" => (ConsoleColor.DarkBlue, ConsoleColor.Blue),
             _ => (ConsoleColor.DarkMagenta, ConsoleColor.Magenta),
         };
     }

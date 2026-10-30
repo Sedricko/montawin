@@ -37,7 +37,7 @@ jobs:
           "AuroraWin.exe saiu com código $($p.ExitCode)"
           Get-ChildItem previa -ErrorAction SilentlyContinue
           if (Test-Path previa\erro.txt) { Get-Content previa\erro.txt }
-          foreach ($t in 'ondas', 'bloom', 'pastel', 'cristal') {
+          foreach ($t in 'ondas', 'bloom', 'pastel') {
             New-Item -ItemType Directory -Force "fundos\$t" | Out-Null
             if (Test-Path "previa\fundo-$t.png") {
               Copy-Item "previa\fundo-$t.png" "fundos\$t\fundo.png"

@@ -38,21 +38,21 @@ public partial class MainWindow : Window
     (int Disco, char Letra)? revelado; // dados escondidos mostrados com o PIN nesta sessão: voltam a ficar escondidos ao fechar
     readonly DispatcherTimer tempoAviso = new() { Interval = TimeSpan.FromSeconds(4) };
 
-    // Os nomes por dentro são os antigos (tema.txt dos pendrives já gravados): ondas = Aurora, bloom = Galáxia, pastel = Alvorada.
-    public static readonly string[] NomesTemas = ["ondas", "bloom", "pastel", "cristal"];
+    // Os nomes por dentro são os antigos (tema.txt dos pendrives já gravados): ondas = Aurora, bloom = Escuro, pastel = Branco.
+    public static readonly string[] NomesTemas = ["ondas", "bloom", "pastel"];
 
     // Vidro do painel, painel sólido (janelinhas), borda do painel, bloco, borda do bloco e o degradê — as mesmas do painel do boot.
     static readonly Dictionary<string, (string Painel, string Solido, string BordaPainel, string Cartao, string Borda, string De, string Ate, bool Claro)> Cores = new()
     {
         ["ondas"] = ("#C20C0824", "#F2140C3A", "#1AFFFFFF", "#14FFFFFF", "#1FFFFFFF", "#E0218A", "#3B7BFF", false),
-        ["bloom"] = ("#BD0E1A3A", "#F20D1733", "#1FFFFFFF", "#14FFFFFF", "#1FFFFFFF", "#2F8CFF", "#60CDFF", false),
-        ["pastel"] = ("#99FFFFFF", "#F7F6F7FD", "#CCFFFFFF", "#99FFFFFF", "#1F1B1640", "#4D5BFF", "#9B4DFF", true),
-        ["cristal"] = ("#80FFFFFF", "#F7FBF7FF", "#E6FFFFFF", "#8CFFFFFF", "#261D1747", "#FF5FB0", "#36C9FF", true),
+        ["bloom"] = ("#F212151C", "#F2171B25", "#1FFFFFFF", "#0DFFFFFF", "#1FFFFFFF", "#4C8DFF", "#7AB0FF", false),
+        ["pastel"] = ("#F0FFFFFF", "#FAFFFFFF", "#262B4A8A", "#0D2B4A8A", "#262B4A8A", "#2F7BF0", "#6AA5FF", true),
     };
 
     public MainWindow()
     {
         InitializeComponent();
+        if (config.Tema == "cristal") config.Tema = "pastel"; // o Cristal saiu: o claro mais parecido é o Branco
         if (!Cores.ContainsKey(config.Tema)) config.Tema = "ondas";
         foreach (RadioButton r in Temas.Children) r.IsChecked = (string)r.Tag == config.Tema;
         AplicarTema(config.Tema);
@@ -146,11 +146,10 @@ public partial class MainWindow : Window
         FundoOndas.Visibility = tema == "ondas" ? Visibility.Visible : Visibility.Collapsed;
         FundoBloom.Visibility = tema == "bloom" ? Visibility.Visible : Visibility.Collapsed;
         FundoPastel.Visibility = tema == "pastel" ? Visibility.Visible : Visibility.Collapsed;
-        FundoCristal.Visibility = tema == "cristal" ? Visibility.Visible : Visibility.Collapsed;
         ThemeMode = c.Claro ? ThemeMode.Light : ThemeMode.Dark; // controles claros nos temas claros
     }
 
-    FrameworkElement FundoDoTema => config.Tema switch { "bloom" => FundoBloom, "pastel" => FundoPastel, "cristal" => FundoCristal, _ => FundoOndas };
+    FrameworkElement FundoDoTema => config.Tema switch { "bloom" => FundoBloom, "pastel" => FundoPastel, _ => FundoOndas };
     Brush CorTexto => Cores[config.Tema].Claro ? new SolidColorBrush(Color.FromRgb(0x1B, 0x16, 0x40)) : Brushes.White;
 
     void AbrirConfig(object sender, RoutedEventArgs e) => CamadaConfig.Visibility = Visibility.Visible;
