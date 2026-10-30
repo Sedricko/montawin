@@ -60,6 +60,7 @@
     </Style>
     <!-- Pílula: botões secundários e programas populares -->
     <Style x:Key="Aba" TargetType="RadioButton">
+      <Setter Property="Foreground" Value="{DynamicResource CorTextoAba}" />
       <Setter Property="Cursor" Value="Hand" />
       <Setter Property="Margin" Value="0,0,10,0" />
       <Setter Property="Template">

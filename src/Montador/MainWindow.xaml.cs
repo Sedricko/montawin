@@ -132,6 +132,7 @@ public partial class MainWindow : Window
         Resources["CorPainelSolido"] = new SolidColorBrush(Cor(c.Solido));
         Resources["CorBordaPainel"] = new SolidColorBrush(Cor(c.BordaPainel));
         Resources["CorCartao"] = new SolidColorBrush(Cor(c.Cartao));
+        Resources["CorTextoAba"] = c.Claro ? new SolidColorBrush(Color.FromRgb(0x1B, 0x16, 0x40)) : Brushes.White; // o RadioButton não herda a cor do texto
         Resources["CorBorda"] = new SolidColorBrush(Cor(c.Borda));
         Resources["CorDestaque"] = new LinearGradientBrush(Cor(c.De), Cor(c.Ate), 0);
         // Campos de texto e listas no vidro do tema: o padrão do Windows deixava o campo preto ao digitar
