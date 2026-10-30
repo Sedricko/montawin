@@ -10,7 +10,7 @@ public record Programa(string Nome, string[] Ids, bool Marcado, string? Instalad
 
 public static class Programas
 {
-    /// <summary>Lista padrão; o Montador grava como MontaWin\Programas.txt para o técnico editar.</summary>
+    /// <summary>Lista inicial: vazia. Quem monta o pendrive adiciona os programas (populares, busca no winget ou instalador); o Montador grava como MontaWin\Programas.txt.</summary>
     public const string Padrao = """
         # Aurora Win: programas instalados no primeiro login do Windows novo (pelo winget, precisa de internet).
         # Formato:  Nome = id do winget   (vários ids separados por espaço)
@@ -20,20 +20,8 @@ public static class Programas
         # Programa fora do winget: coloque o instalador na pasta MontaWin\Instaladores e escreva
         #   Nome = arquivo: nome-do-instalador.exe parâmetros-silenciosos
         # O nome aceita * (ex.: NVIDIA_app*.exe pega qualquer versão). Só aparece no painel se o arquivo estiver na pasta.
-        Google Chrome = Google.Chrome
-        WinRAR = RARLab.WinRAR
-        Visual C++ 2008 a 2022 (32 e 64 bits) = Microsoft.VCRedist.2008.x86 Microsoft.VCRedist.2008.x64 Microsoft.VCRedist.2010.x86 Microsoft.VCRedist.2010.x64 Microsoft.VCRedist.2012.x86 Microsoft.VCRedist.2012.x64 Microsoft.VCRedist.2013.x86 Microsoft.VCRedist.2013.x64 Microsoft.VCRedist.2015+.x86 Microsoft.VCRedist.2015+.x64
-        Notepad++ = Notepad++.Notepad++
-        Lightshot = Skillbrains.Lightshot
-        pCloud = pCloudAG.pCloudDrive
-        # Spotify pela Microsoft Store: o instalador do site recusa instalar como administrador.
-        Spotify = 9NCBCSZSJRSB
-        # Microsoft 365: Word, Excel, Outlook, PowerPoint... Ativa com a conta/assinatura do cliente.
-        Microsoft 365 (Word, Excel, Outlook) = Microsoft.Office
-        # Foxit PDF Editor (o nome antigo no winget é PhantomPDF). A versão Pro é a mesma, ativada com a licença.
-        Foxit PDF Editor Pro = Foxit.PhantomPDF
-        # NVIDIA App: baixe em nvidia.com/pt-br/software/nvidia-app e coloque em MontaWin\Instaladores
-        -NVIDIA App = arquivo: NVIDIA_app*.exe -s
+        #
+        # (a lista começa vazia: adicione os programas pelo Aurora Win)
         """;
 
     public static List<Programa> Ler(string texto) =>

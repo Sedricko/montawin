@@ -274,7 +274,7 @@ public class ImplantadorTests
         Assert.Equal(("Visual C++", false), (lista[1].Nome, lista[1].Marcado));
         Assert.Equal(("Notepad++", false), (lista[2].Nome, lista[2].Marcado)); // sem marca: desmarcado
         Assert.Equal(new[] { "Microsoft.VCRedist.2015+.x86", "Microsoft.VCRedist.2015+.x64" }, lista[1].Ids);
-        Assert.Contains(Programas.Ler(Programas.Padrao), p => p.Nome == "Lightshot" && p.Ids.Single() == "Skillbrains.Lightshot" && !p.Marcado);
+        Assert.Empty(Programas.Ler(Programas.Padrao)); // a lista inicial é vazia: quem monta o pendrive adiciona
     }
 
     [Fact]
