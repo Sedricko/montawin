@@ -112,7 +112,9 @@ public static partial class Discos
 
     /// <summary>O disco com esse número agora ainda é o pendrive escolhido antes (USB, mesmo modelo e tamanho)?</summary>
     public static bool MesmoPendrive(Disco escolhido, Disco? agora) =>
-        agora is { Usb: true } && agora.Modelo == escolhido.Modelo && agora.Tamanho == escolhido.Tamanho;
+        agora is { Usb: true } && agora.Modelo == escolhido.Modelo && agora.Tamanho == escolhido.Tamanho
+        && agora.Gpt == escolhido.Gpt && agora.Particoes.Count == escolhido.Particoes.Count // dois pendrives iguais: o layout das partições diferencia
+        && agora.Particoes.Zip(escolhido.Particoes).All(t => t.First.Inicio == t.Second.Inicio && t.First.Tamanho == t.Second.Tamanho);
 
     public static List<Disco> Listar()
     {

@@ -148,7 +148,7 @@ public static class ListaProgramas
         var raiz = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
         var nova = Path.Combine(raiz, "AuroraWin");
         try { if (Directory.Exists(Path.Combine(raiz, "MontaWin")) && !Directory.Exists(nova)) Directory.Move(Path.Combine(raiz, "MontaWin"), nova); }
-        catch (IOException) { } // em uso ou sem permissão: segue com a pasta nova vazia
+        catch (Exception) { } // em uso, antivírus ou sem permissão: segue com a pasta nova vazia (não pode derrubar a abertura)
         return nova;
     }
     public static string Arquivo => Path.Combine(Pasta, "Programas.txt");

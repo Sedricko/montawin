@@ -258,7 +258,7 @@
                   <CheckBox x:Name="NetFx3" IsChecked="True" Margin="0,4,0,6">
                     <TextBlock TextWrapping="Wrap" Text="Ativar o .NET Framework 3.5" />
                   </CheckBox>
-                  <CheckBox x:Name="AtualizarAuto" IsChecked="True" Margin="0,0,0,6">
+                  <CheckBox x:Name="AtualizarAuto" IsChecked="True" Margin="0,0,0,6" Click="AtualizarAutoClicado">
                     <TextBlock TextWrapping="Wrap" Text="Atualizações do mês (uns 5 GB na 1ª vez)" />
                   </CheckBox>
                   <TextBlock Style="{StaticResource Dica}" Margin="0,2,0,6" Text="Ou use um .msu já baixado do Update Catalog." />

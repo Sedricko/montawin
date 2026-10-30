@@ -386,7 +386,8 @@ public partial class MainWindow : Window
             return Discos.Listar().Where(d => d.Usb).ToList();
         });
         ListaPendrives.ItemsSource = pendrives;
-        ListaPendrives.SelectedIndex = pendrives.Count == 0 ? -1 : Math.Max(0, pendrives.FindIndex(d => d.Numero == antes));
+        int escolhido = pendrives.FindIndex(d => d.Numero == antes);
+        ListaPendrives.SelectedIndex = escolhido >= 0 ? escolhido : pendrives.Count == 1 ? 0 : -1; // sumiu o escolhido: não pula para outro disco USB (pode ser o HD de backups)
         Ocupado(false, pendrives.Count > 0 ? "Escolha a ISO e o pendrive." : "Nenhum pendrive encontrado. Conecte um e clique em Atualizar.");
     }
 
@@ -500,19 +501,25 @@ public partial class MainWindow : Window
         if (e.Key == Key.Enter) ProcurarPrograma(sender, e);
     }
 
+    // Mexer na caixa das atualizações do mês descarta a pasta de .msu escolhida antes (ela ficava valendo sem aparecer)
+    void AtualizarAutoClicado(object sender, RoutedEventArgs e) => PastaAtualizacoes.Text = "";
+
     async void ProcurarPrograma(object sender, RoutedEventArgs e)
     {
         var busca = BuscaPrograma.Text.Trim().Replace("\"", "");
         if (busca.Length < 2) { Erro("Digite o nome do programa (ex.: anydesk)."); return; }
         Ocupado(true, $"Procurando \"{busca}\" no winget...");
-        var resultados = await Task.Run(() =>
+        List<ResultadoBusca> resultados;
+        try { resultados = await Task.Run(() =>
         {
+            Directory.CreateDirectory(ListaProgramas.Pasta);
             Comandos.Executar("winget", $"search \"{busca}\" --source winget --accept-source-agreements --disable-interactivity");
             var achados = ListaProgramas.LerBusca(Comandos.UltimaSaidaCompleta);
             // Nada achado: guarda o que o winget respondeu, para descobrir o motivo
             if (achados.Count == 0) File.WriteAllText(Path.Combine(ListaProgramas.Pasta, "winget-busca.txt"), Comandos.UltimaSaidaCompleta);
             return achados;
-        });
+        }); }
+        catch (Exception ex) { Ocupado(false, "A busca falhou."); Erro($"Não consegui procurar no winget (ele está instalado?):\n{ex.Message}"); return; }
         ResultadosBusca.ItemsSource = resultados;
         ResultadosBusca.SelectedIndex = resultados.Count > 0 ? 0 : -1;
         if (resultados.Count > 0) ResultadosBusca.IsDropDownOpen = true;
@@ -646,7 +653,8 @@ public partial class MainWindow : Window
 
     async void SalvarPerfil(object sender, RoutedEventArgs e)
     {
-        if (perfilEditado is not Perfil antigo || DadosDoPendrive is not char dados) return;
+        if (perfilEditado is not Perfil antigo) return;
+        if (DadosDoPendrive is not char dados) { Erro("Escolha um pendrive já gravado pelo Aurora Win para salvar o perfil nele."); return; }
         var nome = PerfilNome.Text.Trim();
         if (Perfil.NomeSeguro(nome).Length == 0) { Erro("Dê um nome ao perfil (ex.: João ou PC da recepção)."); return; }
         var nomePc = PerfilNomePc.Text.Trim();
@@ -706,6 +714,11 @@ public partial class MainWindow : Window
             return;
         }
         var manter = Manter.IsChecked == true ? Pendrive.Existente(pendrive) : null;
+        if (manter == null && Discos.DadosEscondidos(pendrive) != null)
+        {
+            Erro("Este pendrive tem dados escondidos (perfis e backups). Use \"Mostrar com o PIN\" antes: assim eles são avisados e preservados.");
+            return;
+        }
         long imagem = new FileInfo(iso.Install).Length;
         long necessario = manter != null ? imagem : ((long)Pendrive.BootMb << 20) + imagem + (1L << 30);
         long disponivel = manter is (_, char livre) ? new DriveInfo(livre.ToString()).AvailableFreeSpace : pendrive.Tamanho;
@@ -726,8 +739,12 @@ public partial class MainWindow : Window
         Ocupado(true, "Preparando...");
         var fundo = Path.Combine(Path.GetTempPath(), "AuroraWin-fundo.png");
         var desfocado = Path.Combine(Path.GetTempPath(), "AuroraWin-fundo-desfocado.png");
-        SalvarFundo(FundoDoTema, fundo, desfocado: false);
-        SalvarFundo(FundoDoTema, desfocado, desfocado: true);
+        try
+        {
+            SalvarFundo(FundoDoTema, fundo, desfocado: false);
+            SalvarFundo(FundoDoTema, desfocado, desfocado: true);
+        }
+        catch (Exception ex) { Ocupado(false, "Falhou ao preparar."); Erro($"Não consegui preparar o fundo do painel:\n{ex.Message}"); return; } // senão o app ficava todo desabilitado
 
         // A janela grande sai da frente: a janelinha animada acompanha a gravação e devolve o app no fim
         var janela = NovaJanelaProgresso($"{pendrive.Modelo} · {Formatar.Tamanho(pendrive.Tamanho)}"); // curto: cabe ao lado do botão
@@ -742,6 +759,11 @@ public partial class MainWindow : Window
             Barra.Value = pct;
         });
         string? atualizacoes = PastaAtualizacoes.Text.Length > 0 ? PastaAtualizacoes.Text : null;
+        if (atualizacoes != null && (!Directory.Exists(atualizacoes) || Directory.GetFiles(atualizacoes, "*.msu").Length == 0))
+        {
+            Erro($"A pasta das atualizações não tem nenhum arquivo .msu:\n{atualizacoes}\n\nEscolha outra ou limpe marcando e desmarcando \"Atualizações do mês\". Nada foi apagado.");
+            return;
+        }
         int build = iso.Edicoes.First(x => x.Indice == indices[0]).Build;
         if (atualizacoes == null && AtualizarAuto.IsChecked == true)
         {
@@ -782,6 +804,7 @@ public partial class MainWindow : Window
                 (falhas.Count > 0 ? $"\nNão deu para baixar: {string.Join(", ", falhas)}. Esses instalam pela internet no primeiro login." : ""));
             CarregarProgramas();
             CarregarPerfis();
+            Atualizar(this, new RoutedEventArgs()); // relê os discos: sem isso o "Manter" e os perfis do pendrive novo só apareciam depois de clicar em Atualizar
         }
         catch (Exception ex)
         {

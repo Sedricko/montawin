@@ -140,7 +140,7 @@ public static class Pendrive
             (boot, dados) = (letras[0], letras[1]);
         }
         char iso = g.Iso.Letra;
-        var trabalho = Path.Combine(Path.GetTempPath(), "AuroraWin");
+        var trabalho = Path.Combine(Path.GetTempPath(), "AuroraWin-trabalho"); // não é a pasta do Implantador.exe extraído (AuroraWin): apagá-la perderia o painel
         var mount = Path.Combine(trabalho, "mount");
         if (Directory.Exists(trabalho))
         {
@@ -257,8 +257,9 @@ public static class Pendrive
                     progresso($"{etapa}: {nome} ({k + 1} de {g.Indices.Length})", inicio);
                     int codigo = Comandos.Executar("dism", $"/Image:\"{mount}\" {argumentos}");
                     if (codigo == 0) return;
+                    string motivo; lock (Comandos.Saida) motivo = string.Join("\n", Comandos.Saida); // o Unmount apaga a saída: guarda o motivo real antes
                     Comandos.Executar("dism", $"/Unmount-Image /MountDir:\"{mount}\" /Discard");
-                    Exigir(codigo, erro);
+                    throw new Exception(erro + "\n" + motivo);
                 }
                 // O .NET 3.5 vem antes das atualizações, como a Microsoft manda (depois, a atualização cobre ele também).
                 if (g.NetFx3)
