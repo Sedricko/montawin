@@ -1,7 +1,7 @@
 namespace MontaWin.Montador;
 
 /// <summary>
-/// Configurações internas do Aurora Win (engrenagem), guardadas neste PC em %LOCALAPPDATA%\MontaWin\config.txt.
+/// Configurações internas do Aurora Win (engrenagem), guardadas neste PC em %LOCALAPPDATA%\AuroraWin\config.txt.
 /// O tema também vai para o pendrive: o painel do boot fica igual ao app.
 /// </summary>
 public sealed class Configuracoes

@@ -1303,7 +1303,7 @@ string? SalvarRelatorio(char windows, List<string> resumo)
     linhas.AddRange(["", "O QUE FOI FEITO"]);
     linhas.AddRange(Tui.Registros().Select(l => "  " + l));
     linhas.AddRange(["", "Programas e licença são aplicados antes da tela de login e no primeiro login; o resultado fica em",
-        @"C:\Windows\Setup\Scripts\MontaWin-programas.log e MontaWin-antes-do-login.log."]);
+        @"C:\Windows\Setup\Scripts\AuroraWin-programas.log e AuroraWin-antes-do-login.log."]);
     var texto = string.Join("\r\n", linhas) + "\r\n";
     var nome = $"{sessao} {Perfil.NomeSeguro(Sistema.Modelo() is { Length: > 0 } m ? m : "PC")}.txt";
     try

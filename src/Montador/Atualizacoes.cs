@@ -66,7 +66,7 @@ public static partial class Atualizacoes
     {
         if (Versao(build) == null) throw new Exception($"Não sei qual atualização serve para o build {build} desta ISO.");
         using var http = new HttpClient { Timeout = TimeSpan.FromHours(2) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) MontaWin");
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AuroraWin");
         progresso("Procurando as atualizações do mês no Microsoft Update Catalog", 0);
         var escolhidas = Escolher(LerPesquisa(await http.GetStringAsync(UrlPesquisa(build))), build);
         if (escolhidas.Count == 0) throw new Exception("Não encontrei a atualização cumulativa no Microsoft Update Catalog.");
@@ -80,7 +80,7 @@ public static partial class Atualizacoes
         }
         if (arquivos.Count == 0) throw new Exception("O Microsoft Update Catalog não informou os arquivos para baixar.");
 
-        var pasta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MontaWin", "Atualizacoes", escolhidas[0].Id);
+        var pasta = Path.Combine(ListaProgramas.Pasta, "Atualizacoes", escolhidas[0].Id);
         Directory.CreateDirectory(pasta);
         foreach (var antigo in Directory.GetFiles(pasta, "*.msu").Where(f => !arquivos.Any(u => u.EndsWith("/" + Path.GetFileName(f), StringComparison.OrdinalIgnoreCase))))
             File.Delete(antigo);

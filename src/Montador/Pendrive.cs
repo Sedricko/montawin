@@ -140,7 +140,7 @@ public static class Pendrive
             (boot, dados) = (letras[0], letras[1]);
         }
         char iso = g.Iso.Letra;
-        var trabalho = Path.Combine(Path.GetTempPath(), "MontaWin");
+        var trabalho = Path.Combine(Path.GetTempPath(), "AuroraWin");
         var mount = Path.Combine(trabalho, "mount");
         if (Directory.Exists(trabalho))
         {
@@ -150,7 +150,7 @@ public static class Pendrive
         Directory.CreateDirectory(mount);
 
         // Perfis e relatórios de um pendrive MontaWin sobrevivem à regravação: guardados aqui e devolvidos depois.
-        var guardados = Path.Combine(Path.GetTempPath(), "MontaWin-guardados");
+        var guardados = Path.Combine(Path.GetTempPath(), "AuroraWin-guardados");
         if (g.Manter == null && Existente(g.Pendrive) is (_, char antigo))
             foreach (var pasta in PastasGuardadas)
                 if (Directory.Exists($@"{antigo}:\MontaWin\{pasta}"))

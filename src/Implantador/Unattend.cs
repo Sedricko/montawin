@@ -9,17 +9,17 @@ namespace MontaWin.Implantador;
 public static class Unattend
 {
     /// <summary>Caminho (no Windows instalado) do script que roda uma vez no primeiro login.</summary>
-    public const string ScriptPrimeiroLogin = @"Windows\Setup\Scripts\MontaWin-primeiro-login.cmd";
+    public const string ScriptPrimeiroLogin = @"Windows\Setup\Scripts\AuroraWin-primeiro-login.cmd";
     public const string PastaRestaurados = "Arquivos restaurados";
-    public const string ScriptProgramas = @"Windows\Setup\Scripts\MontaWin-programas.cmd";
+    public const string ScriptProgramas = @"Windows\Setup\Scripts\AuroraWin-programas.cmd";
     public const string PastaInstaladores = @"Windows\Setup\Scripts\Instaladores";
     /// <summary>O Windows roda este script como sistema no fim da instalação, antes da tela de login e sem janela.</summary>
     public const string ScriptSetupComplete = @"Windows\Setup\Scripts\SetupComplete.cmd";
-    public const string ScriptAntesDoLogin = @"Windows\Setup\Scripts\MontaWin-antes-do-login.cmd";
-    public const string PerfilWifi = @"Windows\Setup\Scripts\MontaWin-wifi.xml";
+    public const string ScriptAntesDoLogin = @"Windows\Setup\Scripts\AuroraWin-antes-do-login.cmd";
+    public const string PerfilWifi = @"Windows\Setup\Scripts\AuroraWin-wifi.xml";
     /// <summary>Cópia do backup de drivers dentro do Windows novo, para a segunda tentativa da conferência.</summary>
     public const string PastaDriversReserva = @"MontaWin\Drivers";
-    public const string ScriptConferencia = @"Windows\Setup\Scripts\MontaWin-conferencia.ps1";
+    public const string ScriptConferencia = @"Windows\Setup\Scripts\AuroraWin-conferencia.ps1";
     public const string ChamadaConferencia = $"powershell -NoProfile -ExecutionPolicy Bypass -File %SystemDrive%\\{ScriptConferencia}";
     public const string ChamadaSetupComplete = $"call %SystemDrive%\\{ScriptAntesDoLogin}\r\n";
 
@@ -57,7 +57,7 @@ public static class Unattend
                     <SynchronousCommand wcm:action="add">
                       <Order>1</Order>
                       <CommandLine>conhost.exe --headless cmd /c %SystemDrive%\{ScriptPrimeiroLogin}</CommandLine>
-                      <Description>MontaWin</Description>
+                      <Description>Aurora Win</Description>
                     </SynchronousCommand>
                   </FirstLogonCommands>
                   <OOBE>
@@ -94,7 +94,7 @@ public static class Unattend
     public static string GerarScriptPrimeiroLogin(IEnumerable<string> pastasRestauradas, bool temProgramas = false, bool pontoRestauracao = false,
         bool conferencia = false)
     {
-        var s = new System.Text.StringBuilder("@echo off\r\nchcp 65001 >nul\r\nrem Gerado pelo MontaWin: roda uma vez, no primeiro login.\r\n");
+        var s = new System.Text.StringBuilder("@echo off\r\nchcp 65001 >nul\r\nrem Gerado pelo Aurora Win: roda uma vez, no primeiro login.\r\n");
         foreach (var rel in pastasRestauradas)
         {
             var origem = $@"%SystemDrive%\{PastaRestaurados}\{rel}";
@@ -135,7 +135,7 @@ public static class Unattend
     /// </summary>
     public static string GerarScriptAntesDoLogin(string? rede, string? chave, bool programas)
     {
-        var s = new System.Text.StringBuilder("@echo off\r\nchcp 65001 >nul\r\nrem Gerado pelo MontaWin: roda uma vez, antes da tela de login.\r\nset LOG=%~dp0MontaWin-antes-do-login.log\r\n");
+        var s = new System.Text.StringBuilder("@echo off\r\nchcp 65001 >nul\r\nrem Gerado pelo Aurora Win: roda uma vez, antes da tela de login.\r\nset LOG=%~dp0AuroraWin-antes-do-login.log\r\n");
         if (rede != null)
             s.Append($"netsh wlan add profile filename=\"%SystemDrive%\\{PerfilWifi}\" user=all >>\"%LOG%\" 2>&1\r\n" +
                      $"del /f /q \"%SystemDrive%\\{PerfilWifi}\"\r\n" +
@@ -155,7 +155,7 @@ public static class Unattend
         texto.Trim().ToUpperInvariant() is var c && System.Text.RegularExpressions.Regex.IsMatch(c, "^[A-Z0-9]{5}(-[A-Z0-9]{5}){4}$") ? c : null;
 
     /// <summary>
-    /// Script dos programas, rodado duas vezes e sem janela (o resultado vai para MontaWin-programas.log):
+    /// Script dos programas, rodado duas vezes e sem janela (o resultado vai para AuroraWin-programas.log):
     /// "sistema" pelo SetupComplete.cmd, antes da tela de login: instaladores do pendrive e, com internet, o winget
     /// (só pacotes para todos os usuários); "usuario" no primeiro login: o que faltou, pelo winget do usuário.
     /// O que já instalou fica marcado e não repete. Todos os ids vão em <paramref name="idsWinget"/>: os baixados
@@ -168,12 +168,12 @@ public static class Unattend
             @echo off
             rem Os scripts são gravados em UTF-8: sem o chcp, nomes com acento (Redistribuíveis) não são achados
             chcp 65001 >nul
-            rem Gerado pelo MontaWin: instala os programas escolhidos no painel.
-            if not "%3"=="log" (call "%~f0" %1 "%~2" log >>"%~dp0MontaWin-programas.log" 2>&1 & exit /b)
+            rem Gerado pelo Aurora Win: instala os programas escolhidos no painel.
+            if not "%3"=="log" (call "%~f0" %1 "%~2" log >>"%~dp0AuroraWin-programas.log" 2>&1 & exit /b)
             setlocal
             set MODO=%1
             set ESPERAR=%~2
-            set FEITOS=%~dp0MontaWin-feitos
+            set FEITOS=%~dp0AuroraWin-feitos
             md "%FEITOS%" 2>nul
             echo [%date% %time%] Instalando programas (%MODO%)
 
@@ -258,8 +258,8 @@ public static class Unattend
         static string Ps(string t) => "'" + t.Replace("'", "''") + "'";
         var lista = string.Join(",\r\n", programas.Select(p => $"    [pscustomobject]@{{ Nome = {Ps(p.Nome)}; Marcas = @({string.Join(", ", p.Marcadores.Select(Ps))}) }}"));
         return $$"""
-            # Gerado pelo MontaWin: conferência do primeiro login (roda uma vez e se apaga).
-            $feitos = Join-Path $PSScriptRoot 'MontaWin-feitos'
+            # Gerado pelo Aurora Win: conferência do primeiro login (roda uma vez e se apaga).
+            $feitos = Join-Path $PSScriptRoot 'AuroraWin-feitos'
             $programas = @(
             {{lista}}
             )

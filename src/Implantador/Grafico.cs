@@ -71,13 +71,13 @@ public sealed unsafe partial class TelaGrafica : ISaida
             Tamanho = (uint)sizeof(WndClass), Procedimento = (nint)(delegate* unmanaged<nint, uint, nint, nint, nint>)&Procedimento,
             Instancia = GetModuleHandleW(null), Cursor = LoadCursorW(0, 32512),
         };
-        fixed (char* nome = "MontaWin")
+        fixed (char* nome = "AuroraWin")
         {
             classe.Nome = (nint)nome;
             if (RegisterClassExW(&classe) == 0) throw new Exception("RegisterClassEx falhou");
         }
         atual = this;
-        janela = CreateWindowExW(0x40000, "MontaWin", "MontaWin", 0x80000000 | 0x10000000, 0, 0, largura, altura, 0, 0, classe.Instancia, 0);
+        janela = CreateWindowExW(0x40000, "AuroraWin", "Aurora Win", 0x80000000 | 0x10000000, 0, 0, largura, altura, 0, 0, classe.Instancia, 0);
         if (janela == 0) throw new Exception("CreateWindowEx falhou");
         var tela = GetDC(janela);
         memDc = CreateCompatibleDC(tela);

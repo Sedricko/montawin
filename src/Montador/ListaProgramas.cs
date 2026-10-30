@@ -45,7 +45,7 @@ public class ItemLista(Programa programa, string selo) : System.ComponentModel.I
 
 /// <summary>
 /// Ícone original de cada programa: o site do fabricante vem do "winget show" (o primeiro endereço da saída, que não
-/// depende do idioma) e o ícone do site é guardado em %LOCALAPPDATA%\MontaWin\Icones.
+/// depende do idioma) e o ícone do site é guardado em %LOCALAPPDATA%\AuroraWin\Icones.
 /// </summary>
 public static class Icones
 {
@@ -140,7 +140,17 @@ public static class Populares
 /// </summary>
 public static class ListaProgramas
 {
-    public static readonly string Pasta = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MontaWin");
+    public static readonly string Pasta = PastaDoApp();
+
+    // Pasta do app neste PC: AuroraWin. A antiga (MontaWin: configurações, ícones, atualizações baixadas) é movida na primeira vez.
+    static string PastaDoApp()
+    {
+        var raiz = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        var nova = Path.Combine(raiz, "AuroraWin");
+        try { if (Directory.Exists(Path.Combine(raiz, "MontaWin")) && !Directory.Exists(nova)) Directory.Move(Path.Combine(raiz, "MontaWin"), nova); }
+        catch (IOException) { } // em uso ou sem permissão: segue com a pasta nova vazia
+        return nova;
+    }
     public static string Arquivo => Path.Combine(Pasta, "Programas.txt");
     public static string PastaInstaladores => Path.Combine(Pasta, "Instaladores");
 
@@ -179,7 +189,8 @@ public static class ListaProgramas
     {
         // Sem os códigos de cor/cursor e o "girando" que o winget escreve antes da tabela: eles deslocam as colunas do cabeçalho
         saida = System.Text.RegularExpressions.Regex.Replace(saida, @"\x1B\[[0-9;?]*[A-Za-z]|\x1B\][^\x07]*\x07", "");
-        var linhas = saida.Split('\n').Select(l => l.TrimEnd('\r')).Select(l => l[(l.LastIndexOf('\r') + 1)..])
+        var linhas = saida.Split(['\r', '\n']) // a saída do winget pode vir só com \r entre as linhas (visto no winget-busca.txt)
+            .Where(l => l.Trim().Length > 0) // o \r\n vira duas quebras: sem as linhas vazias o cabeçalho não fica colado nos traços
             .Select(l => l.TrimStart('-', '\\', '|', '/', ' ').Length == 0 ? l : System.Text.RegularExpressions.Regex.Replace(l, @"^\s*[-\\|/]\s+(?=\S)", "")).ToList();
         int tracos = linhas.FindIndex(l => l.Length >= 10 && l.Trim().All(c => c == '-'));
         if (tracos < 1) return [];

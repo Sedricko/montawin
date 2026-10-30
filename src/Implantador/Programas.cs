@@ -12,9 +12,9 @@ public static class Programas
 {
     /// <summary>Lista padrão; o Montador grava como MontaWin\Programas.txt para o técnico editar.</summary>
     public const string Padrao = """
-        # MontaWin: programas instalados no primeiro login do Windows novo (pelo winget, precisa de internet).
+        # Aurora Win: programas instalados no primeiro login do Windows novo (pelo winget, precisa de internet).
         # Formato:  Nome = id do winget   (vários ids separados por espaço)
-        # Linha começando com # é comentário. Começando com + vem marcado no painel (o MontaWin marca pela caixa de cada programa).
+        # Linha começando com # é comentário. Começando com + vem marcado no painel (o Aurora Win marca pela caixa de cada programa).
         # Para achar o id de um programa: no Windows, rode  winget search nome-do-programa
         #
         # Programa fora do winget: coloque o instalador na pasta MontaWin\Instaladores e escreva

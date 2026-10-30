@@ -249,7 +249,7 @@ public class ImplantadorTests
     {
         var xml = System.Xml.Linq.XDocument.Parse(Unattend.Gerar("pt-BR", "Maria", ""));
         var ns = (System.Xml.Linq.XNamespace)"urn:schemas-microsoft-com:unattend";
-        Assert.Equal(@"conhost.exe --headless cmd /c %SystemDrive%\Windows\Setup\Scripts\MontaWin-primeiro-login.cmd", // sem janela preta
+        Assert.Equal(@"conhost.exe --headless cmd /c %SystemDrive%\Windows\Setup\Scripts\AuroraWin-primeiro-login.cmd", // sem janela preta
             xml.Descendants(ns + "CommandLine").Single().Value);
     }
 
@@ -290,11 +290,11 @@ public class ImplantadorTests
         // Antes do login: winget do Windows, só com internet e só para todos os usuários
         Assert.Contains("curl.exe -s -m 10 -o nul https://cdn.winget.microsoft.com/cache/source.msix && goto temrede", script);
         Assert.Contains("set ESCOPO=--scope machine", script);
-        Assert.Contains(@"if not ""%3""==""log"" (call ""%~f0"" %1 ""%~2"" log >>""%~dp0MontaWin-programas.log"" 2>&1 & exit /b)", script);
-        Assert.Contains(@"start """" conhost.exe --headless cmd /c %SystemDrive%\Windows\Setup\Scripts\MontaWin-programas.cmd usuario",
+        Assert.Contains(@"if not ""%3""==""log"" (call ""%~f0"" %1 ""%~2"" log >>""%~dp0AuroraWin-programas.log"" 2>&1 & exit /b)", script);
+        Assert.Contains(@"start """" conhost.exe --headless cmd /c %SystemDrive%\Windows\Setup\Scripts\AuroraWin-programas.cmd usuario",
             Unattend.GerarScriptPrimeiroLogin([], temProgramas: true));
         Assert.DoesNotContain("start", Unattend.GerarScriptPrimeiroLogin([]));
-        Assert.Equal("call %SystemDrive%\\Windows\\Setup\\Scripts\\MontaWin-antes-do-login.cmd\r\n", Unattend.ChamadaSetupComplete);
+        Assert.Equal("call %SystemDrive%\\Windows\\Setup\\Scripts\\AuroraWin-antes-do-login.cmd\r\n", Unattend.ChamadaSetupComplete);
     }
 
 

@@ -149,7 +149,7 @@ public class TelasTests
         Assert.Contains("chcp 65001 >nul", Unattend.GerarScriptAntesDoLogin(null, null, true));
         Assert.Contains(Unattend.ChamadaConferencia, Unattend.GerarScriptPrimeiroLogin([], temProgramas: false, conferencia: true));
         Assert.DoesNotContain(Unattend.ChamadaConferencia, Unattend.GerarScriptPrimeiroLogin([], temProgramas: true, conferencia: true));
-        Assert.Contains(@"-File %SystemDrive%\Windows\Setup\Scripts\MontaWin-conferencia.ps1", Unattend.ChamadaConferencia);
+        Assert.Contains(@"-File %SystemDrive%\Windows\Setup\Scripts\AuroraWin-conferencia.ps1", Unattend.ChamadaConferencia);
     }
 
     [Fact]
@@ -371,7 +371,7 @@ public class TelasTests
         Assert.Single(Programas.Ler(texto), p => p.Nome == "AnyDesk");
         texto = ListaProgramas.Remover(texto, "anydesk");
         Assert.DoesNotContain(Programas.Ler(texto), p => p.Nome == "AnyDesk");
-        Assert.Contains("# MontaWin", texto); // comentários ficam
+        Assert.Contains("# Aurora Win", texto); // comentários ficam
         Assert.Equal("/qn /norestart", ListaProgramas.ParametrosSugeridos(@"C:\x\app.MSI"));
     }
 
@@ -388,6 +388,7 @@ public class TelasTests
         Assert.Equal(2, r.Count);
         Assert.Equal(new ResultadoBusca("AnyDesk", "AnyDesk.AnyDesk"), r[0]);
         Assert.Equal("AnyDesk MSI", r[1].Nome);
+        Assert.Equal(new ResultadoBusca("WinRAR", "RARLab.WinRAR"), ListaProgramas.LerBusca("Name   Id            Version\r----------------------------\rWinRAR RARLab.WinRAR 7.23.0").Single()); // só \r entre as linhas
         Assert.Empty(ListaProgramas.LerBusca("Nenhum pacote encontrado correspondente aos critérios de entrada."));
         // Como chega de verdade, redirecionado: códigos de cursor e o "girando" grudados no cabeçalho
         var real = "\x1B[0G   - \r   \\ \r\x1B[2K\x1B[0GNome   ID            Versão Origem\r\n----------------------------------------\r\nWinRAR RARLab.WinRAR 7.13   winget\r\n";
@@ -433,15 +434,15 @@ public class TelasTests
         Assert.Equal("ABCDE-12345-FGHIJ-67890-KLMNO", Unattend.ChaveValida(" abcde-12345-fghij-67890-klmno "));
         Assert.Null(Unattend.ChaveValida("ABCDE-12345"));
         var script = Unattend.GerarScriptAntesDoLogin("Casa", "ABCDE-12345-FGHIJ-67890-KLMNO", programas: true);
-        Assert.Contains(@"netsh wlan add profile filename=""%SystemDrive%\Windows\Setup\Scripts\MontaWin-wifi.xml"" user=all", script);
-        Assert.Contains(@"del /f /q ""%SystemDrive%\Windows\Setup\Scripts\MontaWin-wifi.xml""", script); // a senha não fica no disco
+        Assert.Contains(@"netsh wlan add profile filename=""%SystemDrive%\Windows\Setup\Scripts\AuroraWin-wifi.xml"" user=all", script);
+        Assert.Contains(@"del /f /q ""%SystemDrive%\Windows\Setup\Scripts\AuroraWin-wifi.xml""", script); // a senha não fica no disco
         Assert.Contains("ProductKey='ABCDE-12345-FGHIJ-67890-KLMNO'", script);
-        Assert.Contains(@"call %SystemDrive%\Windows\Setup\Scripts\MontaWin-programas.cmd sistema esperar", script); // espera o Wi-Fi conectar
+        Assert.Contains(@"call %SystemDrive%\Windows\Setup\Scripts\AuroraWin-programas.cmd sistema esperar", script); // espera o Wi-Fi conectar
         Assert.EndsWith("(goto) 2>nul & del /f /q \"%~f0\"\r\n", script); // a chave não fica no disco
         var soPrograma = Unattend.GerarScriptAntesDoLogin(null, null, programas: true);
         Assert.DoesNotContain("netsh", soPrograma);
         Assert.DoesNotContain("ProductKey", soPrograma);
-        Assert.Contains(@"MontaWin-programas.cmd sistema """"", soPrograma);
+        Assert.Contains(@"AuroraWin-programas.cmd sistema """"", soPrograma);
     }
 
     [Fact]
