@@ -221,6 +221,20 @@ public class TelasTests
     }
 
     [Fact]
+    public void PerfilLembraDeOndeInstalaCadaProgramaEAcrescentaNaLista()
+    {
+        var perfil = new Perfil("Maria") { Programas = ["AnyDesk", "Google Chrome", "Sumiu"], Catalogo = ["AnyDesk = AnyDesk.AnyDesk"] };
+        var lido = Perfil.Ler(perfil.Texto())!;
+        Assert.Equal(["AnyDesk = AnyDesk.AnyDesk"], lido.Catalogo);
+        // Lista vazia: o AnyDesk vem do que o perfil lembra, o Chrome da lista antiga; "Sumiu" ninguém sabe e fica de fora
+        var lista = ListaProgramas.AcrescentarPerfis(Programas.Padrao, [lido]);
+        var itens = Programas.Ler(lista);
+        Assert.Contains(itens, p => p.Nome == "AnyDesk" && p.Ids.Single() == "AnyDesk.AnyDesk" && !p.Marcado);
+        Assert.Contains(itens, p => p.Nome == "Google Chrome" && p.Ids.Single() == "Google.Chrome");
+        Assert.DoesNotContain(itens, p => p.Nome == "Sumiu");
+    }
+
+    [Fact]
     public void IconeGenericoNaoVale()
     {
         static byte[] Png(int largura) { var b = new byte[64]; b[0] = 0x89; b[1] = (byte)'P'; b[19] = (byte)largura; return b; }

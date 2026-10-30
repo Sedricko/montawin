@@ -585,7 +585,7 @@ public partial class MainWindow : Window
         {
             var falhas = await Task.Run(() =>
             {
-                Pendrive.SalvarProgramas(dados, ListaProgramas.Ler(), ListaProgramas.PastaInstaladores);
+                Pendrive.SalvarProgramas(dados, ListaComPerfis(), ListaProgramas.PastaInstaladores);
                 return baixar ? Pendrive.BaixarProgramas(dados, (etapa, pct) => Dispatcher.Invoke(() =>
                 {
                     if (etapa != null) Status.Text = etapa;
@@ -618,8 +618,18 @@ public partial class MainWindow : Window
     }
 
     // Outra pessoa começa do zero: sem programas e sem vínculo com PC
+    // Perfil novo segue o padrão do pendrive: começa com os programas marcados na lista (o técnico ajusta para a pessoa)
     void NovoPerfil(object sender, RoutedEventArgs e) =>
-        AbrirPerfil(new Perfil("") { Edicao = iso?.Edicoes.FirstOrDefault()?.Nome ?? "Windows 11 Pro", Usuario = "" }, novo: true);
+        AbrirPerfil(new Perfil("") { Edicao = iso?.Edicoes.FirstOrDefault()?.Nome ?? "Windows 11 Pro", Usuario = "",
+            Programas = [.. Programas.Ler(ListaProgramas.Ler()).Where(x => x.Marcado).Select(x => x.Nome)] }, novo: true);
+
+    // A lista que vai para o pendrive: a do técnico mais os programas que os perfis lembram e a lista ainda não tem
+    string ListaComPerfis()
+    {
+        var pastas = new[] { PastaPerfis, Path.Combine(ListaProgramas.Pasta, "Perfis") }.Distinct().Where(Directory.Exists);
+        var perfis = pastas.SelectMany(p => Directory.GetFiles(p, "*.txt")).Select(f => Perfil.Ler(File.ReadAllText(f))).OfType<Perfil>().ToList();
+        return ListaProgramas.AcrescentarPerfis(ListaProgramas.Ler(), perfis);
+    }
 
     void EditarPerfil(object sender, RoutedEventArgs e)
     {
@@ -663,7 +673,7 @@ public partial class MainWindow : Window
         var itensPerfil = Programas.Ler(ListaProgramas.Ler()).Select(x => new ItemLista(x with { Marcado = p.Programas.Contains(x.Nome) }, "")).ToList();
         // Programa do perfil que não está na lista deste PC continua marcado (senão salvar o perfil o apagava em silêncio)
         foreach (var nome in p.Programas.Except(itensPerfil.Select(i => i.Nome), StringComparer.OrdinalIgnoreCase))
-            itensPerfil.Add(new ItemLista(new Programa(nome, [], true), ""));
+            itensPerfil.Add(new ItemLista(ListaProgramas.Resolver(p, nome) ?? new Programa(nome, [], true), ""));
         PerfilProgramas.ItemsSource = itensPerfil;
         CamadaPerfil.Visibility = Visibility.Visible;
     }
@@ -701,6 +711,10 @@ public partial class MainWindow : Window
             Restaurar = PerfilRestaurar.IsChecked == true,
             BackupDrivers = PerfilDrivers.IsChecked == true,
             Programas = ((IEnumerable<ItemLista>)PerfilProgramas.ItemsSource).Where(x => x.Marcado).Select(x => x.Nome).ToArray(),
+            // De onde instala cada um: o perfil lembra, mesmo que o programa saia da lista do pendrive
+            Catalogo = [.. ((IEnumerable<ItemLista>)PerfilProgramas.ItemsSource).Where(x => x.Marcado)
+                .Select(x => ListaProgramas.Valor(x.Programa) is { Length: > 0 } v ? $"{x.Nome} = {v}" : antigo.Catalogo.FirstOrDefault(c => c.StartsWith(x.Nome + " =", StringComparison.OrdinalIgnoreCase)))
+                .OfType<string>()],
         };
         Directory.CreateDirectory(Path.GetDirectoryName(arquivo)!);
         File.WriteAllText(arquivo, perfil.Texto());
@@ -825,7 +839,7 @@ public partial class MainWindow : Window
         try
         {
             var gravacao = new Gravacao(iso, indices, pendrive, Implantador, config.Rapida, manter, atualizacoes, config.Tema,
-                (fundo, desfocado), BaixarProgramas.IsChecked == true, (ListaProgramas.Ler(), ListaProgramas.PastaInstaladores),
+                (fundo, desfocado), BaixarProgramas.IsChecked == true, (ListaComPerfis(), ListaProgramas.PastaInstaladores),
                 NetFx3.IsChecked == true, licenca, config.BootNovo, config.Esconder && config.TemPin);
             var falhas = await Task.Run(() => Pendrive.Gravar(gravacao, Progresso));
             if (gravacao.Esconder) revelado = null; // a gravação já escondeu de novo

@@ -148,6 +148,7 @@ Estado: as etapas 1 a 5 ainda **não foram escritas** (só o projeto, nas seçõ
 - **Microsoft 365 pelo winget:** no teste o winget recusou ("hash do instalador não corresponde": a Microsoft atualiza o `setup.exe` sem atualizar o manifesto). Dar outra saída: baixar o Office Deployment Tool oficial e instalar por ele.
 - **Menu Iniciar em lista:** testado no Windows 11 build 26300 comparando o registro com o Iniciar em Lista e em Categoria: não há valor simples para isso (só blocos binários do próprio Windows). Fica fora do instalador; o Iniciar segue como o Windows entrega.
 - **Ícones que ainda aparecem como letra** (visto no app: VLC, WhatsApp, CPU-Z, mesmo já corrigidos antes): descobrir por que o ícone não baixa (site, rede ou instalador) e guardar no pendrive para não depender da internet na hora; ícone genérico continua proibido, só a letra quando o ícone realmente não existe.
+- **Programas por perfil:** a lista do pendrive começa vazia (o técnico adiciona; o que ele adiciona já entra marcado). Perfil novo começa com os programas marcados na lista; cada perfil lembra de onde instala cada programa (`Catalogo`), e ao gravar o app acrescenta à lista do pendrive os programas dos perfis que ainda não estão nela (desmarcados). Perfis antigos, que só tinham nomes, são completados pelos populares e pela lista antiga.
 - **Senhas criptografadas** com o PIN (hoje os dados ficam escondidos, não criptografados).
 
 ## Limites conhecidos

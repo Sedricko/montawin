@@ -179,6 +179,46 @@ public static class ListaProgramas
             l.TrimStart().StartsWith('#') || !l.Contains('=') || !NomeDaLinha(l).Equals(nome, StringComparison.OrdinalIgnoreCase)
                 ? l : (marcado ? "+ " : "") + l.Trim().TrimStart('-', '+').TrimStart()));
 
+    /// <summary>Programas do primeiro pendrive do Aurora Win (a lista inicial de antes): perfis antigos só guardavam o nome, e daqui sai de onde instala.</summary>
+    const string Conhecidos = """
+        Google Chrome = Google.Chrome
+        WinRAR = RARLab.WinRAR
+        Visual C++ 2008 a 2022 (32 e 64 bits) = Microsoft.VCRedist.2008.x86 Microsoft.VCRedist.2008.x64 Microsoft.VCRedist.2010.x86 Microsoft.VCRedist.2010.x64 Microsoft.VCRedist.2012.x86 Microsoft.VCRedist.2012.x64 Microsoft.VCRedist.2013.x86 Microsoft.VCRedist.2013.x64 Microsoft.VCRedist.2015+.x86 Microsoft.VCRedist.2015+.x64
+        Notepad++ = Notepad++.Notepad++
+        Lightshot = Skillbrains.Lightshot
+        pCloud = pCloudAG.pCloudDrive
+        Spotify = 9NCBCSZSJRSB
+        Microsoft 365 (Word, Excel, Outlook) = Microsoft.Office
+        Foxit PDF Editor Pro = Foxit.PhantomPDF
+        """;
+
+    public static string Valor(Programa p) => p.Instalador != null ? "arquivo: " + p.Instalador : string.Join(' ', p.Ids);
+
+    /// <summary>De onde instala o programa de um perfil: o que o perfil lembra, depois os populares e a lista antiga. null se não souber.</summary>
+    public static Programa? Resolver(Perfil perfil, string nome)
+    {
+        var linha = perfil.Catalogo.FirstOrDefault(c => c.StartsWith(nome + " =", StringComparison.OrdinalIgnoreCase));
+        if (linha != null && Programas.Ler(linha).FirstOrDefault() is Programa lembrado) return lembrado with { Marcado = true };
+        var conhecido = Programas.Ler(Conhecidos).FirstOrDefault(x => x.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase));
+        if (conhecido != null) return conhecido with { Marcado = true };
+        var popular = Populares.Lista.FirstOrDefault(x => x.Nome.Equals(nome, StringComparison.OrdinalIgnoreCase));
+        return popular.Id != null ? new Programa(popular.Nome, [popular.Id], true) : null;
+    }
+
+    /// <summary>Acrescenta à lista os programas dos perfis que ainda não estão nela (desmarcados: só valem para aquele perfil).</summary>
+    public static string AcrescentarPerfis(string lista, IEnumerable<Perfil> perfis)
+    {
+        var nomes = Programas.Ler(lista).Select(x => x.Nome).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        foreach (var perfil in perfis)
+            foreach (var nome in perfil.Programas)
+                if (!nomes.Contains(nome) && Resolver(perfil, nome) is Programa p)
+                {
+                    lista = lista.TrimEnd() + Environment.NewLine + $"{p.Nome} = {Valor(p)}" + Environment.NewLine;
+                    nomes.Add(nome);
+                }
+        return lista;
+    }
+
     public static string Remover(string texto, string nome) =>
         string.Join(Environment.NewLine, texto.Split('\n').Select(l => l.TrimEnd('\r'))
             .Where(l => l.TrimStart().StartsWith('#') || !l.Contains('=') || !NomeDaLinha(l).Equals(nome, StringComparison.OrdinalIgnoreCase)));

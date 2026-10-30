@@ -18,6 +18,8 @@ public record Perfil(string Nome)
     /// <summary>null = perguntar a senha na hora; "" = sem senha.</summary>
     public string? Senha { get; init; }
     public string[] Programas { get; init; } = [];
+    /// <summary>De onde instala cada programa do perfil ("Nome = id do winget" ou "Nome = arquivo: instalador"): o perfil lembra, mesmo que o programa saia da lista do pendrive.</summary>
+    public string[] Catalogo { get; init; } = [];
     public bool Restaurar { get; init; } = true;
     public bool BackupDrivers { get; init; } = true;
     /// <summary>Remove apps inúteis e propaganda e ajusta o registro (ver <see cref="Otimizacao"/>).</summary>
@@ -49,6 +51,7 @@ public record Perfil(string Nome)
         };
         if (Senha != null) linhas.Add($"Senha = {Senha}");
         linhas.Add($"Programas = {string.Join("; ", Programas)}");
+        linhas.Add($"Catalogo = {string.Join(" || ", Catalogo)}");
         linhas.Add($"Restaurar = {(Restaurar ? "sim" : "nao")}");
         linhas.Add($"BackupDrivers = {(BackupDrivers ? "sim" : "nao")}");
         linhas.Add($"Otimizar = {(Otimizar ? "sim" : "nao")}");
@@ -83,6 +86,7 @@ public record Perfil(string Nome)
             Usuario = Campo("Usuario"),
             Senha = campos.TryGetValue("Senha", out var senha) ? senha : null, // linha vazia = sem senha
             Programas = (Campo("Programas") ?? "").Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
+            Catalogo = (Campo("Catalogo") ?? "").Split("||", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             Restaurar = !string.Equals(Campo("Restaurar"), "nao", StringComparison.OrdinalIgnoreCase),
             BackupDrivers = !string.Equals(Campo("BackupDrivers"), "nao", StringComparison.OrdinalIgnoreCase),
             Otimizar = !string.Equals(Campo("Otimizar"), "nao", StringComparison.OrdinalIgnoreCase),
