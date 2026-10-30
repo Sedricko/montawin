@@ -35,6 +35,7 @@ public partial class MainWindow : Window
     Perfil? perfilEditado;
     bool perfilNovo;
     TaskCompletionSource<bool>? resposta;
+    Disco? discoRevelado; // o pendrive de "revelado" como estava: confere antes de mexer, porque o número do disco pode passar a ser de outro
     (int Disco, char Letra)? revelado; // dados escondidos mostrados com o PIN nesta sessão: voltam a ficar escondidos ao fechar
     readonly DispatcherTimer tempoAviso = new() { Interval = TimeSpan.FromSeconds(4) };
 
@@ -64,7 +65,7 @@ public partial class MainWindow : Window
         Closed += (_, _) =>
         {
             if (iso != null) Pendrive.FecharIso(iso.Iso);
-            if (revelado is var (disco, letra)) Discos.Diskpart(Discos.ScriptEsconderDados(disco, 2, letra));
+            if (revelado is var (disco, letra) && DiscoContinuaOMesmo(discoRevelado)) Discos.Diskpart(Discos.ScriptEsconderDados(disco, 2, letra));
         };
         Loaded += (_, _) =>
         {
@@ -287,6 +288,7 @@ public partial class MainWindow : Window
         config.Salvar();
         if (ListaPendrives.SelectedItem is Disco d)
         {
+            if (!DiscoContinuaOMesmo(d)) { Erro("O pendrive mudou desde que foi escolhido. Clique em Atualizar e escolha de novo. Nada foi alterado."); return; }
             if (desejado && DadosDoPendrive is char letra) Discos.Diskpart(Discos.ScriptEsconderDados(d.Numero, 2, letra));
             else if (!desejado && Discos.DadosEscondidos(d) is Particao p && Comandos.LetrasLivres(1, "MNOPQTUVYZ") is [char livre])
                 Discos.Diskpart(Discos.ScriptMostrarDados(d.Numero, p.Numero, livre, mostrar: true));
@@ -302,10 +304,15 @@ public partial class MainWindow : Window
         if (ListaPendrives.SelectedItem is not Disco d || Discos.DadosEscondidos(d) is not Particao p) return;
         if (!await ConferirPin("Digite o PIN para mostrar os dados deste pendrive.")) return;
         if (Comandos.LetrasLivres(1, "MNOPQTUVYZ") is not [char livre]) { Erro("Não há letras de unidade livres."); return; }
+        if (!DiscoContinuaOMesmo(d)) { Erro("O pendrive mudou desde que foi escolhido. Clique em Atualizar e escolha de novo. Nada foi alterado."); return; }
         if (!Discos.Diskpart(Discos.ScriptMostrarDados(d.Numero, p.Numero, livre, mostrar: false))) { Erro("Não consegui dar uma letra à parte escondida do pendrive."); return; }
+        discoRevelado = d;
         revelado = (d.Numero, livre);
         Atualizar(this, new RoutedEventArgs());
     }
+
+    // O número do disco pode ser reaproveitado por outro pendrive: só mexe nas partições se modelo, tamanho e layout ainda batem
+    static bool DiscoContinuaOMesmo(Disco? d) => d != null && Discos.MesmoPendrive(d, Discos.Listar().FirstOrDefault(x => x.Numero == d.Numero));
 
     void Erro(string mensagem) => _ = Perguntar("Algo não deu certo", mensagem, "Entendi", null, perigo: true);
 
@@ -322,8 +329,10 @@ public partial class MainWindow : Window
     {
         foreach (var c in new UIElement[] { BotaoIso, BotaoAtualizar, BotaoCriar, ListaPendrives, ListaEdicoes, Manter, BotaoAtualizacoes, AtualizarAuto,
                      BaixarProgramas, NetFx3, BotaoProcurar, BotaoAdicionar, BotaoAdicionarArquivo, BotaoRemover, BotaoArquivo, BotaoSalvarProgramas,
-                     BotaoConfig, PainelPopulares, BotaoNovoPerfil, BotaoEditarPerfil, BotaoDuplicarPerfil, BotaoApagarPerfil })
+                     BotaoConfig, PainelPopulares })
             c.IsEnabled = !ocupado;
+        // Os botões de perfil só valem com um pendrive já gravado (reativá-los sem isso deixava "Salvar perfil" sem efeito)
+        foreach (var b in new[] { BotaoNovoPerfil, BotaoEditarPerfil, BotaoDuplicarPerfil, BotaoApagarPerfil }) b.IsEnabled = !ocupado && DadosDoPendrive != null;
         // ISO de versão que o app não conhece: não dá para marcar as atualizações do mês (pararia a gravação)
         AtualizarAuto.IsEnabled = !ocupado && (iso == null || Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0) != null);
         if (!AtualizarAuto.IsEnabled && !ocupado) AtualizarAuto.IsChecked = false;
@@ -556,6 +565,10 @@ public partial class MainWindow : Window
         // Sem espaços no nome do arquivo: a linha da lista separa o arquivo dos parâmetros pelo espaço.
         var arquivo = Path.GetFileName(ArquivoInstalador.Text).Replace(' ', '_');
         Directory.CreateDirectory(ListaProgramas.PastaInstaladores);
+        var existente = Path.Combine(ListaProgramas.PastaInstaladores, arquivo);
+        // Outro programa com o mesmo nome de arquivo (setup.exe...): prefixa com o nome do programa em vez de sobrescrever o dele
+        if (File.Exists(existente) && new FileInfo(existente).Length != new FileInfo(ArquivoInstalador.Text).Length)
+            arquivo = $"{Perfil.NomeSeguro(nome).Replace(' ', '_')}_{arquivo}";
         File.Copy(ArquivoInstalador.Text, Path.Combine(ListaProgramas.PastaInstaladores, arquivo), overwrite: true);
         ListaProgramas.Salvar(ListaProgramas.Adicionar(ListaProgramas.Ler(), nome, $"arquivo: {arquivo} {ParametrosInstalador.Text.Trim()}".TrimEnd()));
         CarregarProgramas();
@@ -597,8 +610,8 @@ public partial class MainWindow : Window
         var dados = DadosDoPendrive;
         foreach (var b in new[] { BotaoNovoPerfil, BotaoEditarPerfil, BotaoDuplicarPerfil, BotaoApagarPerfil }) b.IsEnabled = dados != null;
         DicaPerfis.Text = dados != null
-            ? "Cada perfil guarda as escolhas de uma pessoa ou PC (conta, rede, programas...). Com ele, o painel só pede o disco e o SIM."
-            : "Escolha um pendrive já gravado pelo Aurora Win para ver e editar os perfis dele.";
+            ? "Escolhas de uma pessoa ou PC. Com o perfil, o painel só pede o disco e o SIM."
+            : "Escolha um pendrive já gravado para ver os perfis dele.";
         var pasta = dados is char d ? $@"{d}:\MontaWin\Perfis" : null;
         ListaPerfis.ItemsSource = pasta != null && Directory.Exists(pasta)
             ? Directory.GetFiles(pasta, "*.txt").Select(f => Perfil.Ler(File.ReadAllText(f))).OfType<Perfil>().Select(p => new PerfilItem(p)).ToList()
@@ -732,6 +745,18 @@ public partial class MainWindow : Window
             Erro($"Não cabe: precisa de {Formatar.Tamanho(necessario)} e o pendrive tem {Formatar.Tamanho(disponivel)}" +
                  (manter != null ? " livres. Desmarque \"Manter\" para apagar e recriar o pendrive." : "."));
             return;
+        }
+        // Com .NET 3.5 ou atualizações o app monta uma cópia da imagem em %TEMP% (depois de apagar o pendrive): confere o espaço antes
+        if (NetFx3.IsChecked == true || AtualizarAuto.IsChecked == true || PastaAtualizacoes.Text.Length > 0)
+        {
+            long precisaNoPc = imagem + (AtualizarAuto.IsChecked == true || PastaAtualizacoes.Text.Length > 0 ? 12L << 30 : 2L << 30);
+            long temNoPc = new DriveInfo(Path.GetPathRoot(Path.GetTempPath())!).AvailableFreeSpace;
+            if (temNoPc < precisaNoPc)
+            {
+                Erro($"Falta espaço neste PC para preparar a imagem: precisa de {Formatar.Tamanho(precisaNoPc)} livres na pasta temporária e há {Formatar.Tamanho(temNoPc)}.\n" +
+                     "Libere espaço ou desmarque o .NET 3.5 e as atualizações do mês. Nada foi apagado.");
+                return;
+            }
         }
         bool confirmou = manter != null
             ? await Perguntar("Adicionar ao pendrive?", $"A ISO será adicionada e o painel atualizado. Imagens, perfis e backups que já estão nele ficam.\n\n{pendrive.Descricao.Trim()}", "Adicionar e atualizar")

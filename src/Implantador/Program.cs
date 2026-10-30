@@ -304,11 +304,16 @@ void Restaurar(string backup, char windows)
     Tui.Registro($"Arquivos restaurados: {Formatar.Tamanho(bytes)}{Velocidade(bytes, relogio.Elapsed)}");
 }
 
+// Pastas de backup: Backups\<pc>\<data> (ou Backups\<data>, nas versões antigas). Procurar em todas as subpastas achava
+// qualquer pasta "Arquivos" dentro de Documentos e varria o backup inteiro pelo USB.
+IEnumerable<string> NiveisDeBackup(string backups) =>
+    Directory.GetDirectories(backups).SelectMany(a => new[] { a }.Concat(Directory.GetDirectories(a)));
+
 void RestaurarManual()
 {
     var backups = DriveInfo.GetDrives().Where(d => d.IsReady && d.Name[0] != 'X')
         .SelectMany(d => Directory.Exists(Path.Combine(d.Name, "MontaWin", "Backups"))
-            ? Directory.GetDirectories(Path.Combine(d.Name, "MontaWin", "Backups"), "Arquivos", SearchOption.AllDirectories) : Array.Empty<string>())
+            ? NiveisDeBackup(Path.Combine(d.Name, "MontaWin", "Backups")).Select(n => Path.Combine(n, "Arquivos")).Where(Directory.Exists) : Array.Empty<string>())
         .OrderByDescending(x => Path.GetFileName(Path.GetDirectoryName(x))) // data mais recente primeiro
         .ToList();
     if (!Exigir(backups.Count > 0, "Nenhum backup de arquivos encontrado (pasta MontaWin\\Backups).")) return;
@@ -425,7 +430,7 @@ static string SugestaoNomePc() =>
 (string Pasta, string Data)? UltimoBackupDeDrivers()
 {
     if (raiz == null || !pcIdentificado || !Directory.Exists(Path.Combine(raiz, "Backups"))) return null;
-    foreach (var pc in Directory.GetFiles(Path.Combine(raiz, "Backups"), "pc.txt", SearchOption.AllDirectories)
+    foreach (var pc in NiveisDeBackup(Path.Combine(raiz, "Backups")).Select(n => Path.Combine(n, "pc.txt")).Where(File.Exists)
                  .OrderByDescending(f => Path.GetFileName(Path.GetDirectoryName(f)))) // pasta com a data: a mais nova primeiro
     {
         var linhas = File.ReadAllLines(pc);
@@ -1354,7 +1359,9 @@ void SalvarComoPerfil(Perfil escolhas)
     {
         var digitado = Tui.Perguntar("Salvar estas escolhas como perfil?", ["Da próxima vez neste PC, a instalação só pede o disco e a confirmação.",
             "Para não salvar, deixe em branco e continue, ou volte."], "Nome do perfil (ex.: PC Escritório)", continuar: "Continuar →", voltar: "Não salvar");
-        if (string.IsNullOrWhiteSpace(digitado) || Perfil.NomeSeguro(digitado).Length == 0) return;
+        if (string.IsNullOrWhiteSpace(digitado)) return;
+        if (Perfil.NomeSeguro(digitado).Length == 0) { Tui.Mensagem("Nome inválido", ["Use letras ou números no nome do perfil."], erro: true); continue; }
+        if (File.Exists(ArquivoPerfil(digitado)) && !Tui.Confirmar("Perfil já existe", [$"Já existe um perfil {digitado.Trim()}. Substituir?"])) continue; // como no "Novo perfil": não sobrescreve em silêncio
         nome = digitado;
         var opcoes = new List<string>();
         if (escolhas.Usuario != null || escolhas.Wifi != null) opcoes.Add("Guardar as senhas no perfil (a da conta e a do Wi-Fi). Mais rápido, mas ficam escritas no pendrive");

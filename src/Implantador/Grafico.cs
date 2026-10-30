@@ -222,9 +222,12 @@ public sealed unsafe partial class TelaGrafica : ISaida
         // Cliques que ficaram na fila foram dados na tela anterior
         else if (antes == null || Nova((antes.Titulo, antes.Info), t))
         {
-            var teclas = new List<Evento>();
-            while (fila.TryTake(out var e)) if (e.Item < 0) teclas.Add(e);
-            foreach (var e in teclas) fila.Add(e);
+            lock (fila) // a janela também empurra eventos: sem o lock, uma tecla digitada agora poderia passar na frente das que foram guardadas
+            {
+                var teclas = new List<Evento>();
+                while (fila.TryTake(out var e)) if (e.Item < 0) teclas.Add(e);
+                foreach (var e in teclas) fila.Add(e);
+            }
         }
         Volatile.Write(ref tela, t);
         PostMessageW(janela, 0x8000, 0, 0);
@@ -232,6 +235,8 @@ public sealed unsafe partial class TelaGrafica : ISaida
 
     static bool Nova((string Titulo, IReadOnlyList<string> Info)? anterior, Tela t) =>
         anterior is not var (titulo, info) || titulo != t.Titulo || !ReferenceEquals(info, t.Info);
+
+    void Empurrar(Evento e) { lock (fila) fila.Add(e); }
 
     public Evento? Ler(int ms = -1) => fila.TryTake(out var e, ms) ? e : null;
 
@@ -278,12 +283,12 @@ public sealed unsafe partial class TelaGrafica : ISaida
                     InvalidateRect(hwnd, 0, 0);
                     return 0;
                 case 0x0100 when t != null: // WM_KEYDOWN: teclas sem caractere
-                    if ((int)wParam is 8 or 9 or 13 or 27 or (>= 33 and <= 40) or 46 or (>= 112 and <= 119)) t.fila.Add(new Evento((ConsoleKey)(int)wParam));
+                    if ((int)wParam is 8 or 9 or 13 or 27 or (>= 33 and <= 40) or 46 or (>= 112 and <= 119)) t.Empurrar(new Evento((ConsoleKey)(int)wParam));
                     return 0;
                 case 0x0102 when t != null: // WM_CHAR
                     char ch = (char)wParam;
                     if (ch >= ' ' && !char.IsControl(ch))
-                        t.fila.Add(new Evento(ch == ' ' ? ConsoleKey.Spacebar : char.IsAsciiLetter(ch) ? (ConsoleKey)char.ToUpperInvariant(ch) : 0, ch));
+                        t.Empurrar(new Evento(ch == ' ' ? ConsoleKey.Spacebar : char.IsAsciiLetter(ch) ? (ConsoleKey)char.ToUpperInvariant(ch) : 0, ch));
                     return 0;
                 // O segundo clique de um clique duplo não pode escolher nada na tela que acabou de aparecer
                 case 0x0202 when t != null && (t.pintada != Volatile.Read(ref t.tela) || Environment.TickCount64 - t.novaEm < 500):
@@ -291,7 +296,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
                 case 0x0202 when t != null: // WM_LBUTTONUP
                     float x = (short)(lParam & 0xFFFF), y = (short)((lParam >> 16) & 0xFFFF);
                     foreach (var a in t.alvos)
-                        if (x >= a.X && x <= a.X + a.W && y >= a.Y && y <= a.Y + a.H) { t.fila.Add(new Evento(0, '\0', a.Item)); break; }
+                        if (x >= a.X && x <= a.X + a.W && y >= a.Y && y <= a.Y + a.H) { t.Empurrar(new Evento(0, '\0', a.Item)); break; }
                     return 0;
                 case 0x0200 when t != null: // WM_MOUSEMOVE: destaca o item sob o mouse
                     float mx = (short)(lParam & 0xFFFF), my = (short)((lParam >> 16) & 0xFFFF);
@@ -302,7 +307,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
                     return 0;
                 case 0x020A when t != null: // WM_MOUSEWHEEL (no prompt rola a saída; as setas são do histórico)
                     bool cima = (short)((wParam >> 16) & 0xFFFF) > 0;
-                    t.fila.Add(new Evento(t.tela?.Tipo == TipoTela.Terminal ? (cima ? ConsoleKey.PageUp : ConsoleKey.PageDown) : cima ? ConsoleKey.UpArrow : ConsoleKey.DownArrow));
+                    t.Empurrar(new Evento(t.tela?.Tipo == TipoTela.Terminal ? (cima ? ConsoleKey.PageUp : ConsoleKey.PageDown) : cima ? ConsoleKey.UpArrow : ConsoleKey.DownArrow));
                     return 0;
                 case 0x0010: return 0; // WM_CLOSE: Alt+F4 não fecha o painel
             }
@@ -475,9 +480,13 @@ public sealed unsafe partial class TelaGrafica : ISaida
 
         // Mede o que vai dentro para dar ao painel a altura certa
         float topoTexto = perigo ? 14 * s : 0;
-        float alturaInfo = t.Info.Sum(l => Altura(l, fonteNormal, dentro - (perigo ? 32 * s : 0)) + 2 * s);
-        if (t.Info.Count > 0) alturaInfo += 14 * s + 2 * topoTexto;
         bool lista = t.Tipo == TipoTela.Lista;
+        var fInfo = fonteNormal;
+        float AlturaDaInfo(nint f) => t.Info.Count == 0 ? 0 : t.Info.Sum(l => Altura(l, f, dentro - (perigo ? 32 * s : 0)) + 2 * s) + 14 * s + 2 * topoTexto;
+        float alturaInfo = AlturaDaInfo(fInfo);
+        // Texto demais para o vidro (resumo longo, erro com muitas linhas): letra menor em vez de empurrar o botão para fora da tela
+        if (!lista && pad + 40 * s + alturaInfo + (t.Tipo == TipoTela.Pergunta ? 106 * s : 0) + 46 * s + 36 * s + pad > altura - 120 * s)
+            (fInfo, alturaInfo) = (fontePequena, AlturaDaInfo(fontePequena));
         // "Continuar" e "Voltar" são botões fixos embaixo, separados das opções e sempre à vista; só as opções rolam
         int botoes = lista ? t.Itens.ToList().FindIndex(i => i.Tipo is TipoItem.Continuar or TipoItem.Voltar) : -1;
         int rolaveis = botoes >= 0 ? botoes : t.Itens.Count;
@@ -515,8 +524,8 @@ public sealed unsafe partial class TelaGrafica : ISaida
             }
             foreach (var l in t.Info)
             {
-                float lh = Altura(l, fonteNormal, iw);
-                Texto(l, fonteNormal, corInfo, ix, cy, iw, lh + 2 * s, paragrafo);
+                float lh = Altura(l, fInfo, iw);
+                Texto(l, fInfo, corInfo, ix, cy, iw, lh + 2 * s, paragrafo);
                 cy += lh + 2 * s;
             }
             cy += 14 * s + (perigo ? topoTexto : 0);
@@ -529,6 +538,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
             Caixa(x + pad, cy, dentro, 52 * s, 8 * s, c.Campo);
             GdipFillRectangle(g, Pincel(c.CorDestaque), x + pad + 4 * s, cy + 50 * s, dentro - 8 * s, 2 * s);
             var digitado = t.Oculto ? new string('•', t.Campo.Length) : t.Campo;
+            while (digitado.Length > 1 && Largura(digitado, fonteNormal) > dentro - 36 * s) digitado = digitado[1..]; // texto longo: mostra o fim, onde está o cursor
             Texto(digitado, fonteNormal, c.Texto, x + pad + 14 * s, cy, dentro - 28 * s, 52 * s);
             GdipFillRectangle(g, Pincel(c.Texto), x + pad + 16 * s + Largura(digitado, fonteNormal), cy + 14 * s, 2 * s, 24 * s); // cursor
             cy += 56 * s + 20 * s;
@@ -733,6 +743,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
         int cabem = Math.Max(1, (int)((oh - 24 * s) / lh));
         var linhas = t.Registro.Count > 0 ? t.Registro.ToList() : [""];
         linhas[^1] += t.Campo;
+        while (linhas[^1].Length > 1 && Largura(linhas[^1], fonteMono) > dentro - 36 * s) linhas[^1] = linhas[^1][1..]; // comando longo: mostra o fim, onde está o cursor
         int fim = Math.Max(Math.Min(linhas.Count, cabem), linhas.Count - t.Selecionado);
         float ly = oy + 12 * s;
         foreach (var l in linhas.Skip(Math.Max(0, fim - cabem)).Take(cabem))

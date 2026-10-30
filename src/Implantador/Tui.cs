@@ -488,6 +488,8 @@ sealed class TelaTexto : ISaida
     static void Escrever(int x, int y, string texto, ConsoleColor cor, ConsoleColor fundo = ConsoleColor.Black)
     {
         if (y >= Altura - 1 || y < 0) return;
+        x = Math.Clamp(x, 0, Math.Max(0, Console.BufferWidth - 1));
+        if (x + texto.Length >= Console.BufferWidth) texto = texto[..Math.Max(0, Console.BufferWidth - x - 1)]; // título maior que a janela
         Console.SetCursorPosition(x, y);
         Console.ForegroundColor = cor;
         Console.BackgroundColor = fundo;
@@ -546,10 +548,19 @@ sealed class TelaTexto : ISaida
                     var info = t.Itens.Count > 1
                         ? [.. t.Info, "", string.Join("     ", t.Itens.Select((it, i) => i == t.Selecionado ? $"[ {it.Texto} ]" : it.Texto))]
                         : t.Info;
+                    // Texto demais para a janela do console: corta o meio, mas os botões (últimas linhas) ficam à vista
+                    int linhasLivres = Math.Max(3, Altura - y - 5);
+                    if (info.Count > linhasLivres) info = [.. info.Take(linhasLivres - 3), "...", .. info.Skip(info.Count - 2)];
                     Caixa(y, t.Titulo, Simples(info), cor);
                     break;
                 }
-                if (t.Info.Count > 0) y = Caixa(y, "Informações", Simples(t.Info), cor);
+                if (t.Info.Count > 0)
+                {
+                    // Deixa ao menos 3 linhas para as opções: sem isso a lista sumia atrás de uma Info grande
+                    int maxInfo = Math.Max(1, Altura - y - 8);
+                    var infoVisivel = t.Info.Count > maxInfo ? t.Info.Take(maxInfo - 1).Append("...").ToList() : t.Info;
+                    y = Caixa(y, "Informações", Simples(infoVisivel), cor);
+                }
                 // Rola a lista quando não cabe na tela
                 int espaco = Math.Max(3, Altura - y - 3);
                 int topo = Math.Clamp(0, Math.Max(0, t.Selecionado - espaco + 1), t.Selecionado);
@@ -564,7 +575,9 @@ sealed class TelaTexto : ISaida
                 break;
             case TipoTela.Pergunta:
                 y = Caixa(y, t.Titulo, Simples(t.Info.Append("").Append(t.Rotulo)), t.Alerta == Alerta.Nenhum ? ConsoleColor.Yellow : cor);
-                Escrever(1, y, Formatar.Ajustar("> " + (t.Oculto ? new string('*', t.Campo.Length) : t.Campo) + "_", Largura - 2), destaque);
+                var campoTexto = t.Oculto ? new string('*', t.Campo.Length) : t.Campo;
+                if (campoTexto.Length > Largura - 8) campoTexto = campoTexto[^(Largura - 8)..]; // texto longo: o fim (onde se digita) fica à vista
+                Escrever(1, y, Formatar.Ajustar("> " + campoTexto + "_", Largura - 2), destaque);
                 break;
             case TipoTela.Progresso:
                 var corpo = new List<string>();

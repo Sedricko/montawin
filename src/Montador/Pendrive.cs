@@ -403,10 +403,14 @@ public static class Pendrive
         Directory.CreateDirectory(destino);
         File.WriteAllText($@"{dados}:\MontaWin\Programas.txt", lista);
         if (pastaInstaladores == null || !Directory.Exists(pastaInstaladores)) return;
-        foreach (var arquivo in Directory.GetFiles(pastaInstaladores))
+        // Só os instaladores citados na lista (programa removido não leva o arquivo velho); troca se o tamanho ou a data mudou
+        var citados = Implantador.Programas.Ler(lista).Where(p => p.Instalador != null)
+            .SelectMany(p => Directory.GetFiles(pastaInstaladores, Implantador.Programas.Separar(p.Instalador!).Arquivo)).Distinct();
+        foreach (var arquivo in citados)
         {
             var copia = Path.Combine(destino, Path.GetFileName(arquivo));
-            if (!File.Exists(copia) || new FileInfo(copia).Length != new FileInfo(arquivo).Length) File.Copy(arquivo, copia, overwrite: true);
+            if (!File.Exists(copia) || new FileInfo(copia).Length != new FileInfo(arquivo).Length
+                || File.GetLastWriteTimeUtc(copia) < File.GetLastWriteTimeUtc(arquivo)) File.Copy(arquivo, copia, overwrite: true);
         }
     }
 
