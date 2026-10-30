@@ -229,6 +229,9 @@ public class TelasTests
         var ico = new byte[300]; ico[2] = 1;
         Assert.True(MontaWin.Montador.Icones.IconeDeVerdade(ico));
         Assert.False(MontaWin.Montador.Icones.IconeDeVerdade(new byte[10]));
+        Assert.True(MontaWin.Montador.Icones.IconeDeVerdade(Png(23))); // o ícone do WhatsApp tem 23 px
+        var jpeg = new byte[2000]; jpeg[0] = 0xFF; jpeg[1] = 0xD8;
+        Assert.True(MontaWin.Montador.Icones.IconeDeVerdade(jpeg)); // o do CPU-Z vem em JPEG
     }
 
     [Fact]

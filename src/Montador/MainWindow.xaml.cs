@@ -332,7 +332,7 @@ public partial class MainWindow : Window
                      BotaoConfig, PainelPopulares })
             c.IsEnabled = !ocupado;
         // Os botões de perfil só valem com um pendrive já gravado (reativá-los sem isso deixava "Salvar perfil" sem efeito)
-        foreach (var b in new[] { BotaoNovoPerfil, BotaoEditarPerfil, BotaoDuplicarPerfil, BotaoApagarPerfil }) b.IsEnabled = !ocupado && DadosDoPendrive != null;
+        foreach (var b in new[] { BotaoNovoPerfil, BotaoEditarPerfil, BotaoDuplicarPerfil, BotaoApagarPerfil }) b.IsEnabled = !ocupado;
         // ISO de versão que o app não conhece: não dá para marcar as atualizações do mês (pararia a gravação)
         AtualizarAuto.IsEnabled = !ocupado && (iso == null || Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0) != null);
         if (!AtualizarAuto.IsEnabled && !ocupado) AtualizarAuto.IsChecked = false;
@@ -608,12 +608,11 @@ public partial class MainWindow : Window
     void CarregarPerfis()
     {
         var dados = DadosDoPendrive;
-        foreach (var b in new[] { BotaoNovoPerfil, BotaoEditarPerfil, BotaoDuplicarPerfil, BotaoApagarPerfil }) b.IsEnabled = dados != null;
         DicaPerfis.Text = dados != null
             ? "Escolhas de uma pessoa ou PC. Com o perfil, o painel só pede o disco e o SIM."
-            : "Escolha um pendrive já gravado para ver os perfis dele.";
-        var pasta = dados is char d ? $@"{d}:\MontaWin\Perfis" : null;
-        ListaPerfis.ItemsSource = pasta != null && Directory.Exists(pasta)
+            : "Sem pendrive gravado: os perfis ficam neste PC e vão para o pendrive quando você gravar.";
+        var pasta = PastaPerfis;
+        ListaPerfis.ItemsSource = Directory.Exists(pasta)
             ? Directory.GetFiles(pasta, "*.txt").Select(f => Perfil.Ler(File.ReadAllText(f))).OfType<Perfil>().Select(p => new PerfilItem(p)).ToList()
             : null;
     }
@@ -636,14 +635,16 @@ public partial class MainWindow : Window
 
     async void ApagarPerfil(object sender, RoutedEventArgs e)
     {
-        if (ListaPerfis.SelectedItem is not PerfilItem item || DadosDoPendrive is not char dados) { Erro("Escolha um perfil na lista."); return; }
+        if (ListaPerfis.SelectedItem is not PerfilItem item) { Erro("Escolha um perfil na lista."); return; }
         if (!await Perguntar($"Apagar o perfil {item.Perfil.Nome}?", "Os backups dele continuam no pendrive.", "Apagar", perigo: true)) return;
-        File.Delete(ArquivoPerfil(dados, item.Perfil.Nome));
+        File.Delete(ArquivoPerfil(item.Perfil.Nome));
         CarregarPerfis();
         Avisar($"Perfil {item.Perfil.Nome} apagado.");
     }
 
-    static string ArquivoPerfil(char dados, string nome) => $@"{dados}:\MontaWin\Perfis\{Perfil.NomeSeguro(nome)}.txt";
+    // Com um pendrive já gravado, os perfis ficam nele; sem pendrive, neste PC (e vão para o pendrive na próxima gravação)
+    string PastaPerfis => DadosDoPendrive is char d ? $@"{d}:\MontaWin\Perfis" : Path.Combine(ListaProgramas.Pasta, "Perfis");
+    string ArquivoPerfil(string nome) => Path.Combine(PastaPerfis, Perfil.NomeSeguro(nome) + ".txt");
 
     void AbrirPerfil(Perfil p, bool novo)
     {
@@ -672,7 +673,6 @@ public partial class MainWindow : Window
     async void SalvarPerfil(object sender, RoutedEventArgs e)
     {
         if (perfilEditado is not Perfil antigo) return;
-        if (DadosDoPendrive is not char dados) { Erro("Escolha um pendrive já gravado pelo Aurora Win para salvar o perfil nele."); return; }
         var nome = PerfilNome.Text.Trim();
         if (Perfil.NomeSeguro(nome).Length == 0) { Erro("Dê um nome ao perfil (ex.: João ou PC da recepção)."); return; }
         var nomePc = PerfilNomePc.Text.Trim();
@@ -681,7 +681,7 @@ public partial class MainWindow : Window
         if (PerfilInstalacao.SelectedIndex == 1 && (!int.TryParse(PerfilGb.Text, out gb) || gb < 40)) { Erro("Windows + Dados: o tamanho do Windows precisa ser de pelo menos 40 GB."); return; }
         var usuario = PerfilUsuario.Text.Trim();
         var wifi = PerfilWifi.Text.Trim();
-        var arquivo = ArquivoPerfil(dados, nome);
+        var arquivo = ArquivoPerfil(nome);
         bool renomeou = !perfilNovo && !Perfil.NomeSeguro(nome).Equals(Perfil.NomeSeguro(antigo.Nome), StringComparison.OrdinalIgnoreCase);
         if ((perfilNovo || renomeou) && File.Exists(arquivo) && !await Perguntar("Já existe um perfil com esse nome", $"Substituir o perfil {nome}?", "Substituir")) return;
         var perfil = antigo with
@@ -704,7 +704,7 @@ public partial class MainWindow : Window
         };
         Directory.CreateDirectory(Path.GetDirectoryName(arquivo)!);
         File.WriteAllText(arquivo, perfil.Texto());
-        if (renomeou) File.Delete(ArquivoPerfil(dados, antigo.Nome));
+        if (renomeou) File.Delete(ArquivoPerfil(antigo.Nome));
         CamadaPerfil.Visibility = Visibility.Collapsed;
         CarregarPerfis();
         Avisar($"Perfil {nome} salvo no pendrive.");

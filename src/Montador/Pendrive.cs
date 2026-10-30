@@ -214,6 +214,17 @@ public static class Pendrive
                 if (Directory.Exists(Path.Combine(guardados, pasta))) Copiar(Path.Combine(guardados, pasta), $@"{dados}:\MontaWin\{pasta}");
             Directory.Delete(guardados, recursive: true);
         }
+        // Perfis criados no app antes de existir um pendrive gravado (ficam neste PC): vão junto, sem sobrescrever os do pendrive
+        var locais = Path.Combine(ListaProgramas.Pasta, "Perfis");
+        if (Directory.Exists(locais))
+        {
+            Directory.CreateDirectory($@"{dados}:\MontaWin\Perfis");
+            foreach (var perfil in Directory.GetFiles(locais, "*.txt"))
+            {
+                var destinoPerfil = $@"{dados}:\MontaWin\Perfis\{Path.GetFileName(perfil)}";
+                if (!File.Exists(destinoPerfil)) File.Copy(perfil, destinoPerfil);
+            }
+        }
         File.WriteAllText($@"{dados}:\MontaWin\tema.txt", g.Tema);
         // Fontes do painel (o WinPE não tem a Segoe UI completa); sem elas o painel usa a fonte que o WinPE tiver
         Directory.CreateDirectory($@"{dados}:\MontaWin\Fontes");

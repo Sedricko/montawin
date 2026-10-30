@@ -89,7 +89,8 @@ public static class Icones
     static async Task<string?> DoSite(string site, Programa p, System.Net.Http.HttpClient http)
     {
         foreach (var url in new[] { $"https://www.google.com/s2/favicons?domain={Uri.EscapeDataString(site)}&sz=128",
-                                    $"https://icons.duckduckgo.com/ip3/{Uri.EscapeDataString(site)}.ico" })
+                                    $"https://icons.duckduckgo.com/ip3/{Uri.EscapeDataString(site)}.ico",
+                                    $"https://{site}/favicon.ico" }) // o próprio site: o VLC só tem ícone aqui (os serviços respondem 404)
         {
             try
             {
@@ -104,10 +105,11 @@ public static class Icones
         return null;
     }
 
-    /// <summary>PNG de pelo menos 32 px ou um .ico (os serviços devolvem um globo de 16 px quando não acham o ícone).</summary>
+    /// <summary>PNG de pelo menos 20 px (o WhatsApp tem 23; os serviços devolvem um globo de 16 px quando não acham), JPEG ou .ico.</summary>
     public static bool IconeDeVerdade(byte[] imagem) =>
-        imagem.Length > 24 && imagem[0] == 0x89 && imagem[1] == 'P' ? (imagem[16] << 24 | imagem[17] << 16 | imagem[18] << 8 | imagem[19]) >= 32
-        : imagem.Length > 200 && imagem[0] == 0 && imagem[1] == 0 && imagem[2] == 1; // cabeçalho do .ico
+        imagem.Length > 24 && imagem[0] == 0x89 && imagem[1] == 'P' ? (imagem[16] << 24 | imagem[17] << 16 | imagem[18] << 8 | imagem[19]) >= 20
+        : imagem.Length > 1500 && imagem[0] == 0xFF && imagem[1] == 0xD8 // JPEG (o do CPU-Z): o WPF lê pelo conteúdo, não pelo nome
+        || imagem.Length > 200 && imagem[0] == 0 && imagem[1] == 0 && imagem[2] == 1; // cabeçalho do .ico
 
     static async Task<string?> SiteDoWinget(string id)
     {
