@@ -92,12 +92,16 @@ public static class Pendrive
         FecharIso(iso);
         Exigir(Comandos.Executar("powershell", $"-NoProfile -Command \"(Mount-DiskImage -ImagePath '{Aspas(iso)}' -PassThru | Get-Volume).DriveLetter\""),
             "Não consegui abrir a ISO.");
-        string letra;
-        lock (Comandos.Saida) letra = Comandos.Saida.LastOrDefault() ?? "";
-        if (letra.Length != 1) throw new Exception("Não consegui descobrir a letra da ISO montada.");
-        var install = new[] { "install.wim", "install.esd" }.Select(n => $@"{letra}:\sources\{n}").FirstOrDefault(File.Exists)
-                      ?? throw new Exception("Essa ISO não tem sources\\install.wim nem install.esd. Use uma ISO oficial do Windows.");
-        return new IsoAberta(iso, letra[0], install, Wim.Ler(install));
+        try
+        {
+            string letra;
+            lock (Comandos.Saida) letra = Comandos.Saida.LastOrDefault() ?? "";
+            if (letra.Length != 1) throw new Exception("Não consegui descobrir a letra da ISO montada.");
+            var install = new[] { "install.wim", "install.esd" }.Select(n => $@"{letra}:\sources\{n}").FirstOrDefault(File.Exists)
+                          ?? throw new Exception("Essa ISO não tem sources\\install.wim nem install.esd. Use uma ISO oficial do Windows.");
+            return new IsoAberta(iso, letra[0], install, Wim.Ler(install));
+        }
+        catch (Exception) { FecharIso(iso); throw; } // não deixa a ISO montada se a leitura falhou
     }
 
     /// <summary>
@@ -152,9 +156,12 @@ public static class Pendrive
         // Perfis e relatórios de um pendrive MontaWin sobrevivem à regravação: guardados aqui e devolvidos depois.
         var guardados = Path.Combine(Path.GetTempPath(), "AuroraWin-guardados");
         if (g.Manter == null && Existente(g.Pendrive) is (_, char antigo))
+        {
+            if (Directory.Exists(guardados)) Directory.Delete(guardados, recursive: true); // sobra de outro pendrive não vai para este
             foreach (var pasta in PastasGuardadas)
                 if (Directory.Exists($@"{antigo}:\MontaWin\{pasta}"))
                     Copiar($@"{antigo}:\MontaWin\{pasta}", Path.Combine(guardados, pasta));
+        }
         if (g.Manter == null)
         {
             progresso("Apagando e particionando o pendrive", 0);
@@ -267,7 +274,7 @@ public static class Pendrive
                         $"O DISM não conseguiu ativar o .NET 3.5 em {nome}. Desmarque \".NET Framework 3.5\" para criar sem ele.");
                 if (g.Atualizacoes != null)
                 {
-                    Passo("Instalando as atualizações", $"/Add-Package /PackagePath:\"{g.Atualizacoes}\"",
+                    Passo("Instalando as atualizações", $"/Add-Package /PackagePath:\"{g.Atualizacoes.TrimEnd('\\')}\\.\"",
                         $"O DISM não conseguiu instalar as atualizações em {nome}. Confira se são da mesma versão do Windows da ISO (ex.: 24H2).");
                     Passo("Limpando o que as atualizações substituíram", "/Cleanup-Image /StartComponentCleanup /ResetBase",
                         $"O DISM não conseguiu limpar {nome}.");
@@ -419,16 +426,20 @@ public static class Pendrive
             int posicao = programas.FindIndex(p => p.Nome == ids[i].Nome) + 1;
             progresso($"Baixando {ids[i].Nome} ({posicao} de {programas.Count})", 92 + i * 8.0 / ids.Count);
             var pasta = $@"{dados}:\MontaWin\Instaladores\winget\{ids[i].Id}";
-            if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true); // sempre a versão mais nova
-            if (ids[i].Id.Equals("Google.Chrome", StringComparison.OrdinalIgnoreCase))
+            var nova = pasta + ".novo"; // baixa ao lado: o instalador que já funcionava só sai se o novo chegar inteiro
+            if (Directory.Exists(nova)) Directory.Delete(nova, recursive: true);
+            bool baixou = ids[i].Id.Equals("Google.Chrome", StringComparison.OrdinalIgnoreCase)
+                ? BaixarChrome(nova)
+                : Comandos.Executar("winget", $"download --id {ids[i].Id} -e --source winget --download-directory \"{nova}\" --accept-package-agreements --accept-source-agreements") == 0;
+            if (baixou)
             {
-                if (!BaixarChrome(pasta)) falhas.Add(ids[i].Nome);
-                continue;
+                if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true);
+                Directory.Move(nova, pasta);
             }
-            if (Comandos.Executar("winget", $"download --id {ids[i].Id} -e --source winget --download-directory \"{pasta}\" --accept-package-agreements --accept-source-agreements") != 0)
+            else
             {
-                falhas.Add(ids[i].Nome);
-                if (Directory.Exists(pasta)) Directory.Delete(pasta, recursive: true); // sem pasta, o painel usa o winget online
+                if (Directory.Exists(nova)) Directory.Delete(nova, recursive: true);
+                if (!Directory.Exists(pasta)) falhas.Add(ids[i].Nome); // sem pasta, o painel usa o winget online; com a antiga, ela continua valendo
             }
         }
         return falhas.Distinct().ToList();

@@ -431,7 +431,8 @@ public partial class MainWindow : Window
     {
         var dados = DadosDoPendrive;
         foreach (var item in itens.Where(i => i.Icone == null))
-            if (await Icones.Baixar(item.Programa, http, p => IconeDoInstalador(p, dados)) is string arquivo) item.Icone = arquivo;
+            try { if (await Icones.Baixar(item.Programa, http, p => IconeDoInstalador(p, dados)) is string arquivo) item.Icone = arquivo; }
+            catch (Exception) { } // um ícone que falha não pode parar os outros (nem virar exceção solta do _ = BaixarIcones)
     }
 
     // Ícone de dentro do instalador .exe (no pendrive ou na pasta dos instaladores adicionados por arquivo)
@@ -645,7 +646,11 @@ public partial class MainWindow : Window
             (p.Wifi != null ? $" Senha do Wi-Fi: {(p.SenhaWifi != null ? "guardada" : "perguntada na hora")}." : "") +
             (p.Pc != null || p.Serie != null ? $" Vinculado ao PC {p.Modelo ?? p.Serie}." : " Não vinculado a um PC (o painel vincula ao salvar lá).") +
             " Senhas e licença se guardam pelo painel, no PC.";
-        PerfilProgramas.ItemsSource = Programas.Ler(ListaProgramas.Ler()).Select(x => new ItemLista(x with { Marcado = p.Programas.Contains(x.Nome) }, "")).ToList();
+        var itensPerfil = Programas.Ler(ListaProgramas.Ler()).Select(x => new ItemLista(x with { Marcado = p.Programas.Contains(x.Nome) }, "")).ToList();
+        // Programa do perfil que não está na lista deste PC continua marcado (senão salvar o perfil o apagava em silêncio)
+        foreach (var nome in p.Programas.Except(itensPerfil.Select(i => i.Nome), StringComparer.OrdinalIgnoreCase))
+            itensPerfil.Add(new ItemLista(new Programa(nome, [], true), ""));
+        PerfilProgramas.ItemsSource = itensPerfil;
         CamadaPerfil.Visibility = Visibility.Visible;
     }
 
