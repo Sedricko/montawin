@@ -190,7 +190,7 @@ public partial class MainWindow : Window
     void Capturar(string pasta)
     {
         CaminhoIso.Text = @"D:\ISOs\Win11_25H2_BrazilianPortuguese_x64.iso";
-        InfoIso.Text = "2 edições encontradas (versão 25H2). Boot com o certificado antigo (2011) do Secure Boot.";
+        InfoIso.Text = "2 edições · versão 25H2 · boot com certificado antigo";
         ListaEdicoes.ItemsSource = new[] { new EdicaoItem(1, "Windows 11 Home"), new EdicaoItem(6, "Windows 11 Pro") };
         TituloEdicoes.Visibility = Visibility.Visible;
         ListaPendrives.ItemsSource = new[] { new Disco(2, 256L << 30, "Kingston DataTraveler Max", true, false, []) };
@@ -348,10 +348,9 @@ public partial class MainWindow : Window
             TituloEdicoes.Visibility = Visibility.Visible;
             var versao = Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0);
             var certificado = Pendrive.CertificadoDoBoot(iso.Letra);
-            InfoIso.Text = (iso.Edicoes.Count == 1 ? "1 edição encontrada" : $"{iso.Edicoes.Count} edições encontradas") +
-                (versao != null ? $" (versão {versao})." : $" (build {iso.Edicoes.FirstOrDefault()?.Build}: versão não reconhecida, então as atualizações do mês ficam desmarcadas).") +
-                (certificado != null ? $" Boot com o certificado {certificado} do Secure Boot." : "") +
-                (certificado == "antigo (2011)" ? " Se algum PC recusar o boot do pendrive, use uma ISO mais nova da Microsoft." : "");
+            InfoIso.Text = (iso.Edicoes.Count == 1 ? "1 edição" : $"{iso.Edicoes.Count} edições") +
+                (versao != null ? $" · versão {versao}" : $" · build {iso.Edicoes.FirstOrDefault()?.Build} não reconhecida (atualizações do mês desmarcadas)") +
+                (certificado == "antigo (2011)" ? " · boot com certificado antigo" : "");
             // Versão que o app não conhece: confere já, em vez de descobrir só depois de confirmar a gravação
             if (versao == null) AtualizarAuto.IsChecked = false;
             Ocupado(false, "ISO pronta. Escolha o pendrive e clique em Criar pendrive.");

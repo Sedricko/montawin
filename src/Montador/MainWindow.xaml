@@ -246,7 +246,7 @@
                     <TextBox x:Name="CaminhoIso" IsReadOnly="True" VerticalContentAlignment="Center" />
                   </DockPanel>
                   <TextBlock x:Name="InfoIso" Style="{StaticResource Dica}" Margin="0,8,0,0" Text="Use uma ISO oficial do Windows 10 ou 11." />
-                  <TextBlock x:Name="TituloEdicoes" Text="Edições que vão para o pendrive (escolhidas no painel na hora de instalar)"
+                  <TextBlock x:Name="TituloEdicoes" Text="Edições no pendrive"
                              Style="{StaticResource Dica}" Margin="0,12,0,6" Visibility="Collapsed" />
                   <ItemsControl x:Name="ListaEdicoes" Margin="0,0,0,8">
                     <ItemsControl.ItemTemplate>
@@ -254,12 +254,12 @@
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
                   <CheckBox x:Name="NetFx3" IsChecked="True" Margin="0,4,0,6">
-                    <TextBlock TextWrapping="Wrap" Text="Ativar o .NET Framework 3.5 (programas antigos pedem; vem da própria ISO)" />
+                    <TextBlock TextWrapping="Wrap" Text="Ativar o .NET Framework 3.5" />
                   </CheckBox>
                   <CheckBox x:Name="AtualizarAuto" IsChecked="True" Margin="0,0,0,6">
-                    <TextBlock TextWrapping="Wrap" Text="Baixar e instalar as atualizações do mês (uns 5 GB na primeira vez, depois reaproveita)" />
+                    <TextBlock TextWrapping="Wrap" Text="Atualizações do mês (uns 5 GB na 1ª vez)" />
                   </CheckBox>
-                  <TextBlock Style="{StaticResource Dica}" Margin="0,2,0,6" Text="Opcional: em vez de baixar, use a atualização (.msu) que você já baixou do Microsoft Update Catalog. Não é a ISO (a ISO é escolhida lá em cima)." />
+                  <TextBlock Style="{StaticResource Dica}" Margin="0,2,0,6" Text="Ou use um .msu já baixado do Update Catalog." />
                   <DockPanel>
                     <Button x:Name="BotaoAtualizacoes" DockPanel.Dock="Right" Margin="8,0,0,0" Padding="14,6" Content="Escolher .msu..." Click="EscolherAtualizacoes" />
                     <TextBox x:Name="PastaAtualizacoes" IsReadOnly="True" VerticalContentAlignment="Center" />
@@ -282,14 +282,14 @@
                     <ComboBox x:Name="ListaPendrives" DisplayMemberPath="Descricao" SelectionChanged="PendriveEscolhido" />
                   </DockPanel>
                   <CheckBox x:Name="Manter" Margin="0,10,0,0" Visibility="Collapsed" IsChecked="True">
-                    <TextBlock TextWrapping="Wrap" Text="Manter o que já está no pendrive: só adiciona esta ISO e atualiza o painel (imagens, perfis e backups ficam)" />
+                    <TextBlock TextWrapping="Wrap" Text="Manter o que já está no pendrive" />
                   </CheckBox>
                   <DockPanel x:Name="Escondido" Margin="0,10,0,0" Visibility="Collapsed">
                     <Button DockPanel.Dock="Right" Style="{StaticResource Pilula}" Margin="8,0,0,0" Content="Mostrar com o PIN" Click="Revelar" />
-                    <TextBlock Style="{StaticResource Dica}" VerticalAlignment="Center" Text="Os dados deste pendrive estão escondidos. Digite o PIN para ver os perfis e manter o que já está nele." />
+                    <TextBlock Style="{StaticResource Dica}" VerticalAlignment="Center" Text="Dados escondidos. Use o PIN para ver os perfis." />
                   </DockPanel>
                   <TextBlock Style="{StaticResource Dica}" Margin="0,8,0,0"
-                             Text="Pendrive de 16 GB ou mais. Na primeira vez, tudo nele é apagado. Só aparecem discos USB." />
+                             Text="16 GB ou mais. Na 1ª vez, tudo nele é apagado." />
                 </StackPanel>
               </Border>
 
@@ -317,7 +317,7 @@
                   <TextBlock Style="{StaticResource Titulo}" Text="Programas" />
                 </StackPanel>
                 <TextBlock Grid.Row="1" Style="{StaticResource Dica}" Margin="0,0,0,8"
-                           Text="Marque os que já vêm escolhidos no painel (no PC dá para mudar). O selo diz de onde instala." />
+                           Text="Os marcados já vêm escolhidos no painel." />
                 
                 <ListBox Grid.Row="2" x:Name="ListaProgramasUi" SelectionMode="Extended" HorizontalContentAlignment="Stretch" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                   <ListBox.ItemTemplate>
@@ -353,7 +353,7 @@
                 
                 <DockPanel Grid.Row="3" Margin="0,8,0,0">
                   <Button x:Name="BotaoRemover" DockPanel.Dock="Right" Style="{StaticResource Pilula}" Margin="0" Content="Remover selecionados" Click="RemoverPrograma" />
-                  <TextBlock Style="{StaticResource Dica}" VerticalAlignment="Center" Text="Ctrl ou Shift + clique seleciona vários." />
+                  <TextBlock Style="{StaticResource Dica}" VerticalAlignment="Center" Text="Ctrl ou Shift: vários." />
                 </DockPanel>
               </Grid>
             </Border>
@@ -400,7 +400,7 @@
                 </Expander>
 
                 <CheckBox x:Name="BaixarProgramas" IsChecked="True" Margin="0,14,0,0">
-                  <TextBlock TextWrapping="Wrap" Text="Baixar os programas para o pendrive (no PC instalam sem internet)" />
+                  <TextBlock TextWrapping="Wrap" Text="Baixar os programas para o pendrive" />
                 </CheckBox>
                 <Button x:Name="BotaoSalvarProgramas" Style="{StaticResource Pilula}" HorizontalAlignment="Left" Margin="0,10,0,0" Content="Salvar programas no pendrive"
                         Click="SalvarProgramasNoPendrive" ToolTip="Atualiza só a lista e os instaladores de um pendrive já pronto, sem gravar tudo de novo" />
@@ -419,7 +419,7 @@
                     <TextBlock Style="{StaticResource Titulo}" Text="Perfis" />
                   </StackPanel>
                   <TextBlock Grid.Row="1" x:Name="DicaPerfis" Style="{StaticResource Dica}" Margin="0,0,0,8"
-                             Text="Cada perfil guarda as escolhas de uma pessoa ou PC (conta, rede, programas...). Ficam no pendrive." />
+                             Text="Escolhas de uma pessoa ou PC. Ficam no pendrive." />
                   <ListBox Grid.Row="2" x:Name="ListaPerfis"  DisplayMemberPath="Texto" MouseDoubleClick="EditarPerfil" ScrollViewer.HorizontalScrollBarVisibility="Disabled" />
                   <WrapPanel Grid.Row="3" Margin="0,10,0,0">
                     <Button x:Name="BotaoNovoPerfil" Style="{StaticResource Pilula}" Content="+ Novo" Click="NovoPerfil" />
