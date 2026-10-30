@@ -262,11 +262,13 @@ public sealed unsafe partial class TelaGrafica : ISaida
                 case 0x000F when t != null: // WM_PAINT
                     var ps = new PaintStruct();
                     var dc = BeginPaint(hwnd, &ps);
-                    nint gr;
-                    GdipCreateFromHDC(t.memDc, &gr);
-                    t.Desenhar(gr);
-                    BitBlt(dc, 0, 0, t.largura, t.altura, t.memDc, 0, 0, 0x00CC0020);
-                    EndPaint(hwnd, &ps);
+                    nint gr = 0;
+                    try
+                    {
+                        if (GdipCreateFromHDC(t.memDc, &gr) == 0) { var g = gr; gr = 0; t.Desenhar(g); } // Desenhar apaga o Graphics
+                        BitBlt(dc, 0, 0, t.largura, t.altura, t.memDc, 0, 0, 0x00CC0020);
+                    }
+                    finally { if (gr != 0) GdipDeleteGraphics(gr); EndPaint(hwnd, &ps); }
                     return 0;
                 case 0x0014: return 1; // WM_ERASEBKGND: o fundo é desenhado junto, sem piscar
                 case 0x8000: // WM_APP: tela nova
@@ -280,7 +282,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
                     return 0;
                 case 0x0102 when t != null: // WM_CHAR
                     char ch = (char)wParam;
-                    if (ch >= ' ')
+                    if (ch >= ' ' && !char.IsControl(ch))
                         t.fila.Add(new Evento(ch == ' ' ? ConsoleKey.Spacebar : char.IsAsciiLetter(ch) ? (ConsoleKey)char.ToUpperInvariant(ch) : 0, ch));
                     return 0;
                 // O segundo clique de um clique duplo não pode escolher nada na tela que acabou de aparecer
@@ -305,7 +307,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
                 case 0x0010: return 0; // WM_CLOSE: Alt+F4 não fecha o painel
             }
         }
-        catch (Exception e) { Comandos.Registrar($"Tela gráfica: {e.Message}"); }
+        catch (Exception e) { try { Comandos.Registrar($"Tela gráfica: {e.Message}"); } catch (Exception) { } } // nada pode escapar do WndProc
         return DefWindowProcW(hwnd, msg, wParam, lParam);
     }
 
@@ -419,7 +421,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
         var t = Volatile.Read(ref tela);
         // Tela nova = outro título ou outros textos (duas mensagens "Atenção" seguidas também contam);
         // a mesma lista redesenhada pelas setas mantém a mesma lista de textos
-        if (t != null && Nova(telaPintada, t)) (telaPintada, novaEm) = ((t.Titulo, t.Info), Environment.TickCount64);
+        if (t != null && Nova(telaPintada, t)) { (telaPintada, novaEm) = ((t.Titulo, t.Info), Environment.TickCount64); hover = -1; } // o realce da tela anterior não vale na nova
         pintada = t;
         g = graficos;
         GdipSetSmoothingMode(g, 4);

@@ -67,7 +67,15 @@ public static class Tui
     {
         TelaGrafica.TravarFechar();
         var arquivoTema = pasta == null ? null : Path.Combine(pasta, "tema.txt");
-        if (File.Exists(arquivoTema) && File.ReadAllText(arquivoTema).Trim().ToLowerInvariant() is var t && Temas.Contains(t)) Tema = t;
+        try
+        {
+            if (File.Exists(arquivoTema) && File.ReadAllText(arquivoTema).Trim().ToLowerInvariant() is var t)
+            {
+                if (t == "cristal") t = "pastel"; // o Cristal saiu: o claro mais parecido é o Branco
+                if (Temas.Contains(t)) Tema = t;
+            }
+        }
+        catch (IOException) { } // pendrive ilegível: segue com o tema padrão
         try { saida = TelaGrafica.Abrir(Tema, pasta); }
         catch (Exception e)
         {
@@ -95,15 +103,20 @@ public static class Tui
         Process? cmd = null;
         (int, string, string, int, int) ultimo = default;
 
+        bool retorno = false; // \r: a próxima letra reescreve a linha (a barra do DISM e do robocopy)
         void Escrever(string pedaco)
         {
             lock (linhas)
                 foreach (char ch in pedaco)
                 {
-                    if (ch == '\n') linhas.Add("");
-                    else if (ch == '\r') continue;
-                    else if (ch == '\f') { linhas.Clear(); linhas.Add(""); } // cls
-                    else linhas[^1] += ch == '\t' ? "    " : ch.ToString();
+                    if (ch == '\n') { linhas.Add(""); retorno = false; }
+                    else if (ch == '\r') retorno = true;
+                    else if (ch == '\f') { linhas.Clear(); linhas.Add(""); retorno = false; } // cls
+                    else
+                    {
+                        if (retorno) { linhas[^1] = ""; retorno = false; }
+                        if (linhas[^1].Length < 2000) linhas[^1] += ch == '\t' ? "    " : ch.ToString(); // sem limite, um arquivo sem quebra travava a tela
+                    }
                     if (linhas.Count > 2000) linhas.RemoveRange(0, 500);
                 }
         }
@@ -189,10 +202,10 @@ public static class Tui
                         posHistorico = Math.Min(historico.Count, posHistorico + 1);
                         texto.Clear().Append(posHistorico < historico.Count ? historico[posHistorico] : "");
                         break;
-                    case ConsoleKey.PageUp: rolagem += 10; break;
+                    case ConsoleKey.PageUp: rolagem = Math.Min(rolagem + 10, copia.Count); break;
                     case ConsoleKey.PageDown: rolagem = Math.Max(0, rolagem - 10); break;
                     default:
-                        if (e.Caractere >= ' ' && texto.Length < 400) texto.Append(e.Caractere);
+                        if (e.Caractere >= ' ' && !char.IsControl(e.Caractere) && texto.Length < 400) texto.Append(e.Caractere);
                         break;
                 }
             }
@@ -322,7 +335,7 @@ public static class Tui
             if (e.Item == 1 || e.Tecla == ConsoleKey.Escape) return null;
             if (e.Item == 0 || e.Tecla == ConsoleKey.Enter) return oculto ? texto.ToString() : texto.ToString().Trim();
             if (e.Tecla == ConsoleKey.Backspace) { if (texto.Length > 0) texto.Length--; }
-            else if (e.Caractere >= ' ' && texto.Length < 120) texto.Append(e.Caractere);
+            else if (e.Caractere >= ' ' && !char.IsControl(e.Caractere) && texto.Length < 120) texto.Append(e.Caractere);
         }
     }
 
