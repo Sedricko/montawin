@@ -19,7 +19,7 @@ public static partial class Comandos
     {
         if (Log == null) return;
         try { File.AppendAllText(Log, $"[{DateTime.Now:HH:mm:ss}] {texto}{Environment.NewLine}"); }
-        catch (IOException) { } // pendrive removido: o registro não pode derrubar a instalação
+        catch (Exception) { } // pendrive removido ou protegido: o registro não pode derrubar a instalação
     }
 
     /// <summary>Roda um programa e repassa o percentual que ele imprimir (DISM, robocopy).</summary>
@@ -27,12 +27,16 @@ public static partial class Comandos
     /// Como o programa escreve os acentos: diskpart, dism, robocopy, netsh... usam a página do console (850 no Brasil);
     /// o winget escreve em UTF-8. Lido errado, "versão" virava "versÆo".
     /// </summary>
+    [System.Runtime.InteropServices.LibraryImport("kernel32.dll")]
+    private static partial uint GetOEMCP();
+
     public static Encoding Codificacao(string exe)
     {
         if (Path.GetFileNameWithoutExtension(exe.Replace('\\', '/')).Equals("winget", StringComparison.OrdinalIgnoreCase)) return Encoding.UTF8;
         Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-        try { return Encoding.GetEncoding(System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage); }
-        catch (Exception) { return Encoding.GetEncoding(850); } // cultura sem página OEM (ex.: invariante no WinPE)
+        // A página real do console: com a globalização invariante do WinPE, TextInfo.OEMCodePage dá 437 e os acentos saíam errados
+        try { return Encoding.GetEncoding((int)GetOEMCP()); }
+        catch (Exception) { return Encoding.GetEncoding(850); }
     }
 
     public static int Executar(string exe, string argumentos, Action<double>? progresso = null)
@@ -53,6 +57,7 @@ public static partial class Comandos
         int c;
         while ((c = p.StandardOutput.Read()) != -1)
         {
+            completa.Append((char)c); // inclui os \n: quem lê a saída separa por linha (a lista de Wi-Fi do netsh)
             if (c is '\r' or '\n')
             {
                 if (linha.Length == 0) continue;
@@ -62,7 +67,6 @@ public static partial class Comandos
                 if (progresso != null && Percentual(texto) is double pct) progresso(pct);
             }
             else linha.Append((char)c);
-            completa.Append((char)c);
         }
         if (linha.Length > 0) Guardar(linha.ToString());
         p.WaitForExit();

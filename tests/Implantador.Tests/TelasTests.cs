@@ -214,7 +214,7 @@ public class TelasTests
     public void AcentosDosComandosDoWindows()
     {
         // Página do console da cultura (850 no Windows em português); o provedor das páginas antigas precisa estar ligado
-        Assert.Equal(System.Globalization.CultureInfo.CurrentCulture.TextInfo.OEMCodePage, Comandos.Codificacao("diskpart").CodePage);
+        Assert.Contains(Comandos.Codificacao("diskpart").CodePage, new[] { 437, 850 }); // GetOEMCP no Windows (850 no Brasil); sem kernel32, a reserva 850
         var cp850 = Encoding.GetEncoding(850);
         Assert.Equal("Microsoft DiskPart versão", cp850.GetString(cp850.GetBytes("Microsoft DiskPart versão")));
         Assert.Equal(System.Text.Encoding.UTF8, Comandos.Codificacao(@"C:\x\winget.exe"));

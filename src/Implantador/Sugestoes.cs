@@ -27,7 +27,7 @@ public static class Sugestoes
     {
         if (cpu == null) return false;
         if (Regex.Match(cpu, @"\bi[3579]-(\d{4,5})") is { Success: true } intel)
-            return intel.Groups[1].Value.Length == 4 && intel.Groups[1].Value[0] < '8';
+            return intel.Groups[1].Value.Length == 4 && intel.Groups[1].Value[0] is >= '2' and <= '7'; // só 2ª a 7ª geração (4 dígitos): 8ª em diante e as que começam em 1 (10ª a 13ª, ex.: i5-1135G7) servem
         if (Regex.Match(cpu, @"Ryzen\s+\d\s+(\d)\d{3}") is { Success: true } amd) return amd.Groups[1].Value == "1";
         return Regex.IsMatch(cpu, @"Core\(TM\)2|Core 2 |\bFX-|Phenom", RegexOptions.IgnoreCase);
     }

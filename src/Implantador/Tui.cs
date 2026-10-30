@@ -315,7 +315,8 @@ public static class Tui
             Tipo = TipoTela.Mensagem, Titulo = titulo, Info = linhas, Alerta = erro ? Alerta.Perigo : Alerta.Nenhum,
             Itens = [new Item(botao, TipoItem.Continuar)], Rodape = botao.StartsWith('←') ? "Enter ou Esc: voltar" : "Enter: continuar",
         });
-        Ler();
+        Evento e;
+        do e = Ler(); while (e.Item < 0 && e.Tecla is not (ConsoleKey.Enter or ConsoleKey.Escape or ConsoleKey.Spacebar)); // a roda do mouse vira "seta": não pode dispensar o aviso
     }
 
     /// <summary>Lê um texto digitado. Retorna null no Esc/Voltar; com <paramref name="oculto"/> mostra • no lugar (senhas).</summary>

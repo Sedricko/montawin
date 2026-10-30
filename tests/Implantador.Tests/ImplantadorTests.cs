@@ -261,7 +261,7 @@ public class ImplantadorTests
         Assert.Contains(@"robocopy ""%SystemDrive%\Arquivos restaurados\joao\Documents"" ""%USERPROFILE%\Documents"" /E /MOVE /MT:16 /R:1 /W:1 >nul", linhas);
         Assert.Contains(@"robocopy ""%SystemDrive%\Arquivos restaurados\maria\Pictures"" ""%USERPROFILE%\Pictures"" /E /MOVE /MT:16 /R:1 /W:1 >nul", linhas);
         Assert.Contains(@"rd ""%SystemDrive%\Arquivos restaurados\joao"" 2>nul", linhas);
-        Assert.Equal(@"del /f /q ""%WINDIR%\Panther\unattend.xml""", linhas[^2]); // a senha sai logo; por último, a busca de drivers
+        Assert.Equal(@"del /f /q ""%WINDIR%\Panther\unattend.xml"" ""%WINDIR%\Panther\Unattend\unattend.xml"" ""%WINDIR%\System32\Sysprep\unattend.xml"" 2>nul", linhas[3]); // a senha sai primeiro (depois do cabeçalho), antes das cópias demoradas
         Assert.Equal(3, Unattend.GerarScriptPrimeiroLogin([]).Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Count(l => !l.StartsWith('@') && !l.StartsWith("rem") && !l.StartsWith("chcp")));
     }
 
@@ -294,7 +294,7 @@ public class ImplantadorTests
         Assert.Contains(@"start """" conhost.exe --headless cmd /c %SystemDrive%\Windows\Setup\Scripts\AuroraWin-programas.cmd usuario",
             Unattend.GerarScriptPrimeiroLogin([], temProgramas: true));
         Assert.DoesNotContain("start", Unattend.GerarScriptPrimeiroLogin([]));
-        Assert.Equal("call %SystemDrive%\\Windows\\Setup\\Scripts\\AuroraWin-antes-do-login.cmd\r\n", Unattend.ChamadaSetupComplete);
+        Assert.Equal("\r\ncall %SystemDrive%\\Windows\\Setup\\Scripts\\AuroraWin-antes-do-login.cmd\r\n", Unattend.ChamadaSetupComplete);
     }
 
 

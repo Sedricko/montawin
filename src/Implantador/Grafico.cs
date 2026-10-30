@@ -634,7 +634,10 @@ public sealed unsafe partial class TelaGrafica : ISaida
         {
             Texto("ETAPAS", fontePequena, c.Suave, cx, cy, 300 * s, 20 * s);
             float ey = cy + 28 * s;
-            for (int i = 0; i < t.Etapas.Count; i++)
+            // Muitas etapas (um backup com vários usuários e pastas): mostra só as que etapasVisiveis, com a atual no meio
+            int etapasVisiveis = Math.Max(1, (int)((hp - (ey - y) - pad - 20 * s) / (34 * s)));
+            int primeira = Math.Clamp(t.EtapaAtual - etapasVisiveis / 2, 0, Math.Max(0, t.Etapas.Count - etapasVisiveis));
+            for (int i = primeira; i < Math.Min(t.Etapas.Count, primeira + etapasVisiveis); i++)
             {
                 float d = 20 * s, dy = ey + (30 * s - d) / 2;
                 if (i < t.EtapaAtual)

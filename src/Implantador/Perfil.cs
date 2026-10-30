@@ -65,11 +65,12 @@ public record Perfil(string Nome)
     public static Perfil? Ler(string texto)
     {
         var campos = texto.Split('\n')
-            .Select(l => l.Trim())
-            .Where(l => !l.StartsWith('#') && l.Contains('='))
+            .Select(l => l.TrimEnd('\r'))
+            .Where(l => !l.TrimStart().StartsWith('#') && l.Contains('='))
             .Select(l => l.Split('=', 2))
             .GroupBy(p => p[0].Trim(), StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(g => g.Key, g => g.First()[1].Trim(), StringComparer.OrdinalIgnoreCase);
+            // senhas podem ter espaço no fim: só tira o espaço depois do "="
+            .ToDictionary(g => g.Key, g => g.Key.StartsWith("Senha", StringComparison.OrdinalIgnoreCase) ? g.First()[1].TrimStart() : g.First()[1].Trim(), StringComparer.OrdinalIgnoreCase);
         string? Campo(string chave) => campos.TryGetValue(chave, out var v) && v.Length > 0 ? v : null;
         if (Campo("Nome") is not string nome) return null;
         return new Perfil(nome)

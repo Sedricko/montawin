@@ -21,7 +21,7 @@ public static class Unattend
     public const string PastaDriversReserva = @"AuroraWin\Drivers";
     public const string ScriptConferencia = @"Windows\Setup\Scripts\AuroraWin-conferencia.ps1";
     public const string ChamadaConferencia = $"powershell -NoProfile -ExecutionPolicy Bypass -File %SystemDrive%\\{ScriptConferencia}";
-    public const string ChamadaSetupComplete = $"call %SystemDrive%\\{ScriptAntesDoLogin}\r\n";
+    public const string ChamadaSetupComplete = $"\r\ncall %SystemDrive%\\{ScriptAntesDoLogin}\r\n"; // quebra antes: o SetupComplete da imagem pode não terminar em linha nova
 
     const string Componente = "processorArchitecture=\"amd64\" publicKeyToken=\"31bf3856ad364e35\" language=\"neutral\" versionScope=\"nonSxS\"";
 
@@ -95,6 +95,8 @@ public static class Unattend
         bool conferencia = false)
     {
         var s = new System.Text.StringBuilder("@echo off\r\nchcp 65001 >nul\r\nrem Gerado pelo Aurora Win: roda uma vez, no primeiro login.\r\n");
+        // A senha do unattend sai primeiro, antes de qualquer cópia demorada (e as cópias que o Setup guarda também)
+        s.Append("del /f /q \"%WINDIR%\\Panther\\unattend.xml\" \"%WINDIR%\\Panther\\Unattend\\unattend.xml\" \"%WINDIR%\\System32\\Sysprep\\unattend.xml\" 2>nul\r\n");
         foreach (var rel in pastasRestauradas)
         {
             var origem = $@"%SystemDrive%\{PastaRestaurados}\{rel}";
@@ -104,7 +106,6 @@ public static class Unattend
         foreach (var usuario in pastasRestauradas.Select(r => r.Split('\\')[0]).Distinct())
             s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\\{usuario}\" 2>nul\r\n");
         s.Append($"rd \"%SystemDrive%\\{PastaRestaurados}\" 2>nul\r\n");
-        s.Append("del /f /q \"%WINDIR%\\Panther\\unattend.xml\"\r\n");
         // Drivers que faltam: o Windows Update já começa a procurar agora, em vez de esperar o agendamento dele.
         s.Append("UsoClient.exe StartScan >nul 2>&1\r\n");
         // Programas que faltaram em segundo plano, sem janela: a Área de Trabalho aparece sem esperar os downloads.

@@ -13,8 +13,12 @@ string? raiz = DriveInfo.GetDrives()
 string sessao = DateTime.Now.ToString("yyyy-MM-dd_HHmm");
 if (raiz != null)
 {
-    Directory.CreateDirectory(Path.Combine(raiz, "Logs"));
-    Comandos.Log = Path.Combine(raiz, "Logs", $"{sessao}.txt");
+    try
+    {
+        Directory.CreateDirectory(Path.Combine(raiz, "Logs"));
+        Comandos.Log = Path.Combine(raiz, "Logs", $"{sessao}.txt");
+    }
+    catch (Exception) { } // pendrive protegido contra gravação: o painel abre sem registro
 }
 Tui.Iniciar(raiz);
 Tui.InfoSistema = Sistema.Resumo() + " ";
@@ -328,14 +332,18 @@ List<Perfil> LerPerfis() => raiz == null || !Directory.Exists(Path.Combine(raiz,
 
 string ArquivoPerfil(string nome) => Path.Combine(raiz!, "Perfis", Perfil.NomeSeguro(nome) + ".txt");
 
-List<Edicao> LerEdicoes() => Directory.GetFiles(Path.Combine(raiz!, "Imagens"), "*.wim").SelectMany(f => Wim.Ler(f)).ToList();
+List<Edicao> LerEdicoes() => Directory.GetFiles(Path.Combine(raiz!, "Imagens"), "*.wim").SelectMany(f =>
+{
+    try { return Wim.Ler(f); }
+    catch (Exception e) { Comandos.Registrar($"Imagem ignorada ({Path.GetFileName(f)}): {e.Message}"); return new List<Edicao>(); } // um .wim pela metade não pode bloquear as outras imagens
+}).ToList();
 
 // Programas da lista do pendrive; instalador que não está na pasta MontaWin\Instaladores não aparece.
 string? AcharInstalador(Programa x)
 {
     var pasta = Path.Combine(raiz!, "Instaladores");
     return x.Instalador == null || !Directory.Exists(pasta) ? null
-        : Directory.GetFiles(pasta, Programas.Separar(x.Instalador).Arquivo).OrderDescending().FirstOrDefault(); // * pega a versão mais nova
+        : Directory.GetFiles(pasta, Programas.Separar(x.Instalador).Arquivo).OrderByDescending(f => File.GetLastWriteTimeUtc(f)).FirstOrDefault(); // * pega o mais novo (a ordem alfabética põe 9.1 acima de 10.0)
 }
 
 List<Programa> LerProgramas()
@@ -364,8 +372,10 @@ string? PerguntarUsuario(string titulo, string? atual)
         var usuario = Tui.Perguntar(titulo, ["Nome da conta local do Windows (ex.: Joao).", "Até 20 letras, sem \\ / [ ] : ; | = , + * ? < > \""],
             "Nome do usuário", inicial: atual ?? "");
         if (usuario == null) return null;
-        if (usuario.Length > 0 && usuario.Length <= 20 && usuario.IndexOfAny("\\/[]:;|=,+*?<>\"".ToCharArray()) < 0) return usuario;
-        Tui.Mensagem("Nome inválido", ["Use até 20 letras, sem \\ / [ ] : ; | = , + * ? < > \""], erro: true);
+        if (usuario.Length > 0 && usuario.Length <= 20 && usuario.IndexOfAny("\\/[]:;|=,+*?<>\"".ToCharArray()) < 0
+            && usuario.Trim() == usuario && !usuario.EndsWith('.')
+            && !new[] { "administrator", "administrador", "guest", "convidado", "system", "defaultaccount" }.Contains(usuario.ToLowerInvariant())) return usuario;
+        Tui.Mensagem("Nome inválido", ["Use até 20 letras, sem \\ / [ ] : ; | = , + * ? < > \", sem espaço nas pontas, sem ponto no fim e sem nomes do Windows (Administrator, Guest...)."], erro: true);
     }
 }
 
@@ -1002,7 +1012,7 @@ void Instalar(Perfil? inicial = null)
                     Conferir(e);
                     var conferencia = conferencias[e.Arquivo];
                     if (!conferencia.IsCompleted) Tui.Etapa("Conferindo", $"Terminando de conferir a imagem do Windows ({Path.GetFileName(e.Arquivo)})...");
-                    if (conferencia.Result == false)
+                    if (!conferencia.IsFaulted && conferencia.Result == false)
                     {
                         Tui.Mensagem("Imagem do Windows corrompida", [$"O arquivo {Path.GetFileName(e.Arquivo)} no pendrive está com defeito.",
                             "Nada foi apagado. Grave o pendrive de novo no Aurora Win (ou troque o pendrive, se repetir)."], erro: true);
@@ -1098,6 +1108,7 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
 
     // A tarefa vira uma lista de etapas com peso (tempo aproximado): a tela mostra cada uma e o tempo restante.
     var trabalho = new List<(string Nome, double Peso, Action Fazer)>();
+    var avisos = new List<string> { string.Join(" + ", instalacoes.Select(x => x.Edicao.Nome)) + " instalado.", "Remova o pendrive e reinicie." };
     if (backupDriversAutomatico) trabalho.Add(("Backup dos drivers", 6, () =>
     {
         // É uma garantia, não o objetivo: se falhar, a formatação segue (o Windows Update traz a maioria dos drivers)
@@ -1106,6 +1117,10 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
     }));
     trabalho.Add((modo == 2 ? "Preparando a partição" : "Preparando o disco", 2, () =>
     {
+        // Só o número do disco vale desde a escolha: reconfere antes de apagar (um disco USB religado pode ter pegado o mesmo número)
+        var agora = Discos.Listar().FirstOrDefault(d => d.Numero == disco.Numero);
+        if (agora == null || agora.Usb || agora.Numero == discoDoPendrive || agora.Modelo != disco.Modelo || agora.Tamanho != disco.Tamanho)
+            throw new Exception("O disco mudou desde a escolha. Nada foi apagado. Volte e escolha de novo.");
         var scriptDiskpart = Path.Combine(Path.GetTempPath(), "montawin-diskpart.txt");
         File.WriteAllText(scriptDiskpart, plano.Script);
         Tui.Registro(modo == 2 ? $"Formatando a partição {particao!.Numero}" : $"Apagando o disco {disco.Numero} e criando as partições ({(uefi ? "GPT/UEFI" : "MBR/BIOS")})");
@@ -1164,7 +1179,12 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
                 }
             }));
         if (principal && restaurar)
-            trabalho.Add(("Restaurando os arquivos", Math.Clamp(Backup.Tamanho(pastaArquivos!) / 1e9 * 2, 2, 60), () => Restaurar(pastaArquivos!, w)));
+            trabalho.Add(("Restaurando os arquivos", Math.Clamp(Backup.Tamanho(pastaArquivos!) / 1e9 * 2, 2, 60), () =>
+        {
+            // Falhar aqui (ex.: backup maior que a partição) não pode impedir o bcdboot: o Windows precisa iniciar
+            try { Restaurar(pastaArquivos!, w); }
+            catch (Exception e) { Tui.Registro("Restauração falhou: " + e.Message); avisos.Add("Aviso: os arquivos do backup não foram restaurados (continuam no pendrive)."); }
+        }));
         trabalho.Add(($"Inicialização e primeiro login{de}", 2, () =>
         {
             if (usuario != null)
@@ -1184,15 +1204,19 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
                 {
                     // Instaladores vão do pendrive para dentro do Windows novo: no primeiro login o pendrive já foi removido.
                     var destino = $@"{w}:\{Unattend.PastaInstaladores}";
-                    Directory.CreateDirectory(destino);
-                    foreach (var (caminho, _) in instaladores)
-                        File.Copy(caminho, Path.Combine(destino, Path.GetFileName(caminho)), overwrite: true);
-                    foreach (var (id, pasta, _, _) in offline)
+                    try
                     {
-                        Directory.CreateDirectory(Path.Combine(destino, id));
-                        foreach (var arquivo in Directory.GetFiles(pasta))
-                            File.Copy(arquivo, Path.Combine(destino, id, Path.GetFileName(arquivo)), overwrite: true);
+                        Directory.CreateDirectory(destino);
+                        foreach (var (caminho, _) in instaladores)
+                            File.Copy(caminho, Path.Combine(destino, Path.GetFileName(caminho)), overwrite: true);
+                        foreach (var (id, pasta, _, _) in offline)
+                        {
+                            Directory.CreateDirectory(Path.Combine(destino, id));
+                            foreach (var arquivo in Directory.GetFiles(pasta))
+                                File.Copy(arquivo, Path.Combine(destino, id, Path.GetFileName(arquivo)), overwrite: true);
+                        }
                     }
+                    catch (Exception e) { Tui.Registro("Cópia dos instaladores falhou: " + e.Message); avisos.Add("Aviso: alguns instaladores não foram copiados; esses programas instalam pela internet."); }
                     File.WriteAllText($@"{w}:\{Unattend.ScriptProgramas}", Unattend.GerarScriptProgramas(ids,
                         instaladores.Select(x => (Path.GetFileName(x.Item1), x.Parametros)), offline.Select(x => (x.Id, x.Comando, x.SoUsuario)), pontoRestauracao, conferencia: true));
                     Tui.Registro($"{escolhidos.Count} programas no primeiro login: {string.Join(", ", escolhidos.Select(x => x.Nome))}" +
@@ -1220,7 +1244,6 @@ void Executar(Perfil? perfil, Edicao edicao, List<Edicao> extras, Disco disco, i
             Tui.Registro($"Inicialização {(uefi ? "UEFI" : "BIOS")} criada para {ed.Nome}");
         }));
     }
-    var avisos = new List<string> { string.Join(" + ", instalacoes.Select(x => x.Edicao.Nome)) + " instalado.", "Remova o pendrive e reinicie." };
     if (plano.Recuperacao is char r)
         trabalho.Add(("Recuperação do Windows", 2, () =>
         {
@@ -1315,7 +1338,7 @@ string? SalvarRelatorio(char windows, List<string> resumo)
         File.WriteAllText(Path.Combine(raiz, "Relatorios", nome), texto);
         return $"MontaWin\\Relatorios\\{nome}";
     }
-    catch (IOException e)
+    catch (Exception e)
     {
         Comandos.Registrar($"Relatório não salvo: {e.Message}"); // o relatório nunca derruba a instalação
         return null;
@@ -1395,10 +1418,14 @@ static bool ConfigurarRecuperacao(char windows, char recuperacao)
     var origem = $@"{windows}:\Windows\System32\Recovery\Winre.wim";
     if (!File.Exists(origem)) return false;
     var pasta = $@"{recuperacao}:\Recovery\WindowsRE";
-    Directory.CreateDirectory(pasta);
-    var destino = Path.Combine(pasta, "Winre.wim");
-    if (File.Exists(destino)) File.SetAttributes(destino, FileAttributes.Normal); // o antigo fica oculto/sistema
-    File.Copy(origem, destino, overwrite: true);
+    try
+    {
+        Directory.CreateDirectory(pasta);
+        var destino = Path.Combine(pasta, "Winre.wim");
+        if (File.Exists(destino)) File.SetAttributes(destino, FileAttributes.Normal); // o antigo fica oculto/sistema
+        File.Copy(origem, destino, overwrite: true);
+    }
+    catch (IOException) { return false; } // partição de recuperação pequena demais: o Windows funciona sem ela
     return Comandos.Executar($@"{windows}:\Windows\System32\Reagentc.exe", $@"/Setreimage /Path {pasta} /Target {windows}:\Windows") == 0;
 }
 
