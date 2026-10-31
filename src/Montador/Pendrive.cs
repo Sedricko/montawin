@@ -354,7 +354,7 @@ public static class Pendrive
         // O instalador da Microsoft não serve aqui (o pendrive abre o painel): some do pendrive para não confundir
         foreach (var velho in new[] { $@"{boot}:\setup.exe" }) if (File.Exists(velho)) File.Delete(velho);
         var cor = tema switch { "pastel" or "cristal" => "claro", _ => "escuro" };
-        foreach (var (letra, nome, rotulo) in new[] { (boot, "Aurora Win", "AURORA WIN"), (dados, "Aurora Win · dados", "AURORA DADOS") })
+        foreach (var (letra, nome, rotulo) in new[] { (boot, "Aurora Win", "AURORA WIN"), (dados, "Aurora Win - dados", "AURORA DADOS") })
         {
             var inf = $@"{letra}:\autorun.inf";
             var ico = $@"{letra}:\aurora.ico";
@@ -362,7 +362,7 @@ public static class Pendrive
             using (var origem = typeof(Pendrive).Assembly.GetManifestResourceStream($"unidade-{cor}.ico"))
             using (var destino = origem == null ? null : File.Create(ico))
                 origem?.CopyTo(destino!);
-            File.WriteAllText(inf, $"[autorun]\r\nicon=aurora.ico\r\nlabel={nome}\r\n");
+            File.WriteAllText(inf, $"[autorun]\r\nicon=aurora.ico\r\nlabel={nome}\r\n", System.Text.Encoding.ASCII); // o autorun.inf é lido na página ANSI: UTF-8 com acento virava "Â·"
             foreach (var f in new[] { inf, ico }) File.SetAttributes(f, FileAttributes.Hidden | FileAttributes.System);
             Comandos.Executar("label", $"{letra}: {rotulo}"); // pendrives gravados antes ainda se chamavam MONTAWIN
         }
