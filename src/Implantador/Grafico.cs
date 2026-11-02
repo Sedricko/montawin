@@ -104,7 +104,7 @@ public sealed unsafe partial class TelaGrafica : ISaida
         var fontes = pasta == null ? null : Path.Combine(pasta, "Fontes");
         if (fontes != null && Directory.Exists(fontes) && GdipNewPrivateFontCollection(&nova) == 0) colecao = nova;
         if (colecao != 0)
-            foreach (var arquivo in Directory.GetFiles(fontes, "*.ttf"))
+            foreach (var arquivo in Directory.GetFiles(fontes!, "*.ttf"))
                 GdipPrivateAddFontFile(colecao, arquivo);
         bool Familia(string nome, nint* f) => (colecao != 0 && GdipCreateFontFamilyFromName(nome, colecao, f) == 0) || GdipCreateFontFamilyFromName(nome, 0, f) == 0;
 
