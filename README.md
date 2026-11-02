@@ -26,8 +26,8 @@ As pastas no pendrive continuam se chamando `MontaWin` (nome antigo), para os pe
 
 | Partição | Sistema | Conteúdo |
 |---|---|---|
-| `MONTAWIN` (2 GB) | FAT32 | Arquivos de boot (UEFI e BIOS) e `sources\boot.wim`: o WinPE da ISO com o Implantador dentro e um `winpeshl.ini` que abre o painel em vez do instalador da Microsoft |
-| `MONTAWIN-DADOS` (resto) | NTFS | `MontaWin\Imagens\<nome da ISO>.wim` com as edições escolhidas, `MontaWin\Backups\<data>`, `MontaWin\Drivers` (drivers extras) e `MontaWin\Logs` (registro de cada uso) |
+| `AURORA WIN` (2 GB) | FAT32 | Arquivos de boot (UEFI e BIOS) e `sources\boot.wim`: o WinPE da ISO com o Implantador dentro e um `winpeshl.ini` que abre o painel em vez do instalador da Microsoft |
+| `AURORA DADOS` (resto) | NTFS | `MontaWin\Imagens\<nome da ISO>.wim` com as edições escolhidas, `MontaWin\Backups\<data>`, `MontaWin\Drivers` (drivers extras) e `MontaWin\Logs` (registro de cada uso) |
 
 **Drivers extras:** coloque em `MontaWin\Drivers` as pastas com `.inf` de drivers de disco (Intel RST/RAID/VMD) quando o disco do PC não aparecer no painel. O painel carrega esses drivers ao abrir e também os instala no Windows novo.
 
