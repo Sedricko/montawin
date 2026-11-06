@@ -18,6 +18,7 @@
     <Compile Include="..\..\src\Montador\Pendrive.cs" Link="Pendrive.cs" />
     <Compile Include="..\..\src\Montador\Atualizacoes.cs" Link="Atualizacoes.cs" />
     <Compile Include="..\..\src\Montador\ListaProgramas.cs" Link="ListaProgramas.cs" />
+    <Compile Include="..\..\src\Montador\Redes.cs" Link="Redes.cs" />
   </ItemGroup>
 
   <ItemGroup>

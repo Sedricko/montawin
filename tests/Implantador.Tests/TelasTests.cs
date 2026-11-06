@@ -235,6 +235,15 @@ public class TelasTests
     }
 
     [Fact]
+    public void RedesWifiDoNetshEmQualquerIdioma()
+    {
+        var alcance = "Interface name : Wi-Fi\r\nSSID 1 : Casa\r\n    Network type : Infrastructure\r\nSSID 2 : Vizinho 5G\r\n";
+        var salvas = "Perfis de grupo:\r\n    Perfil de Todos os Usuários : Casa\r\n    Perfil de Todos os Usuários : Escritório\r\n";
+        Assert.Equal(["Casa", "Vizinho 5G", "Escritório"], MontaWin.Montador.Redes.Ler(alcance, salvas));
+        Assert.Empty(MontaWin.Montador.Redes.Ler("", "O serviço wlansvc não está em execução."));
+    }
+
+    [Fact]
     public void IconeGenericoNaoVale()
     {
         static byte[] Png(int largura) { var b = new byte[64]; b[0] = 0x89; b[1] = (byte)'P'; b[19] = (byte)largura; return b; }

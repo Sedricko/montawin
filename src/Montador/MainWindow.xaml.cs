@@ -337,6 +337,7 @@ public partial class MainWindow : Window
         AtualizarAuto.IsEnabled = !ocupado && (iso == null || Atualizacoes.Versao(iso.Edicoes.FirstOrDefault()?.Build ?? 0) != null);
         if (!AtualizarAuto.IsEnabled && !ocupado) AtualizarAuto.IsChecked = false;
         Status.Text = status;
+        Barra.IsIndeterminate = ocupado; // trabalhando sem percentual (busca, atualizar): a barra anda sozinha; ao chegar um percentual ela vira normal
     }
 
     // ---------- Windows (ISO) ----------
@@ -589,7 +590,7 @@ public partial class MainWindow : Window
                 return baixar ? Pendrive.BaixarProgramas(dados, (etapa, pct) => Dispatcher.Invoke(() =>
                 {
                     if (etapa != null) Status.Text = etapa;
-                    Barra.Value = pct;
+                    (Barra.IsIndeterminate, Barra.Value) = (false, pct);
                 })) : [];
             });
             Barra.Value = 100;
@@ -689,14 +690,9 @@ public partial class MainWindow : Window
             redes = await Task.Run(() =>
             {
                 Comandos.Executar("netsh", "wlan show networks");
-                var alcance = Comandos.UltimaSaidaCompleta.Split(['\r', '\n'])
-                    .Select(l => System.Text.RegularExpressions.Regex.Match(l.Trim(), @"^SSID \d+\s*:\s*(.+)$"))
-                    .Where(m => m.Success).Select(m => m.Groups[1].Value.Trim()).Where(n => n.Length > 0);
+                var alcance = Comandos.UltimaSaidaCompleta;
                 Comandos.Executar("netsh", "wlan show profiles");
-                var salvas = Comandos.UltimaSaidaCompleta.Split(['\r', '\n'])
-                    .Select(l => System.Text.RegularExpressions.Regex.Match(l, @"^\s*[^:]*(?:Perfil|Profile)[^:]*:\s*(.+?)\s*$"))
-                    .Where(m => m.Success).Select(m => m.Groups[1].Value);
-                return alcance.Concat(salvas).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                return Redes.Ler(alcance, Comandos.UltimaSaidaCompleta);
             });
         }
         catch (Exception ex) { Ocupado(false, "Não deu para procurar as redes."); Erro($"Não consegui listar as redes Wi-Fi:\n{ex.Message}"); return; }
@@ -832,7 +828,7 @@ public partial class MainWindow : Window
         {
             janela.Atualizar(etapa, pct);
             if (etapa != null) Status.Text = etapa;
-            Barra.Value = pct;
+            (Barra.IsIndeterminate, Barra.Value) = (false, pct);
         });
         string? atualizacoes = PastaAtualizacoes.Text.Length > 0 ? PastaAtualizacoes.Text : null;
         if (atualizacoes != null && (!Directory.Exists(atualizacoes) || Directory.GetFiles(atualizacoes, "*.msu").Length == 0))
